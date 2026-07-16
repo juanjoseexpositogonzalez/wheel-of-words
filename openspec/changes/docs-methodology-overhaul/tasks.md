@@ -387,11 +387,11 @@ Slice D creates the enforcement layer: the traceability matrix (references ADR f
 
 ### 5.4 Verification checklist for Slice D
 
-- [ ] `docs/traceability-matrix.md` exists; column headers match spec §6.1; ≥ 1 non-`Pendiente` row
-- [ ] `docs/traceability-matrix.md` contains `## Reglas de actualización` with 5 rules
-- [ ] `docs/definition-of-done.md` exists in Spanish; "canónica en caso de conflicto" explicit; no verbatim Art. XI copy
-- [ ] `docs/definition-of-done.md` links to `docs/constitution.md`, `AGENTS.md`, `docs/traceability-matrix.md`
-- [ ] `docs/architecture/overview.md` cross-reference footer added linking to `architecture-baseline.md` and `docs/adr/README.md`; no other body text modified
+- [x] `docs/traceability-matrix.md` exists; column headers match spec §6.1; ≥ 1 non-`Pendiente` row
+- [x] `docs/traceability-matrix.md` contains `## Reglas de actualización` with 5 rules
+- [x] `docs/definition-of-done.md` exists in Spanish; "canónica en caso de conflicto" explicit; no verbatim Art. XI copy
+- [x] `docs/definition-of-done.md` links to `docs/constitution.md`, `AGENTS.md`, `docs/traceability-matrix.md`
+- [x] `docs/architecture/overview.md` cross-reference footer added linking to `architecture-baseline.md` and `docs/adr/README.md`; no other body text modified
 
 ---
 
