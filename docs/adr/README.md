@@ -43,12 +43,10 @@ ADRs are numbered globally and sequentially. Numbers are zero-padded to four dig
 | [ADR-0004](0004-sdd-openspec.md) | SDD + OpenSpec as the planning method for all features | Accepted | 2026-07-15 | 1 |
 | [ADR-0005](0005-local-first.md) | Local-first processing; no third-party data egress by default | Accepted | 2026-07-15 | 1 |
 | [ADR-0006](0006-pos-per-occurrence.md) | POS assigned per occurrence; no single global POS per lemma | Accepted | 2026-07-15 | 1 |
-| ADR-0007 | Manual corrections take precedence and survive reprocessing | Accepted | 2026-07-16 | 2 |
-| ADR-0008 | Multi-language support scope from day one (three-part decision) | Accepted | 2026-07-16 | 2 |
-| ADR-0009 | Multiword expressions as language-specific instances | Accepted | 2026-07-16 | 2 |
-| ADR-0010 | Documentation language policy: methodology EN, product-facing ES | Accepted | 2026-07-16 | 2 |
-
-Wave 2 ADR files (0007–0010) will be created in Slice C.
+| [ADR-0007](0007-manual-corrections-precedence.md) | Manual corrections take precedence and survive reprocessing | Accepted | 2026-07-16 | 2 |
+| [ADR-0008](0008-multi-language-scope.md) | Multi-language scope from day one | Accepted | 2026-07-16 | 2 |
+| [ADR-0009](0009-mwe-language-specific-instances.md) | Multiword expressions as language-specific instances | Accepted | 2026-07-16 | 2 |
+| [ADR-0010](0010-documentation-language-policy.md) | Documentation language policy: methodology EN, product-facing ES | Accepted | 2026-07-16 | 2 |
 
 ---
 
