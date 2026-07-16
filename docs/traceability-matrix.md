@@ -32,6 +32,13 @@ the full requirement landscape without opening every spec directory.
 | REQ-001-007 | El dominio no contiene imports de frameworks; arquitectura hexagonal validable | `specs/001-project-foundation/acceptance.md#AC-007` | `specs/001-project-foundation/test-plan.md` (UT-BE-001, UT-BE-002) | T004–T010 | Pendiente |
 | REQ-DOCS-010 | `docs/adr/README.md` con índice, vocabulario de estado, convención de numeración y reglas de autoría | `openspec/changes/docs-methodology-overhaul/spec.md#AC-010` | N/A — inspección | TB01 | Cumplido |
 | REQ-DOCS-030 | `docs/glossary.md` en español con todos los términos canónicos del dominio lingüístico (≥ 13 entradas) | `openspec/changes/docs-methodology-overhaul/spec.md#AC-030` | N/A — inspección | TC07, TC08 | Cumplido |
+| REQ-DOCS-060 | Preámbulo de la constitución generalizado: eliminar "inglés" como único ámbito; framing multi-idioma | `openspec/changes/docs-methodology-overhaul/spec.md#AC-060` | N/A — inspección | TE02 | Cumplido |
+| REQ-DOCS-062 | Constitución bumpeada a v2.0.0 (MAJOR) con sección de registro de enmiendas | `openspec/changes/docs-methodology-overhaul/spec.md#AC-062` | N/A — inspección | TE01, TE03 | Cumplido |
+| REQ-DOCS-06C | `README.md` línea 3 generalizada: eliminar "en inglés" como calificador de ámbito | `openspec/changes/docs-methodology-overhaul/spec.md#AC-066` | N/A — inspección | TE08 | Cumplido |
+| REQ-DOCS-066 | `docs/product-vision.md` §4 usuario generalizado: "en el idioma que estudia" | `openspec/changes/docs-methodology-overhaul/spec.md#AC-067` | N/A — inspección | TE04 | Cumplido |
+| REQ-DOCS-06A | `AGENTS.md` §4 cláusula MWE generalizada con wording OQ-10 canónico | `openspec/changes/docs-methodology-overhaul/spec.md#AC-071` | N/A — inspección | TE09 | Cumplido |
+| REQ-DOCS-06B | Invariante de coordinación: los cuatro archivos de enmienda aterrizan atómicamente en un único commit | `openspec/changes/docs-methodology-overhaul/spec.md#AC-072` | N/A — git log | TE01..TE13 | Cumplido |
+| REQ-DOCS-043 | `AGENTS.md` §10 puerta DoD de trazabilidad añadida | `openspec/changes/docs-methodology-overhaul/spec.md#AC-043` | N/A — inspección | TE10 | Cumplido |
 
 ---
 

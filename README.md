@@ -1,6 +1,6 @@
 # Wheel Vocabulary — Paquete inicial SDD + TDD
 
-Este paquete define el marco de trabajo para construir una aplicación web de análisis de vocabulario literario en inglés, comenzando por *The Eye of the World* como primer corpus aportado legalmente por el usuario.
+Este paquete define el marco de trabajo para construir una aplicación web de análisis de vocabulario literario en el idioma que el lector estudia. El inglés es la primera lengua soportada y *The Eye of the World* es el corpus inicial aportado legalmente por el usuario.
 
 ## Contenido
 
@@ -63,3 +63,16 @@ de palabras únicas con su frecuencia.
 ```
 
 Esa especificación será el primer corte vertical con valor visible para el usuario.
+
+---
+
+## Referencias
+
+- [Constitución del proyecto](docs/constitution.md)
+- [Visión de producto](docs/product-vision.md)
+- [Índice de ADR](docs/adr/README.md)
+- [Baseline arquitectónica](docs/architecture/architecture-baseline.md)
+- [Glosario](docs/glossary.md)
+- [Definición de terminado](docs/definition-of-done.md)
+- [Matriz de trazabilidad](docs/traceability-matrix.md)
+- [Log de decisiones](docs/decisions-log.md)

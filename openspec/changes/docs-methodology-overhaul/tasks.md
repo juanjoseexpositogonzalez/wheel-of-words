@@ -547,16 +547,16 @@ The amendment payload is a **coordinated four-file atomic apply**. REQ-DOCS-06B 
 
 ### 6.4 Verification checklist for Slice E
 
-- [ ] All 4 files (`docs/constitution.md`, `docs/product-vision.md`, `README.md`, `AGENTS.md`) contain their respective changes
-- [ ] `grep "Versión.*2.0.0" docs/constitution.md` passes; `grep "Fecha de aprobación.*2026-07-15"` passes
-- [ ] `grep "Registro de enmiendas" docs/constitution.md` passes; Art. XII body text byte-identical
-- [ ] `grep "vocabulario inglés" docs/constitution.md docs/product-vision.md README.md AGENTS.md` returns 0 (no residual English-only scope claims)
-- [ ] OQ-10 canonical wording `"expresiones multipalabra específicas del idioma"` appears in all 9 target files: constitution (preamble area by intent), product-vision §10/§12, AGENTS.md §4, glossary abstract entry, ADR-0008, ADR-0009, architecture-baseline invariants, decisions-log ADR-0008/0009 rows
-- [ ] `grep "matriz de trazabilidad se ha actualizado" AGENTS.md` passes (exact spec §6.4 wording)
-- [ ] Cross-references from amendment files point to Slice A–D artifacts (all targets must exist)
-- [ ] `grep -r "inglés" docs README.md AGENTS.md` returns only descriptive-context matches (A-7 re-scan passes)
-- [ ] Bidirectionality: `grep "constitution" docs/adr/README.md` ≥ 1; `grep "adr/README" docs/constitution.md` ≥ 1 (both directions of all major cross-ref pairs present)
-- [ ] §8 "Fuera de alcance inicial" in `docs/product-vision.md` unchanged: `grep "Traducción automática masiva" docs/product-vision.md` ≥ 1
+- [x] All 4 files (`docs/constitution.md`, `docs/product-vision.md`, `README.md`, `AGENTS.md`) contain their respective changes
+- [x] `grep "Versión.*2.0.0" docs/constitution.md` passes; `grep "Fecha de aprobación.*2026-07-15"` passes
+- [x] `grep "Registro de enmiendas" docs/constitution.md` passes; Art. XII body text byte-identical
+- [x] `grep "vocabulario inglés" docs/constitution.md docs/product-vision.md README.md AGENTS.md` returns 0 (no residual English-only scope claims)
+- [x] OQ-10 canonical wording `"expresiones multipalabra específicas del idioma"` appears in all 9 target files: constitution (preamble area by intent), product-vision §10/§12, AGENTS.md §4, glossary abstract entry, ADR-0008, ADR-0009, architecture-baseline invariants, decisions-log ADR-0008/0009 rows
+- [x] `grep "matriz de trazabilidad se ha actualizado" AGENTS.md` passes (exact wording from spec §6.4)
+- [x] Cross-references from amendment files point to Slice A–D artifacts (all targets must exist)
+- [x] `grep -r "inglés" docs README.md AGENTS.md` returns only descriptive-context matches (A-7 re-scan passes)
+- [x] Bidirectionality: `grep "constitution" docs/adr/README.md` ≥ 1; `grep "adr/README" docs/constitution.md` ≥ 1 (both directions of all major cross-ref pairs present)
+- [x] §8 "Fuera de alcance inicial" in `docs/product-vision.md` unchanged: `grep "Traducción automática masiva" docs/product-vision.md` ≥ 1
 
 ---
 
