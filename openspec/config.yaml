@@ -1,0 +1,93 @@
+# GITIGNORE POLICY (apply when repo is git-initialized):
+#   - COMMIT:    openspec/config.yaml  (this file)
+#   - COMMIT:    openspec/specs/       (baseline specs)
+#   - GITIGNORE: openspec/changes/     (ephemeral SDD planning; re-hydrate from Engram if needed)
+
+project:
+  name: wheel-of-words
+  description: Local-first vocabulary extraction and study app.
+  repo_root: /Users/isildur/code/wheel-of-words
+
+stack:
+  status: not-implemented
+  planned_backend: Python 3.12 + FastAPI + SQLAlchemy + spaCy
+  planned_frontend: React + Vite + TypeScript
+  planned_persistence: SQLite (MVP)
+  notes: |
+    No source code yet. Stack is planned per docs/adr/0001-monorepo-and-stack.md.
+    All commands below will error until code exists; they are declared so future
+    agents know what to run once the code lands.
+
+test_commands:
+  unit: uv run pytest tests/unit
+  integration: uv run pytest tests/integration
+  all: uv run pytest
+  lint: uv run ruff check .
+  typecheck: uv run mypy .
+  format: uv run ruff format .
+
+persistence_mode: openspec+engram
+
+strict_tdd: true
+
+skill_registry_path: .atl/skill-registry.md
+
+change_slug_convention:
+  pattern: kebab-case
+  format: "<capability>-<intent>"
+  example: docs-methodology-overhaul
+
+artifact_store:
+  primary: openspec
+  companion: engram
+  topic_key_pattern: "sdd/<change-slug>/<phase>"
+  phases:
+    - explore
+    - proposal
+    - spec
+    - design
+    - tasks
+    - apply-progress
+    - verify-report
+    - archive-report
+
+rules:
+  proposal:
+    - Every proposal MUST state explicit non-goals.
+    - Every proposal MUST estimate sizing and flag chained-slice need.
+  specs:
+    - Requirements MUST use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY).
+    - Requirements MUST be numbered with a stable prefix (REQ-<CAP>-###).
+    - Every requirement MUST have an acceptance criterion in the spec.
+  design:
+    - Design defines content contracts and structure, NOT final prose.
+    - Design MUST resolve any open questions it owns; unresolved items MUST carry forward explicitly.
+  tasks:
+    - Tasks MUST be hierarchical, numbered by slice (T<slice-letter><n>).
+    - Every task MUST have title with tag, file(s), REQ/AC refs, done-when, and est. lines.
+    - Tag vocabulary follows AGENTS.md §8.
+  apply:
+    tdd: true
+    test_command: uv run pytest
+    rules:
+      - TDD is MANDATORY when code changes (strict_tdd=true). Not applicable to doc-only changes.
+      - Apply MUST persist apply-progress before returning.
+      - Apply MUST commit with conventional-commits format.
+  verify:
+    test_command: uv run pytest
+    build_command: uv run ruff check . && uv run mypy .
+    coverage_threshold: 80
+    rules:
+      - Verify MUST re-run all applicable acceptance criteria from the spec.
+      - Verify MUST produce a verify-report artifact.
+  archive:
+    - Archive MUST sync delta specs into openspec/specs/ if the change modified a capability spec.
+    - Archive MUST persist an archive-report.
+
+# NOTE (do not remove): openspec/changes/ gitignore policy is deferred.
+# When gitignore policy is finalized after the first archive, add here:
+#   openspec:
+#     gitignore_changes: true|false
+# For now, openspec/changes/ IS tracked so the current cycle is auditable.
+# Rationale: capture ephemeral SDD planning atomically per cycle, then archive
+# to `openspec/archive/` and re-evaluate whether raw `changes/` needs tracking.

@@ -72,10 +72,10 @@ Slice A gives every subsequent session a cold-start capability: `openspec/config
 
 ### 2.4 Verification checklist for Slice A
 
-- [ ] `openspec/config.yaml` exists and parses as valid YAML 1.2
-- [ ] `grep -c "gitignore" openspec/config.yaml` ≥ 1 (gitignore-policy comment block present)
-- [ ] `.atl/skill-registry.md` contains all 11 SDD skill entries with correct paths
-- [ ] `.atl/skill-registry.md` previously existing 11 rows preserved verbatim (except `Last updated` date)
+- [x] `openspec/config.yaml` exists and parses as valid YAML 1.2
+- [x] `grep -c "gitignore" openspec/config.yaml` ≥ 1 (gitignore-policy comment block present)
+- [x] `.atl/skill-registry.md` contains all 11 SDD skill entries with correct paths
+- [x] `.atl/skill-registry.md` previously existing 11 rows preserved verbatim (except `Last updated` date)
 
 ---
 
