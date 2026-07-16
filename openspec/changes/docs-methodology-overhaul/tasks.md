@@ -324,10 +324,10 @@ Slice C completes the ADR suite with Wave 2 contextual decisions (manual correct
 - [x] ADR-0007..0010: each file exists, Status=Accepted, dates=2026-07-16, conform to `_template.md`
 - [x] ADR-0009 title is exactly "Multiword expressions as language-specific instances"; `mwe_kind` present
 - [x] `docs/adr/README.md` index now covers ADR-0001..0010; ADR-0002..0006 show Wave 1, ADR-0007..0010 show Wave 2
-- [ ] `docs/architecture/architecture-baseline.md` exists; `grep -c "mermaid"` ≥ 3; 9 committed invariants enumerated
-- [ ] `docs/glossary.md` exists in Spanish; 13+ entries; abstract MWE entry heading is `### Expresión multipalabra específica del idioma`; phrasal verb entry reads as instance-example (OQ-10 compliant)
+- [x] `docs/architecture/architecture-baseline.md` exists; `grep -c "mermaid"` ≥ 3; 9 committed invariants enumerated
+- [x] `docs/glossary.md` exists in Spanish; 13+ entries; abstract MWE entry heading is `### Expresión multipalabra específica del idioma`; phrasal verb entry reads as instance-example (OQ-10 compliant)
 - [x] `docs/decisions-log.md` now has all 26 seed rows; Wave 2 rows appended; chronological order preserved
-- [ ] `grep "expresiones multipalabra específicas del idioma" docs/adr/0008-multi-language-scope.md docs/adr/0009-mwe-language-specific-instances.md docs/glossary.md` returns ≥ 3 matches (OQ-10 canonical wording present)
+- [x] `grep "expresiones multipalabra específicas del idioma" docs/adr/0008-multi-language-scope.md docs/adr/0009-mwe-language-specific-instances.md docs/glossary.md` returns ≥ 3 matches (OQ-10 canonical wording present)
 
 ---
 
