@@ -1,0 +1,53 @@
+# Python (no code yet, preparing for future backend)
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# Node / frontend (no code yet, preparing for future frontend)
+node_modules/
+dist/
+build/
+.next/
+.parcel-cache/
+.vite/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# SDD ephemeral planning — decision deferred until first archive completes.
+# Do NOT gitignore openspec/changes/ yet; current cycle history must remain traceable.
+
+# Force tracking of .atl/ and openspec/ despite the global ~/.config/git/ignore rules.
+# These directories are load-bearing methodology artifacts in this project (skill
+# registry + SDD change spool). The global ignore treats them as ephemeral, which
+# is not true here.
+!.atl/
+!.atl/**
+!openspec/
+!openspec/**
+
+# The local skill-registry cache is machine-specific, do not track it.
+.atl/.skill-registry.cache.json
