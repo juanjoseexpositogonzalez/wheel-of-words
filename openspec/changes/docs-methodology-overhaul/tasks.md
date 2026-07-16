@@ -199,12 +199,12 @@ Slice B establishes the ADR infrastructure (index + template) and the 5 foundati
 
 ### 3.4 Verification checklist for Slice B
 
-- [ ] `docs/adr/README.md` exists; `grep -c "Proposed\|Accepted\|Superseded\|Deprecated"` ≥ 4; index table has `Wave` column
-- [ ] `docs/adr/_template.md` exists; contains all 7 required heading patterns; no YAML front-matter
-- [ ] ADR-0002..0006: each file exists, Status=Accepted, Date=2026-07-15, conforms to `_template.md`
-- [ ] ADR index does NOT include `_template.md` as a numbered entry
-- [ ] `docs/decisions-log.md` exists; Wave 1 seed rows (2026-07-15) present; Engineering Playbook deferral row includes verbatim trigger string
-- [ ] Wave 2 entries (2026-07-16, ADR-0007..0010) NOT yet in decisions-log (they belong to Slice C)
+- [x] `docs/adr/README.md` exists; `grep -c "Proposed\|Accepted\|Superseded\|Deprecated"` ≥ 4; index table has `Wave` column
+- [x] `docs/adr/_template.md` exists; contains all 7 required heading patterns; no YAML front-matter
+- [x] ADR-0002..0006: each file exists, Status=Accepted, Date=2026-07-15, conforms to `_template.md`
+- [x] ADR index does NOT include `_template.md` as a numbered entry
+- [x] `docs/decisions-log.md` exists; Wave 1 seed rows (2026-07-15) present; Engineering Playbook deferral row includes verbatim trigger string
+- [x] Wave 2 entries (2026-07-16, ADR-0007..0010) NOT yet in decisions-log (they belong to Slice C)
 
 ---
 
