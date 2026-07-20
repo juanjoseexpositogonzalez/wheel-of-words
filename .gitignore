@@ -51,3 +51,25 @@ Thumbs.db
 
 # The local skill-registry cache is machine-specific, do not track it.
 .atl/.skill-registry.cache.json
+
+# ─── Slice A additions ────────────────────────────────────────────────────────
+
+# Python virtual environment (uv-managed; not committed)
+apps/api/.venv/
+
+# Python bytecode and caches (path-specific, complementing the root rules above)
+apps/api/.pytest_cache/
+apps/api/.mypy_cache/
+apps/api/.ruff_cache/
+apps/api/htmlcov/
+apps/api/.coverage
+apps/api/.coverage.*
+apps/api/coverage.xml
+
+# SQLite development database (created at runtime; never committed)
+data/
+
+# Node modules and build artifacts (path-specific)
+apps/web/node_modules/
+apps/web/dist/
+apps/web/coverage/
