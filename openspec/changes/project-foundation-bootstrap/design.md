@@ -115,9 +115,9 @@ wheel-of-words/                          ← repo root (already exists)
 │   │   │       └── api/
 │   │   │           ├── __init__.py
 │   │   │           ├── main.py          ← FastAPI factory (Slice B)
-│   │   │           ├── routers/
+│   │   │           ├── routes/
 │   │   │           │   ├── __init__.py
-│   │   │           │   └── health.py    ← /health router (Slice B)
+│   │   │           │   └── health.py    ← /health route (Slice B)
 │   │   │           └── schemas/
 │   │   │               └── health.v1.json  ← JSON Schema (Slice B)
 │   │   └── tests/
@@ -301,7 +301,7 @@ strict  = true
 GET /api/v1/health
     │
     ▼
-apps/api/src/wheel_vocabulary/api/routers/health.py
+apps/api/src/wheel_vocabulary/api/routes/health.py
     router = APIRouter(prefix="/api/v1")
     @router.get("/health", response_model=HealthOut)
     async def health(settings: Annotated[Settings, Depends(get_settings)],
@@ -328,7 +328,7 @@ apps/api/src/wheel_vocabulary/api/routers/health.py
 
 **ADR-0002 compliance:** `api` depends on `application` (Clock protocol lives in `application/`), not on `infrastructure` directly. The `SystemClock` is injected via `infrastructure`'s dependency provider, not imported directly in the router. This preserves the inward dependency direction.
 
-**Traceability:** REQ-001-001 (FastAPI startable) → `main.py` factory. REQ-001-002 (health endpoint) → `routers/health.py`. Constitution Art. VII.4 (no business rules in API) → thin handler. ADR-0002 (hexagonal) → Clock port in `application/`, adapter in `infrastructure/`.
+**Traceability:** REQ-001-001 (FastAPI startable) → `main.py` factory. REQ-001-002 (health endpoint) → `routes/health.py`. Constitution Art. VII.4 (no business rules in API) → thin handler. ADR-0002 (hexagonal) → Clock port in `application/`, adapter in `infrastructure/`.
 
 ### 6.2 Timestamp semantics
 

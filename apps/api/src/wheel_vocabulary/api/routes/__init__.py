@@ -1,1 +1,1 @@
-"""FastAPI routers — one module per resource."""
+"""FastAPI routes — one module per resource."""
