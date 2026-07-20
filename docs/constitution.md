@@ -134,5 +134,7 @@ Ninguno de los invariantes vigentes en la versión 1.0.0 se debilita con esta en
 ## Referencias
 
 - [Índice de ADR](adr/README.md)
+- [Baseline arquitectónica](architecture/architecture-baseline.md)
+- [Glosario del dominio lingüístico](glossary.md)
 - [Definición de terminado (extracto navegable)](definition-of-done.md)
 - [Matriz de trazabilidad](traceability-matrix.md)

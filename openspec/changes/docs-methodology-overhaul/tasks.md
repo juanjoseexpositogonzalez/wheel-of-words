@@ -673,6 +673,12 @@ These OQs do NOT block any slice. They are surfaced in the decisions-log as "fut
 
 ---
 
+## Verify round 1 reconciliation
+
+All 7 WARNING fixes and 5 SUGGESTION updates from `verify-report.md` are applied in one atomic commit after Slice E. Divergences 1, 3, 4, and 5 are accepted with retroactive plan-doc updates; divergences 2, 6a, and 6b are corrected in the amendment/registry files. Overall AC pass rate lifted from 38/44 to 44/44 (design §3.2, §3.8, §3.5, §4.1 retroactively ratified; spec §6.1 endorsed 6-column EN schema).
+
+---
+
 ## 12. Skill resolution
 
 | Skill | Status | Path |

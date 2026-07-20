@@ -66,8 +66,9 @@ Esa especificación será el primer corte vertical con valor visible para el usu
 
 ---
 
-## Referencias
+## Referencias metodológicas
 
+- [Instrucciones de agentes y colaboradores](AGENTS.md)
 - [Constitución del proyecto](docs/constitution.md)
 - [Visión de producto](docs/product-vision.md)
 - [Índice de ADR](docs/adr/README.md)

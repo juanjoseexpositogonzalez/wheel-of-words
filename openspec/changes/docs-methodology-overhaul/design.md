@@ -182,7 +182,7 @@ rules:                                  # object keyed by phase
 
 ### 3.2 `.atl/skill-registry.md` — SDD entries addition
 
-**Ordering rule**: alphabetical by skill name, case-insensitive (matching existing file convention, confirmed in spec §8.2).
+**Ordering rule (updated post-Slice-A)**: SDD phase skills go in a dedicated `## SDD phase skills (user-level)` section AFTER the existing user-level skills sections. Within the section, order by SDD phase (init, onboard, explore, propose, spec, design, tasks, apply, verify, archive). This shape landed in Slice A (commit fd93edd) and was ratified in verify round 1.
 
 **Per-entry field format** (columns preserved verbatim):
 ```
@@ -411,8 +411,10 @@ rules:                                  # object keyed by phase
 #### ADR-0008 — Multi-language scope
 
 - **Filename**: `docs/adr/0008-multi-language-scope.md`
-- **Title**: `Multi-language support scope from day one (three-part decision)`
+- **Title**: `Multi-language scope from day one`
 - **Status**: Accepted | **Date**: 2026-07-16 | **Wave**: 2
+
+  Three-part structure lives in the Decision section, not in the title. Ratified in verify round 1.
 - **Context beats**:
   1. Must mention: Constitution preamble v1.0.0 scoped to "vocabulario inglés" — the original English-only framing.
   2. Must mention: Constitution amendment v2.0.0 (this cycle) — scope generalized; English framed as first-implemented language.
@@ -591,7 +593,9 @@ rules:                                  # object keyed by phase
 | Criterio de aceptación | string | AC-ID reference or inline Given/When/Then |
 | Archivo(s) de prueba | string | Path(s) to test file(s) or test-IDs |
 | Tarea(s) | string | T-ID reference(s) |
-| Estado | enum | `Pendiente` \| `En progreso` \| `Pasando` \| `Bloqueado` \| `Obsoleto` |
+| Estado | enum | `Pendiente` \| `En progreso` \| `Cumplido` \| `Bloqueado` \| `Obsoleto` |
+
+Vocabulary ratified in verify round 1: Cumplido reads better than Pasando in Spanish and matches natural project idiom.
 
 **Update-rules subsection** (§ "Reglas de actualización" intent, 5 rules):
 1. Add a row when a new `REQ-<feature>-<n>` is created.
@@ -607,10 +611,10 @@ rules:                                  # object keyed by phase
 | REQ-001-001 | AC-001 | `tests/api/test_health.py::test_health_endpoint` | T014–T016 | Pendiente |
 | REQ-001-002 | AC-001 | `tests/unit/test_backend_startup.py`, `tests/api/test_health.py` | T012–T016 | Pendiente |
 | REQ-001-007 | AC-007 | `tests/unit/test_domain_purity.py` | T004–T010 | Pendiente |
-| REQ-DOCS-004 | AC-004 | (manual review of `.atl/skill-registry.md` diff) | (Wave-A tasks from this change) | **Pasando** |
+| REQ-DOCS-004 | AC-004 | (manual review of `.atl/skill-registry.md` diff) | (Wave-A tasks from this change) | **Cumplido** |
 | REQ-DOCS-001 | AC-001 | (manual: `python -c "import yaml; yaml.safe_load(open('openspec/config.yaml'))"`) | (Wave-A tasks) | Pendiente |
 
-**Non-Pendiente row rationale**: `REQ-DOCS-004` is set to `Pasando` to demonstrate the update workflow, as required by REQ-DOCS-042. It will be updated to `Pasando` after the skill-registry apply task closes.
+**Non-Pendiente row rationale**: `REQ-DOCS-004` is set to `Cumplido` to demonstrate the update workflow, as required by REQ-DOCS-042. It will be updated to `Cumplido` after the skill-registry apply task closes.
 
 **DoD gate wording for AGENTS.md §10** (verbatim Spanish, from spec §6.4):
 ```
@@ -622,6 +626,8 @@ rules:                                  # object keyed by phase
 ## 4. Artifact designs (product-facing, ES design contract in EN)
 
 ### 4.1 `docs/glossary.md`
+
+Glossary landed with 14 canonical entries — the abstract MWE entry and its English-instance entry are both present as distinct rows; the '≥13' minimum from spec §5.1 is satisfied. Ratified in verify round 1.
 
 **Section outline**:
 ```

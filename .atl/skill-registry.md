@@ -33,6 +33,7 @@ Last updated: 2026-07-16
 | `judgment-day` | Trigger: judgment day, dual review, adversarial review, juzgar. Run explicit blind dual review with at most two scoped fix/re-judgment rounds. | user | `/Users/isildur/.config/opencode/skills/judgment-day/SKILL.md` |
 | `skill-creator` | Trigger: new skills, agent instructions, documenting AI usage patterns. Create LLM-first skills with valid frontmatter. | user | `/Users/isildur/.config/opencode/skills/skill-creator/SKILL.md` |
 | `skill-improver` | Trigger: improve skills, audit skills, refactor skills, skill quality. Audit and upgrade existing LLM-first skills. | user | `/Users/isildur/.config/opencode/skills/skill-improver/SKILL.md` |
+| `skill-registry` | Index available skills by trigger and path. | user | `/Users/isildur/.config/opencode/skills/skill-registry/SKILL.md` |
 | `work-unit-commits` | Plan commits as reviewable work units. Trigger: implementation, commit splitting, chained PRs, or keeping tests and docs with code. | user | `/Users/isildur/.config/opencode/skills/work-unit-commits/SKILL.md` |
 
 ## SDD phase skills (user-level)

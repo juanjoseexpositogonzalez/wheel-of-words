@@ -507,13 +507,18 @@ The glossary MUST cover, at minimum, these 13 terms sourced from AGENTS.md §4 a
 
 ### 6.1 Columns definition (REQ-DOCS-041)
 
+Columns: `REQ ID | Statement | Acceptance criterion ref | Test file(s) | Task(s) | Status`
+
 | Column | Type | Description |
 |--------|------|-------------|
-| REQ-ID | string | `REQ-<feature>-<n>` identifier. |
-| Criterio de aceptación | string | AC-ID reference or inline Given/When/Then quote. |
-| Archivo(s) de prueba | string | Path(s) to test file(s) or test-ID(s). |
-| Tarea(s) | string | T-ID reference(s). |
-| Estado | enum | `Pendiente` \| `En progreso` \| `Pasando` \| `Bloqueado` \| `Obsoleto` |
+| REQ ID | string | `REQ-<feature>-<n>` identifier. |
+| Statement | string | One-line summary of the requirement. |
+| Acceptance criterion ref | string | AC-ID reference or path to spec acceptance section. |
+| Test file(s) | string | Path(s) to test file(s) or test-ID(s). |
+| Task(s) | string | T-ID reference(s). |
+| Status | enum | `Pendiente` \| `En progreso` \| `Cumplido` \| `Bloqueado` |
+
+Column names are English scaffold (methodology artifact language); status vocabulary is Spanish to match SPEC-001 conventions. This schema was ratified after Slice D apply.
 
 ### 6.2 Worked-example row (REQ-DOCS-042)
 

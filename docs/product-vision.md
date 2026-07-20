@@ -151,3 +151,14 @@ Añadir demasiadas funciones pronto puede retrasar el núcleo.
 8. Estado de aprendizaje.
 9. Exportación Anki.
 10. EPUB y rendimiento.
+
+---
+
+## Referencias
+
+- [Constitución del proyecto](constitution.md)
+- [Glosario del dominio lingüístico](glossary.md)
+- [Índice de ADR](adr/README.md)
+- [Baseline arquitectónica](architecture/architecture-baseline.md)
+- [Matriz de trazabilidad](traceability-matrix.md)
+- [Log de decisiones](decisions-log.md)

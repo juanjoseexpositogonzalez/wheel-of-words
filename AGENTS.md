@@ -183,7 +183,7 @@ Una tarea o feature no está terminada hasta que:
 - La documentación y la trazabilidad están actualizadas.
 - No se ha incorporado material protegido.
 - No existen errores conocidos ocultados.
-- La matriz de trazabilidad (`docs/traceability-matrix.md`) se ha actualizado con las filas correspondientes a los requisitos trabajados.
+- La matriz de trazabilidad (`docs/traceability-matrix.md`) se ha actualizado con los identificadores de requisito, criterio de aceptación, prueba y tarea correspondientes.
 
 ## 11. Informe final obligatorio
 
