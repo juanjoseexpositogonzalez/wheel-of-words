@@ -21,7 +21,11 @@ dev-frontend:
 	cd apps/web && pnpm run dev
 
 dev:
-	$(MAKE) dev-backend & $(MAKE) dev-frontend
+	@echo "Starting backend and frontend concurrently. Ctrl+C stops both."
+	@trap 'kill 0' INT TERM; \
+	$(MAKE) dev-backend & \
+	$(MAKE) dev-frontend & \
+	wait
 
 # ─── Tests ────────────────────────────────────────────────────────────────────
 
