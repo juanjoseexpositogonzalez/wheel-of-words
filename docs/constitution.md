@@ -1,12 +1,13 @@
 # Constitución del proyecto Wheel Vocabulary
 
-**Versión:** 1.0.0  
+**Versión:** 2.0.0  
+**Fecha de aprobación:** 2026-07-15  
 **Estado:** Aprobada para el inicio del proyecto  
 **Ámbito:** Todo el repositorio, todas las features y todos los colaboradores
 
 ## Preámbulo
 
-Wheel Vocabulary es una aplicación web destinada a extraer, clasificar, consultar y estudiar vocabulario inglés procedente de obras literarias aportadas legalmente por el usuario.
+Wheel Vocabulary es una aplicación web destinada a extraer, clasificar, consultar y estudiar el vocabulario de obras literarias aportadas legalmente por el usuario en el idioma que este estudia. El inglés es la primera lengua soportada, pero el modelo lingüístico y el flujo de trabajo se diseñan para admitir cualquier lengua para la que exista soporte NLP adecuado.
 
 La constitución define principios no negociables. Las especificaciones pueden evolucionar, pero ninguna feature puede contradecir estas reglas sin una enmienda explícita.
 
@@ -114,3 +115,26 @@ Una feature está terminada cuando cumple requisitos, pasa pruebas, lint y tipos
 ## Artículo XII — Enmiendas
 
 Toda enmienda documentará cambio, motivación, consecuencias, fecha y versión. Cambios incompatibles incrementan versión mayor; ampliaciones compatibles, versión menor; correcciones editoriales, parche.
+
+## Registro de enmiendas
+
+### Enmienda 2026-07-16 — Alcance multi-idioma
+
+- **Fecha:** 2026-07-16
+- **Cambio:** Se generaliza el alcance del preámbulo para admitir cualquier lengua con soporte NLP; el inglés queda como primera lengua soportada. Se generaliza la categoría "phrasal verbs" del modelo lingüístico como una instancia de la categoría abstracta "expresiones multipalabra específicas del idioma", preservando la regla de modelado separado respecto de los lemas de una sola palabra.
+- **Motivación:** Decisión del usuario durante el ciclo `docs-methodology-overhaul`: el producto se diseña multi-idioma desde el día uno para no tener que retrofitear el modelo lingüístico más tarde.
+- **Consecuencias:** El payload afecta a cuatro archivos coordinados: `docs/constitution.md`, `docs/product-vision.md` (§4 usuario, §10 escenario, §12 roadmap), `README.md` (línea 3), `AGENTS.md` (§4 cláusula MWE). No se modifica el Artículo IV (derechos de autor), el Artículo V (invariantes del modelo lingüístico) ni el Artículo VII (arquitectura). Se emiten cuatro ADR contextuales (0007–0010) que codifican decisiones asociadas.
+- **Versión anterior:** 1.0.0
+- **Versión nueva:** 2.0.0
+
+Ninguno de los invariantes vigentes en la versión 1.0.0 se debilita con esta enmienda. La ampliación es aditiva sobre el alcance del preámbulo y sobre la nomenclatura del modelo lingüístico, no sobre el modelo mismo.
+
+---
+
+## Referencias
+
+- [Índice de ADR](adr/README.md)
+- [Baseline arquitectónica](architecture/architecture-baseline.md)
+- [Glosario del dominio lingüístico](glossary.md)
+- [Definición de terminado (extracto navegable)](definition-of-done.md)
+- [Matriz de trazabilidad](traceability-matrix.md)

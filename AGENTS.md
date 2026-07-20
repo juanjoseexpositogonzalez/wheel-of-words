@@ -74,7 +74,7 @@ No se debe escribir primero una implementación completa para añadir las prueba
 - El reprocesamiento nunca debe sobrescribir silenciosamente una corrección manual.
 - Los resultados automáticos deben guardar su procedencia.
 - Cuando exista incertidumbre, se debe guardar una puntuación o nivel de confianza.
-- Los phrasal verbs y expresiones multipalabra deben modelarse separadamente.
+- Las expresiones multipalabra específicas del idioma (por ejemplo, phrasal verbs en inglés, locuciones y perífrasis verbales en español, verbos separables en alemán) deben modelarse separadamente de los lemas de una sola palabra.
 - Las reglas lingüísticas no deben duplicarse en el frontend.
 
 ## 5. Arquitectura
@@ -183,6 +183,7 @@ Una tarea o feature no está terminada hasta que:
 - La documentación y la trazabilidad están actualizadas.
 - No se ha incorporado material protegido.
 - No existen errores conocidos ocultados.
+- La matriz de trazabilidad (`docs/traceability-matrix.md`) se ha actualizado con los identificadores de requisito, criterio de aceptación, prueba y tarea correspondientes.
 
 ## 11. Informe final obligatorio
 
@@ -194,3 +195,16 @@ Al finalizar una tarea, indicar:
 - Decisiones técnicas.
 - Comandos de validación ejecutados.
 - Limitaciones o trabajo pendiente.
+
+---
+
+## Referencias del proyecto
+
+- [Constitución](docs/constitution.md) — fuente canónica en caso de conflicto.
+- [Visión de producto](docs/product-vision.md)
+- [Índice de ADR](docs/adr/README.md)
+- [Baseline arquitectónica](docs/architecture/architecture-baseline.md)
+- [Glosario](docs/glossary.md)
+- [Definición de terminado (extracto)](docs/definition-of-done.md)
+- [Matriz de trazabilidad](docs/traceability-matrix.md)
+- [Log de decisiones](docs/decisions-log.md)

@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 340" role="img" aria-label="Wheel of Words — Vocabulary and lemma extraction for language learners">
+  <title>Wheel of Words</title>
+  <desc>Wheel of Words project banner. A seven-spoke wheel motif with serif wordmark, evoking The Wheel of Time.</desc>
+
+  <defs>
+    <!-- Deep night parchment background -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#141118"/>
+      <stop offset="55%" stop-color="#1c1822"/>
+      <stop offset="100%" stop-color="#0e0b12"/>
+    </linearGradient>
+
+    <!-- Warm gilded ink for the wheel -->
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#d9b56a"/>
+      <stop offset="55%" stop-color="#b98a3b"/>
+      <stop offset="100%" stop-color="#7c5620"/>
+    </linearGradient>
+
+    <!-- Soft radial halo behind the wheel -->
+    <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#b98a3b" stop-opacity="0.35"/>
+      <stop offset="60%" stop-color="#b98a3b" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#b98a3b" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Subtle parchment noise via layered rectangles (kept minimal for GitHub rendering) -->
+    <pattern id="grain" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="4" fill="#000" opacity="0"/>
+      <circle cx="1" cy="1" r="0.35" fill="#d9b56a" opacity="0.04"/>
+      <circle cx="3" cy="3" r="0.25" fill="#ffffff" opacity="0.02"/>
+    </pattern>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="340" fill="url(#bg)"/>
+  <rect width="1200" height="340" fill="url(#grain)"/>
+
+  <!-- Decorative top and bottom hairlines -->
+  <line x1="60" y1="28" x2="1140" y2="28" stroke="#b98a3b" stroke-opacity="0.35" stroke-width="1"/>
+  <line x1="60" y1="312" x2="1140" y2="312" stroke="#b98a3b" stroke-opacity="0.35" stroke-width="1"/>
+
+  <!-- Corner glyphs (small diamonds, ornamental) -->
+  <g fill="#b98a3b" opacity="0.55">
+    <polygon points="60,28 66,22 72,28 66,34"/>
+    <polygon points="1128,28 1134,22 1140,28 1134,34"/>
+    <polygon points="60,312 66,306 72,312 66,318"/>
+    <polygon points="1128,312 1134,306 1140,312 1134,318"/>
+  </g>
+
+  <!-- Halo behind wheel -->
+  <circle cx="200" cy="170" r="140" fill="url(#halo)"/>
+
+  <!-- Seven-spoke Wheel of Time-inspired mark -->
+  <!-- Outer ring -->
+  <g transform="translate(200 170)" stroke="url(#gold)" fill="none" stroke-linecap="round">
+    <circle r="98" stroke-width="2.5"/>
+    <circle r="82" stroke-width="1" stroke-opacity="0.6"/>
+    <circle r="18" stroke-width="1.5" fill="#1c1822"/>
+    <!-- Seven spokes (Wheel of Time = seven Ages) -->
+    <g stroke-width="2.2">
+      <line x1="0" y1="-96" x2="0" y2="-22"/>
+      <line x1="0" y1="-96" x2="0" y2="-22" transform="rotate(51.43)"/>
+      <line x1="0" y1="-96" x2="0" y2="-22" transform="rotate(102.86)"/>
+      <line x1="0" y1="-96" x2="0" y2="-22" transform="rotate(154.29)"/>
+      <line x1="0" y1="-96" x2="0" y2="-22" transform="rotate(205.72)"/>
+      <line x1="0" y1="-96" x2="0" y2="-22" transform="rotate(257.15)"/>
+      <line x1="0" y1="-96" x2="0" y2="-22" transform="rotate(308.58)"/>
+    </g>
+    <!-- Spoke terminators (small circles at the rim) -->
+    <g fill="url(#gold)" stroke="none">
+      <circle cx="0" cy="-98" r="3"/>
+      <circle cx="0" cy="-98" r="3" transform="rotate(51.43)"/>
+      <circle cx="0" cy="-98" r="3" transform="rotate(102.86)"/>
+      <circle cx="0" cy="-98" r="3" transform="rotate(154.29)"/>
+      <circle cx="0" cy="-98" r="3" transform="rotate(205.72)"/>
+      <circle cx="0" cy="-98" r="3" transform="rotate(257.15)"/>
+      <circle cx="0" cy="-98" r="3" transform="rotate(308.58)"/>
+    </g>
+    <!-- Hub inner glyph: a small stylized letter W embedded in a lozenge -->
+    <g stroke="none" fill="url(#gold)">
+      <polygon points="0,-14 12,0 0,14 -12,0" opacity="0.9"/>
+    </g>
+    <g stroke="#1c1822" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="-6,-4 -3,4 0,-2 3,4 6,-4"/>
+    </g>
+  </g>
+
+  <!-- Wordmark -->
+  <g font-family="Georgia, 'Times New Roman', serif" fill="#efe3c6">
+    <!-- Small eyebrow label -->
+    <text x="360" y="112" font-size="16" letter-spacing="6" fill="#b98a3b" opacity="0.9">A  V O C A B U L A R Y  F O R G E</text>
+
+    <!-- Main title -->
+    <text x="360" y="180" font-size="72" font-weight="700" letter-spacing="1">Wheel of Words</text>
+
+    <!-- Subtitle -->
+    <text x="362" y="222" font-size="20" fill="#c9b98a" opacity="0.95">
+      Turn the books you read into the words you learn.
+    </text>
+
+    <!-- Metadata line -->
+    <text x="362" y="262" font-size="14" letter-spacing="2" fill="#8a7a55">
+      SDD  ·  TDD  ·  DOMAIN-DRIVEN  ·  LOCAL-FIRST
+    </text>
+  </g>
+
+  <!-- Right-side flourish -->
+  <g transform="translate(1080 170)" stroke="url(#gold)" fill="none" stroke-linecap="round">
+    <circle r="6" stroke-width="1.5"/>
+    <line x1="-14" y1="0" x2="-90" y2="0" stroke-width="1"/>
+    <line x1="14" y1="0" x2="60" y2="0" stroke-width="1"/>
+    <circle cx="70" cy="0" r="2.5" fill="url(#gold)" stroke="none"/>
+  </g>
+</svg>

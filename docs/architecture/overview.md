@@ -127,3 +127,14 @@ Cada ejecución guardará identificador, versiones, configuración, tiempos, est
 ## 10. Evolución
 
 Debe permitir añadir EPUB, modelos NLP alternativos, PostgreSQL, trabajos en segundo plano, autenticación e interfaz de escritorio.
+
+## Referencias
+
+Este documento es el mapa vivo de la arquitectura. Se complementa con:
+
+- `docs/architecture/architecture-baseline.md` — estado comprometido en un momento del tiempo (incluye diagramas Mermaid y lista de invariantes con referencias a los ADR).
+- `docs/adr/README.md` — índice de decisiones arquitectónicas versionadas.
+- `docs/glossary.md` — vocabulario de dominio (13+ términos canónicos).
+- `docs/decisions-log.md` — log cronológico de decisiones del proyecto.
+- `docs/traceability-matrix.md` — matriz de trazabilidad cruzada entre especificaciones.
+- `docs/definition-of-done.md` — extracto navegable de la Definición de Terminado (la Constitución sigue siendo canónica).

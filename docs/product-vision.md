@@ -18,7 +18,7 @@ Construir una aplicación web local-first que transforme un libro aportado legal
 
 ## 4. Usuario principal
 
-Persona adulta que lee literatura en inglés, desea ampliar vocabulario, usa o puede usar Anki, valora la precisión lingüística y quiere conservar el control sobre sus archivos.
+Persona adulta que lee literatura en el idioma que estudia, desea ampliar vocabulario, usa o puede usar Anki, valora la precisión lingüística y quiere conservar el control sobre sus archivos.
 
 ## 5. Propuesta de valor
 
@@ -110,7 +110,7 @@ El sistema no se limitará a un libro; el primero será un corpus inicial.
 3. El usuario filtra palabras de frecuencia media.
 4. Excluye nombres propios.
 5. Marca las conocidas.
-6. Revisa phrasal verbs.
+6. Revisa expresiones multipalabra específicas del idioma.
 7. Exporta las desconocidas a Anki.
 
 ## 11. Riesgos y mitigaciones
@@ -147,7 +147,18 @@ Añadir demasiadas funciones pronto puede retrasar el núcleo.
 4. Lematización y POS.
 5. Navegador de vocabulario.
 6. Nombres propios y términos ficticios.
-7. Phrasal verbs.
+7. Expresiones multipalabra específicas del idioma.
 8. Estado de aprendizaje.
 9. Exportación Anki.
 10. EPUB y rendimiento.
+
+---
+
+## Referencias
+
+- [Constitución del proyecto](constitution.md)
+- [Glosario del dominio lingüístico](glossary.md)
+- [Índice de ADR](adr/README.md)
+- [Baseline arquitectónica](architecture/architecture-baseline.md)
+- [Matriz de trazabilidad](traceability-matrix.md)
+- [Log de decisiones](decisions-log.md)
