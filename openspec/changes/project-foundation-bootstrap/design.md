@@ -69,12 +69,14 @@ The following three decisions were made by the maintainer before this design pha
 
 ### 4.3 Package name decision
 
-The Python package is named `wheel_vocab` (not `wheel_vocabulary`, not `wheel_of_words`).
+> **Override**: maintainer has decided the Python package name is `wheel_vocabulary`. This decision supersedes NDD-01. See tasks.md §1.
+
+The Python package is named `wheel_vocab` (not `wheel_vocabulary`, not `wheel_of_words`). *(NDD-01 historical record — preserved verbatim; see Override note above.)*
 
 **Rationale:**
 - `docs/product-vision.md` §1 uses "Wheel Vocabulary" as the provisional product name; the repo directory is `wheel-of-words`. A project rename is explicitly out of scope for this cycle (spec §10.3). The design must pick one name for the Python package.
 - `wheel_vocabulary` is the Constitution's canonical project name (product-facing). Used as the Python package name it is the most faithful to the product identity.
-- However, `wheel_vocabulary` as a Python identifier is 16 characters and makes every import verbose. SPEC-001 plan.md §2 uses `wheel_vocab` as the package name in its structure sketch (`src/wheel_vocab/`).
+- However, `wheel_vocabulary` as a Python identifier is 16 characters and makes every import verbose. SPEC-001 plan.md §2 uses `wheel_vocab` as the package name in its structure sketch (`src/wheel_vocabulary/`).
 - **Design choice**: follow plan.md §2 verbatim — `wheel_vocab`. This is a `NEW-DESIGN-DECISION` (see NDD-01 in §12). It does not conflict with any ADR or Constitution clause because the Constitution does not prescribe Python identifiers.
 
 ### 4.4 Full Slice A directory tree
@@ -97,7 +99,7 @@ wheel-of-words/                          ← repo root (already exists)
 │   │   │       └── 0001_baseline.py     ← empty-schema baseline (Slice B)
 │   │   ├── pyproject.toml               ← backend package manifest
 │   │   ├── src/
-│   │   │   └── wheel_vocab/
+│   │   │   └── wheel_vocabulary/
 │   │   │       ├── __init__.py
 │   │   │       ├── domain/
 │   │   │       │   └── __init__.py
@@ -113,9 +115,9 @@ wheel-of-words/                          ← repo root (already exists)
 │   │   │       └── api/
 │   │   │           ├── __init__.py
 │   │   │           ├── main.py          ← FastAPI factory (Slice B)
-│   │   │           ├── routers/
+│   │   │           ├── routes/
 │   │   │           │   ├── __init__.py
-│   │   │           │   └── health.py    ← /health router (Slice B)
+│   │   │           │   └── health.py    ← /health route (Slice B)
 │   │   │           └── schemas/
 │   │   │               └── health.v1.json  ← JSON Schema (Slice B)
 │   │   └── tests/
@@ -160,7 +162,7 @@ wheel-of-words/                          ← repo root (already exists)
 └── README.md                            ← already exists; Slice D rewrites
 ```
 
-**Traceability:** REQ-001-015 (four-layer structure) → `src/wheel_vocab/{domain,application,infrastructure,api}/`. REQ-001-007 (`.env.example`) → `.env.example`. REQ-001-008 (Makefile) → `Makefile`. REQ-001-018 (gitignore) → `.gitignore` extension.
+**Traceability:** REQ-001-015 (four-layer structure) → `src/wheel_vocabulary/{domain,application,infrastructure,api}/`. REQ-001-007 (`.env.example`) → `.env.example`. REQ-001-008 (Makefile) → `Makefile`. REQ-001-018 (gitignore) → `.gitignore` extension.
 
 ### 4.5 Test layout decision
 
@@ -212,7 +214,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/wheel_vocab"]
+packages = ["src/wheel_vocabulary"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -225,7 +227,7 @@ markers   = [
 ]
 
 [tool.coverage.run]
-source   = ["wheel_vocab"]
+source   = ["wheel_vocabulary"]
 branch   = true
 
 [tool.coverage.report]
@@ -235,10 +237,12 @@ skip_empty   = true
 [tool.ruff]
 target-version = "py312"
 line-length    = 100
+
+[tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "S", "A", "C4", "PT", "SIM", "RET", "TCH", "TID"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["wheel_vocab"]
+known-first-party = ["wheel_vocabulary"]
 
 [tool.mypy]
 python_version     = "3.12"
@@ -246,11 +250,11 @@ strict             = false          # ← base is gradual; overrides below make 
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module  = "wheel_vocab.domain.*"
+module  = "wheel_vocabulary.domain.*"
 strict  = true
 
 [[tool.mypy.overrides]]
-module  = "wheel_vocab.application.*"
+module  = "wheel_vocabulary.application.*"
 strict  = true
 
 # infrastructure.* and api.* remain at base (gradual) — no override
@@ -262,6 +266,7 @@ strict  = true
 
 - **Rule set `E, F, I, N, UP, B, S, A, C4, PT, SIM, RET, TCH, TID`**: covers style (`E/F`), imports (`I`), naming (`N`), upgrade suggestions (`UP`), bugbear (`B`), security basics (`S`), shadowing (`A`), comprehensions (`C4`), pytest (`PT`), simplifications (`SIM`), return-value patterns (`RET`), type-checking imports (`TCH`), and tidy imports (`TID`). Omits `D` (docstrings) — documenting every empty-layer `__init__` is noise; add in a future cycle.
 - **Line length 100**: 88 (Black default) is too tight for function signatures with type annotations; 120 is too permissive for code review at 400-line PR budgets. 100 is the balance. `NEW-DESIGN-DECISION` NDD-03.
+- **Config layout `[tool.ruff.lint]`**: Ruff ≥ 0.4 recommends the split layout — `[tool.ruff]` holds top-level settings (`target-version`, `line-length`), and `[tool.ruff.lint]` holds `select` and lint sub-tables. The single-table form (`select` directly under `[tool.ruff]`) still works but is deprecated. The pinned block in §5.2 uses the modern layout. `NEW-DESIGN-DECISION` NDD-11.
 
 ### 5.4 mypy strictness resolution (deferred decision from orchestrator)
 
@@ -283,7 +288,7 @@ strict  = true
 
 **Coverage severity per slice (resolving ASSUMPTION-8 via spec §4 REF-2):**
 
-- **Slices B and C (WARN):** `pytest --cov=apps/api/src/wheel_vocab --cov-report=term-missing --cov-report=xml` runs but does NOT use `--cov-fail-under`. The CI job that runs this sets `continue-on-error: true`. The coverage number is reported and visible; the pipeline does not fail if below threshold.
+- **Slices B and C (WARN):** `pytest --cov=apps/api/src/wheel_vocabulary --cov-report=term-missing --cov-report=xml` runs but does NOT use `--cov-fail-under`. The CI job that runs this sets `continue-on-error: true`. The coverage number is reported and visible; the pipeline does not fail if below threshold.
 - **Slice D (FAIL gate activated):** The CI job removes `continue-on-error: true` AND adds `--cov-fail-under=80` for backend global and a separate `--cov-fail-under=90` for `domain/` + `application/` paths. For the frontend, Vitest's `coverageThreshold` is activated in `vitest.config.ts` with `lines: 70`.
 - **Mechanism:** A single environment variable `CI_COVERAGE_MODE` toggled in the CI workflow controls this. `CI_COVERAGE_MODE=warn` → `continue-on-error: true`, no `--cov-fail-under`. `CI_COVERAGE_MODE=fail` → no `continue-on-error`, with `--cov-fail-under`. Slice D sets `CI_COVERAGE_MODE: fail` in the workflow YAML; Slices B/C set `CI_COVERAGE_MODE: warn`. This is `NEW-DESIGN-DECISION` NDD-05.
 
@@ -299,7 +304,7 @@ strict  = true
 GET /api/v1/health
     │
     ▼
-apps/api/src/wheel_vocab/api/routers/health.py
+apps/api/src/wheel_vocabulary/api/routes/health.py
     router = APIRouter(prefix="/api/v1")
     @router.get("/health", response_model=HealthOut)
     async def health(settings: Annotated[Settings, Depends(get_settings)],
@@ -311,14 +316,14 @@ apps/api/src/wheel_vocab/api/routers/health.py
             timestamp=clock.now_utc(),
         )
     │
-    ├─▶ wheel_vocab.application.clock.Clock        (port: protocol)
+    ├─▶ wheel_vocabulary.application.clock.Clock        (port: protocol)
     │       def now_utc(self) -> datetime: ...
     │
-    ├─▶ wheel_vocab.infrastructure.clock.SystemClock  (adapter: implements Clock)
+    ├─▶ wheel_vocabulary.infrastructure.clock.SystemClock  (adapter: implements Clock)
     │       def now_utc(self) -> datetime:
     │           return datetime.now(tz=timezone.utc)
     │
-    └─▶ wheel_vocab.api.main.get_settings()        (dependency: reads cached Settings)
+    └─▶ wheel_vocabulary.api.main.get_settings()        (dependency: reads cached Settings)
             lru_cache → Settings (pydantic-settings, reads from env)
 ```
 
@@ -326,22 +331,22 @@ apps/api/src/wheel_vocab/api/routers/health.py
 
 **ADR-0002 compliance:** `api` depends on `application` (Clock protocol lives in `application/`), not on `infrastructure` directly. The `SystemClock` is injected via `infrastructure`'s dependency provider, not imported directly in the router. This preserves the inward dependency direction.
 
-**Traceability:** REQ-001-001 (FastAPI startable) → `main.py` factory. REQ-001-002 (health endpoint) → `routers/health.py`. Constitution Art. VII.4 (no business rules in API) → thin handler. ADR-0002 (hexagonal) → Clock port in `application/`, adapter in `infrastructure/`.
+**Traceability:** REQ-001-001 (FastAPI startable) → `main.py` factory. REQ-001-002 (health endpoint) → `routes/health.py`. Constitution Art. VII.4 (no business rules in API) → thin handler. ADR-0002 (hexagonal) → Clock port in `application/`, adapter in `infrastructure/`.
 
 ### 6.2 Timestamp semantics
 
 - **Source:** `datetime.now(tz=timezone.utc)` — wall-clock UTC, no local time, no external service.
 - **Format:** ISO-8601 with millisecond precision: `"2026-07-20T14:32:00.123Z"`. Python format string: `dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}Z"`.
-- **Utility location:** `wheel_vocab/application/clock.py` defines the `Clock` protocol (a `typing.Protocol` with `now_utc() -> datetime`). `wheel_vocab/infrastructure/clock.py` provides `SystemClock`, the production implementation.
+- **Utility location:** `wheel_vocabulary/application/clock.py` defines the `Clock` protocol (a `typing.Protocol` with `now_utc() -> datetime`). `wheel_vocabulary/infrastructure/clock.py` provides `SystemClock`, the production implementation.
 - **Test injection:** Tests inject a `FakeClock(fixed_dt)` that returns a deterministic `datetime`, enabling assertion of exact timestamp values without wall-clock coupling.
 - **Traceability:** REQ-PFB-CONTRACT-01 (timestamp field) → `clock.now_utc()`. Constitution Art. VI.1 (record versions/timestamps per execution) → timestamp in health response. Maintainer decision: KEEP timestamp.
 
 ### 6.3 JSON schema for `/health`
 
-- **Location:** `apps/api/src/wheel_vocab/api/schemas/health.v1.json`
+- **Location:** `apps/api/src/wheel_vocabulary/api/schemas/health.v1.json`
 - **Versioning scheme:** filename-based (`health.v1.json`) + response header `X-Schema-Version: 1`. No URL-path versioning for schemas at this scale. Header is added via FastAPI `Response` parameter in the route.
 - **Draft:** JSON Schema Draft 2020-12 (`"$schema": "https://json-schema.org/draft/2020-12/schema"`).
-- **Validation at test time:** `jsonschema` package (already in `dependencies` section above). The API test (`test_health.py`) loads the schema via `importlib.resources.files("wheel_vocab.api.schemas").joinpath("health.v1.json")` and validates the actual response JSON against it. This satisfies spec §9 Hook 4 and AC-PFB-10.
+- **Validation at test time:** `jsonschema` package (already in `dependencies` section above). The API test (`test_health.py`) loads the schema via `importlib.resources.files("wheel_vocabulary.api.schemas").joinpath("health.v1.json")` and validates the actual response JSON against it. This satisfies spec §9 Hook 4 and AC-PFB-10.
 - **Schema shape:**
   ```json
   {
@@ -370,7 +375,7 @@ apps/api/src/wheel_vocab/api/routers/health.py
       app_name:     str  = "wheel-vocabulary-api"
       app_version:  str  = "0.1.0"          # read from importlib.metadata at startup
       environment:  str  = "development"
-      database_url: str  = "sqlite:///./data/wheel_vocab.db"
+      database_url: str  = "sqlite:///./data/wheel_vocabulary.db"
       cors_origins: list[str] = []
       log_level:    str  = "INFO"
 
@@ -384,15 +389,15 @@ apps/api/src/wheel_vocab/api/routers/health.py
 ### 6.5 SQLAlchemy and Alembic wiring
 
 - **SQLAlchemy version:** `>= 2.0` per SPEC-001 plan.md §3 and ADR-0001 §Backend.
-- **Engine URL convention:** `sqlite:///./data/wheel_vocab.db` for development; `sqlite:///:memory:` for integration tests. The `data/` directory is gitignored per REQ-001-018.
-- **`DeclarativeBase` location:** `apps/api/src/wheel_vocab/infrastructure/persistence/base.py`
+- **Engine URL convention:** `sqlite:///./data/wheel_vocabulary.db` for development; `sqlite:///:memory:` for integration tests. The `data/` directory is gitignored per REQ-001-018.
+- **`DeclarativeBase` location:** `apps/api/src/wheel_vocabulary/infrastructure/persistence/base.py`
   ```python
   from sqlalchemy.orm import DeclarativeBase
 
   class Base(DeclarativeBase):
       pass
   ```
-- **Alembic env.py:** imports `Base` from `wheel_vocab.infrastructure.persistence.base` and sets `target_metadata = Base.metadata`.
+- **Alembic env.py:** imports `Base` from `wheel_vocabulary.infrastructure.persistence.base` and sets `target_metadata = Base.metadata`.
 - **Alembic directory structure:**
   ```
   apps/api/
@@ -410,7 +415,7 @@ apps/api/src/wheel_vocab/api/routers/health.py
 
 Two concrete port definitions relevant to this cycle (though `domain/` is empty, establishing ports in `application/` now prevents anti-pattern drift later):
 
-**`wheel_vocab/application/clock.py`:**
+**`wheel_vocabulary/application/clock.py`:**
 ```python
 from typing import Protocol
 from datetime import datetime
@@ -619,7 +624,7 @@ setup-node    ──────────────────────
 | `setup-python` | — | Install uv, `uv sync --extra dev`; cache on `apps/api/uv.lock` | ✓ |
 | `setup-node` | — | Install pnpm, `pnpm install`; cache on `apps/web/pnpm-lock.yaml` | ✓ |
 | `backend-lint` | `setup-python` | `uv run ruff check .` + `uv run ruff format --check .` | ✓ |
-| `backend-typecheck` | `setup-python` | `uv run mypy src/wheel_vocab` | ✓ |
+| `backend-typecheck` | `setup-python` | `uv run mypy src/wheel_vocabulary` | ✓ |
 | `backend-test` | `setup-python` | `uv run pytest --cov ... CI_COVERAGE_MODE` | ✓ |
 | `migration-check` | `setup-python` | `uv run alembic upgrade head` (temp SQLite) | ✓ |
 | `frontend-lint` | `setup-node` | `pnpm run lint` | ✓ |
@@ -648,7 +653,7 @@ All targets are `.PHONY`. The Makefile lives at repo root and delegates to `uv r
 |--------|-----------------|--------|
 | `bootstrap` | `uv sync --extra dev` (in `apps/api/`) + `pnpm install` (in `apps/web/`) | First-run setup; installs all deps |
 | `install` | alias for `bootstrap` | REQ-001-008 `make install` |
-| `dev-backend` | `cd apps/api && uv run uvicorn wheel_vocab.api.main:create_app --factory --reload` | Start backend dev server |
+| `dev-backend` | `cd apps/api && uv run uvicorn wheel_vocabulary.api.main:create_app --factory --reload` | Start backend dev server |
 | `dev-frontend` | `cd apps/web && pnpm run dev` | Start frontend Vite dev server |
 | `dev` | `make dev-backend & make dev-frontend` | Both servers (background) |
 | `test-backend` | `cd apps/api && uv run pytest` | Backend test suite |
@@ -658,7 +663,7 @@ All targets are `.PHONY`. The Makefile lives at repo root and delegates to `uv r
 | `lint-backend` | `cd apps/api && uv run ruff check .` | Backend Ruff |
 | `lint-frontend` | `cd apps/web && pnpm run lint` | Frontend ESLint |
 | `lint` | `make lint-backend && make lint-frontend` | All lint |
-| `typecheck-backend` | `cd apps/api && uv run mypy src/wheel_vocab` | mypy |
+| `typecheck-backend` | `cd apps/api && uv run mypy src/wheel_vocabulary` | mypy |
 | `typecheck-frontend` | `cd apps/web && pnpm run typecheck` | tsc --noEmit |
 | `typecheck` | `make typecheck-backend && make typecheck-frontend` | All types |
 | `format` | `cd apps/api && uv run ruff format .` | Ruff autoformat |
@@ -674,12 +679,12 @@ All targets are `.PHONY`. The Makefile lives at repo root and delegates to `uv r
 | Design section | Decides | Traces to |
 |----------------|---------|-----------|
 | §4.2 Layout | `apps/api/ + apps/web/` monorepo shape | SPEC-001 plan.md §2; ADR-0001 (Makefile, monorepo); ADR-0002 (hexagonal) |
-| §4.3 Package name | `wheel_vocab` Python package name | SPEC-001 plan.md §2 (`src/wheel_vocab/`); NDD-01 |
+| §4.3 Package name | `wheel_vocabulary` Python package name | SPEC-001 plan.md §2 (`src/wheel_vocabulary/`); NDD-01 |
 | §4.4 Directory tree | Full Slice A file tree | REQ-001-015; REQ-001-007; REQ-001-008; REQ-001-018 |
 | §4.5 Test layout | `apps/api/tests/{smoke,unit,api,integration}/` | REQ-001-009; ADR-0003 (pytest); NDD-02 |
 | §5.1 Package manager | `uv >= 0.4`, Python `>= 3.12` | ADR-0001; SPEC-001 §6 |
 | §5.2 pyproject.toml | Single-package shape, dependency groups | REQ-001-012; REQ-001-NF-001; ADR-0001 |
-| §5.3 Ruff config | Rule set, line length 100 | REQ-001-012; NDD-03 |
+| §5.3 Ruff config | Rule set, line length 100, `[tool.ruff.lint]` layout | REQ-001-012; NDD-03; NDD-11 |
 | §5.4 mypy strictness | Layered: strict domain/application, gradual infra/api | REQ-001-012; REQ-PFB-CONTRACT-05; Constitution Art. VII.1–2; ADR-0002; NDD-04 |
 | §5.5 Coverage | Thresholds, WARN/FAIL toggle via `CI_COVERAGE_MODE` | REQ-PFB-COV-01; REQ-PFB-COV-02; ADR-0003; Constitution Art. II |
 | §6.1 Health handler | Call graph, thin handler, no use case object | REQ-001-001; REQ-001-002; Constitution Art. VII.4; ADR-0002; NDD-06 |
@@ -718,6 +723,7 @@ Every non-trivial decision has at least one trace. No design decision floats fre
 | NDD-08 | No TanStack Query in this cycle; native `fetch` + `useState` | plan.md §4 says TanStack Query "can" manage queries; Constitution Art. VII.6 forbids speculative abstraction. Three-state screen does not need a caching layer. | Yes — if maintainer prefers TanStack Query, it can be added in Slice C; adds ~1 devDependency and wrapper abstraction. |
 | NDD-09 | Plain CSS (no CSS Modules, no Tailwind) | Constitution Art. VII.6. Tailwind adds PostCSS pipeline and build complexity for a 3-state screen. CSS Modules adds import syntax overhead. | Yes — Tailwind can be added in a future cycle when the UI grows. |
 | NDD-10 | ESLint: `@typescript-eslint/recommended-type-checked` + `eslint-plugin-react-hooks` | Matches proposal ASSUMPTION-5's stated default. Provides strong TypeScript-aware lint without custom ruleset authoring. | Yes — lighter presets (e.g. `@typescript-eslint/recommended` without `-type-checked`) available if type-checking in ESLint proves slow. |
+| NDD-11 | Ruff config uses `[tool.ruff.lint]` split layout (Ruff ≥ 0.4 convention) | Ruff ≥ 0.4 recommends splitting top-level settings (`[tool.ruff]`) from lint settings (`[tool.ruff.lint]`); the single-table form is deprecated. The pinned block in §5.2 was updated to match the code, which is on Ruff 0.4+. | Yes — trivially reversible if project pins Ruff < 0.4. |
 
 ---
 
@@ -762,7 +768,7 @@ Per spec §9. Exact regex and paths pinned.
 
 ```bash
 grep -RE "class\s+(Lexeme|Occurrence|Corpus|Mwe|MultiwordExpression|Lemma|SurfaceForm|WordForm|PartOfSpeech|ManualCorrection|TextExtractor)\b" \
-  apps/api/src/wheel_vocab/
+  apps/api/src/wheel_vocabulary/
 ```
 Expected: grep exits with code 1 (no matches). Any hit fails the slice verification. **Verifies:** DEC-005, Constitution Art. VII.6, SPEC-001 §4 non-goals.
 
@@ -770,13 +776,13 @@ Expected: grep exits with code 1 (no matches). Any hit fails the slice verificat
 
 ```bash
 grep -REn "(?i)\b(english|en_us|en_gb|assume_english)\b" \
-  apps/api/src/wheel_vocab/domain/ \
-  apps/api/src/wheel_vocab/application/
+  apps/api/src/wheel_vocabulary/domain/ \
+  apps/api/src/wheel_vocabulary/application/
 grep -REn "['\"]en['\"]" \
-  apps/api/src/wheel_vocab/domain/ \
-  apps/api/src/wheel_vocab/application/
+  apps/api/src/wheel_vocabulary/domain/ \
+  apps/api/src/wheel_vocabulary/application/
 ```
-Expected: zero hits outside the single permitted `LanguageRegistry` stub location (if any). The permitted location is `wheel_vocab/application/language_registry.py` if the design phase decided to include the stub — per spec REQ-PFB-LANG-02. **This design phase does NOT include the stub** (no domain code needs it in this cycle; REQ-PFB-LANG-02's "MAY defer" clause applies). Therefore zero hits anywhere is the expected outcome. **Verifies:** REQ-PFB-LANG-01, AC-PFB-06.
+Expected: zero hits outside the single permitted `LanguageRegistry` stub location (if any). The permitted location is `wheel_vocabulary/application/language_registry.py` if the design phase decided to include the stub — per spec REQ-PFB-LANG-02. **This design phase does NOT include the stub** (no domain code needs it in this cycle; REQ-PFB-LANG-02's "MAY defer" clause applies). Therefore zero hits anywhere is the expected outcome. **Verifies:** REQ-PFB-LANG-01, AC-PFB-06.
 
 ### Hook 3 — Traceability matrix correctness
 
@@ -807,7 +813,7 @@ import importlib.resources
 import jsonschema
 
 def test_health_schema(client):
-    schema_text = importlib.resources.files("wheel_vocab.api.schemas") \
+    schema_text = importlib.resources.files("wheel_vocabulary.api.schemas") \
         .joinpath("health.v1.json").read_text()
     schema = json.loads(schema_text)
     resp = client.get("/api/v1/health")
@@ -821,15 +827,15 @@ def test_health_schema(client):
 ```bash
 # Backend (global ≥ 80%)
 cd apps/api && uv run pytest \
-  --cov=src/wheel_vocab \
+  --cov=src/wheel_vocabulary \
   --cov-report=term-missing \
   --cov-report=xml \
   ${CI_COVERAGE_MODE:+--cov-fail-under=80}
 
 # Backend domain+application ≥ 90% (separate run or via per-module config)
 cd apps/api && uv run pytest tests/unit tests/api \
-  --cov=src/wheel_vocab/domain \
-  --cov=src/wheel_vocab/application \
+  --cov=src/wheel_vocabulary/domain \
+  --cov=src/wheel_vocabulary/application \
   ${CI_COVERAGE_MODE:+--cov-fail-under=90}
 
 # Frontend (≥ 70%, controlled in vitest.config.ts)
