@@ -237,6 +237,8 @@ skip_empty   = true
 [tool.ruff]
 target-version = "py312"
 line-length    = 100
+
+[tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "S", "A", "C4", "PT", "SIM", "RET", "TCH", "TID"]
 
 [tool.ruff.lint.isort]
@@ -264,6 +266,7 @@ strict  = true
 
 - **Rule set `E, F, I, N, UP, B, S, A, C4, PT, SIM, RET, TCH, TID`**: covers style (`E/F`), imports (`I`), naming (`N`), upgrade suggestions (`UP`), bugbear (`B`), security basics (`S`), shadowing (`A`), comprehensions (`C4`), pytest (`PT`), simplifications (`SIM`), return-value patterns (`RET`), type-checking imports (`TCH`), and tidy imports (`TID`). Omits `D` (docstrings) — documenting every empty-layer `__init__` is noise; add in a future cycle.
 - **Line length 100**: 88 (Black default) is too tight for function signatures with type annotations; 120 is too permissive for code review at 400-line PR budgets. 100 is the balance. `NEW-DESIGN-DECISION` NDD-03.
+- **Config layout `[tool.ruff.lint]`**: Ruff ≥ 0.4 recommends the split layout — `[tool.ruff]` holds top-level settings (`target-version`, `line-length`), and `[tool.ruff.lint]` holds `select` and lint sub-tables. The single-table form (`select` directly under `[tool.ruff]`) still works but is deprecated. The pinned block in §5.2 uses the modern layout. `NEW-DESIGN-DECISION` NDD-11.
 
 ### 5.4 mypy strictness resolution (deferred decision from orchestrator)
 
@@ -681,7 +684,7 @@ All targets are `.PHONY`. The Makefile lives at repo root and delegates to `uv r
 | §4.5 Test layout | `apps/api/tests/{smoke,unit,api,integration}/` | REQ-001-009; ADR-0003 (pytest); NDD-02 |
 | §5.1 Package manager | `uv >= 0.4`, Python `>= 3.12` | ADR-0001; SPEC-001 §6 |
 | §5.2 pyproject.toml | Single-package shape, dependency groups | REQ-001-012; REQ-001-NF-001; ADR-0001 |
-| §5.3 Ruff config | Rule set, line length 100 | REQ-001-012; NDD-03 |
+| §5.3 Ruff config | Rule set, line length 100, `[tool.ruff.lint]` layout | REQ-001-012; NDD-03; NDD-11 |
 | §5.4 mypy strictness | Layered: strict domain/application, gradual infra/api | REQ-001-012; REQ-PFB-CONTRACT-05; Constitution Art. VII.1–2; ADR-0002; NDD-04 |
 | §5.5 Coverage | Thresholds, WARN/FAIL toggle via `CI_COVERAGE_MODE` | REQ-PFB-COV-01; REQ-PFB-COV-02; ADR-0003; Constitution Art. II |
 | §6.1 Health handler | Call graph, thin handler, no use case object | REQ-001-001; REQ-001-002; Constitution Art. VII.4; ADR-0002; NDD-06 |
@@ -720,6 +723,7 @@ Every non-trivial decision has at least one trace. No design decision floats fre
 | NDD-08 | No TanStack Query in this cycle; native `fetch` + `useState` | plan.md §4 says TanStack Query "can" manage queries; Constitution Art. VII.6 forbids speculative abstraction. Three-state screen does not need a caching layer. | Yes — if maintainer prefers TanStack Query, it can be added in Slice C; adds ~1 devDependency and wrapper abstraction. |
 | NDD-09 | Plain CSS (no CSS Modules, no Tailwind) | Constitution Art. VII.6. Tailwind adds PostCSS pipeline and build complexity for a 3-state screen. CSS Modules adds import syntax overhead. | Yes — Tailwind can be added in a future cycle when the UI grows. |
 | NDD-10 | ESLint: `@typescript-eslint/recommended-type-checked` + `eslint-plugin-react-hooks` | Matches proposal ASSUMPTION-5's stated default. Provides strong TypeScript-aware lint without custom ruleset authoring. | Yes — lighter presets (e.g. `@typescript-eslint/recommended` without `-type-checked`) available if type-checking in ESLint proves slow. |
+| NDD-11 | Ruff config uses `[tool.ruff.lint]` split layout (Ruff ≥ 0.4 convention) | Ruff ≥ 0.4 recommends splitting top-level settings (`[tool.ruff]`) from lint settings (`[tool.ruff.lint]`); the single-table form is deprecated. The pinned block in §5.2 was updated to match the code, which is on Ruff 0.4+. | Yes — trivially reversible if project pins Ruff < 0.4. |
 
 ---
 
