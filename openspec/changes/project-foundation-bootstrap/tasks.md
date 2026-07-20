@@ -76,6 +76,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TA01 [BOOTSTRAP] Create monorepo directory skeleton
 
 - **Slice**: A
+- **Status**: DONE
 - **Type tag**: [BOOTSTRAP]
 - **Touches**: `apps/api/`, `apps/api/tests/smoke/`, `apps/api/tests/unit/`, `apps/api/tests/api/`, `apps/api/tests/integration/`, `apps/web/`, `apps/web/src/api/`, `apps/web/src/components/`, `apps/web/src/pages/`, `apps/web/src/styles/`, `apps/web/src/types/`, `apps/web/e2e/`, `.github/workflows/` (empty; CI YAML is Slice D), `pnpm-workspace.yaml`
 - **Traces**: REQ-001-015, REQ-001-008, design §4.4, AGENTS.md §8 [BOOTSTRAP]
@@ -93,6 +94,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TA02 [BOOTSTRAP] Create `apps/api/pyproject.toml`
 
 - **Slice**: A
+- **Status**: DONE
 - **Type tag**: [BOOTSTRAP]
 - **Touches**: `apps/api/pyproject.toml`
 - **Traces**: REQ-001-008, REQ-001-009, REQ-001-012, REQ-001-NF-001, design §5.2, spec CONTRACT-5, ADR-0001, ADR-0003
@@ -111,6 +113,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TA03 [BOOTSTRAP] Generate `apps/api/uv.lock` via `uv lock`
 
 - **Slice**: A
+- **Status**: DONE
 - **Type tag**: [BOOTSTRAP]
 - **Touches**: `apps/api/uv.lock` (generated; excluded from authored LOC count)
 - **Traces**: REQ-001-NF-001, ADR-0001 (uv)
@@ -127,6 +130,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TA04 [BOOTSTRAP] Create `apps/api/src/wheel_vocabulary/` package tree
 
 - **Slice**: A
+- **Status**: DONE
 - **Type tag**: [BOOTSTRAP]
 - **Touches**: `apps/api/src/wheel_vocabulary/__init__.py`, `apps/api/src/wheel_vocabulary/domain/__init__.py`, `apps/api/src/wheel_vocabulary/application/__init__.py`, `apps/api/src/wheel_vocabulary/infrastructure/__init__.py`, `apps/api/src/wheel_vocabulary/infrastructure/persistence/__init__.py`, `apps/api/src/wheel_vocabulary/api/__init__.py`, `apps/api/src/wheel_vocabulary/api/schemas/` (empty dir), `apps/api/src/wheel_vocabulary/api/dtos/` (empty dir), `apps/api/src/wheel_vocabulary/api/routes/` (empty dir)
 - **Traces**: REQ-001-015, design §4.4, ADR-0002 (hexagonal layers), REQ-PFB-LANG-01, REQ-PFB-BOOT-01
@@ -144,6 +148,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TA05 [BOOTSTRAP] Create `apps/api/tests/conftest.py`
 
 - **Slice**: A
+- **Status**: DONE
 - **Type tag**: [BOOTSTRAP]
 - **Touches**: `apps/api/tests/conftest.py`
 - **Traces**: REQ-001-009, design §4.5, ADR-0003
@@ -159,6 +164,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TA06 [BOOTSTRAP] Create `apps/web/package.json`, `tsconfig.json`, and TypeScript config files
 
 - **Slice**: A
+- **Status**: DONE
 - **Type tag**: [BOOTSTRAP]
 - **Touches**: `apps/web/package.json`, `apps/web/tsconfig.json`, `apps/web/tsconfig.node.json`, `apps/web/index.html`
 - **Traces**: REQ-001-003, REQ-001-013, ADR-0001, design §7.1
@@ -175,6 +181,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TA07 [BOOTSTRAP] Create `apps/web/vite.config.ts` and `apps/web/vitest.config.ts`
 
 - **Slice**: A
+- **Status**: DONE
 - **Type tag**: [BOOTSTRAP]
 - **Touches**: `apps/web/vite.config.ts`, `apps/web/vitest.config.ts`
 - **Traces**: REQ-001-003, REQ-001-010, ADR-0001, design §7.1
@@ -191,6 +198,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TA08 [BOOTSTRAP] Create `apps/web/.eslintrc.cjs` and install frontend dependencies
 
 - **Slice**: A
+- **Status**: DONE
 - **Type tag**: [BOOTSTRAP]
 - **Touches**: `apps/web/.eslintrc.cjs`, `apps/web/pnpm-lock.yaml` (generated; excluded from LOC)
 - **Traces**: REQ-001-013, design §7.6 (NDD-10), ADR-0001
@@ -207,6 +215,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TA09 [BOOTSTRAP] Create `apps/web/src/main.tsx` and `apps/web/src/App.tsx` stubs
 
 - **Slice**: A
+- **Status**: DONE
 - **Type tag**: [BOOTSTRAP]
 - **Touches**: `apps/web/src/main.tsx`, `apps/web/src/App.tsx`
 - **Traces**: REQ-001-003, design §4.4 (Slice A scaffold), design §7.2
@@ -222,6 +231,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TA10 [BOOTSTRAP] Create root `Makefile`
 
 - **Slice**: A
+- **Status**: DONE
 - **Type tag**: [BOOTSTRAP]
 - **Touches**: `Makefile`
 - **Traces**: REQ-001-008, ADR-0001 (Makefile as canonical surface, design §10)
@@ -239,6 +249,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TA11 [BOOTSTRAP] Create `.env.example` at repo root
 
 - **Slice**: A
+- **Status**: DONE
 - **Type tag**: [BOOTSTRAP]
 - **Touches**: `.env.example`
 - **Traces**: REQ-001-007, REQ-001-018, design §6.4, spec AC-007, Constitution Art. VIII.5
@@ -256,6 +267,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TA12 [BOOTSTRAP] Extend `.gitignore`
 
 - **Slice**: A
+- **Status**: DONE
 - **Type tag**: [BOOTSTRAP]
 - **Touches**: `.gitignore`
 - **Traces**: REQ-001-018, design §4.4, spec AC-013
@@ -273,6 +285,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TA13 [DOC] Create `apps/api/README.md` and `apps/web/README.md` stubs
 
 - **Slice**: A
+- **Status**: DONE
 - **Type tag**: [DOC]
 - **Touches**: `apps/api/README.md`, `apps/web/README.md`
 - **Traces**: REQ-001-016, design §4.4
@@ -288,6 +301,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TA14 [SPEC] Fix `wheel_vocab` → `wheel_vocabulary` in `design.md`
 
 - **Slice**: A
+- **Status**: DONE
 - **Type tag**: [SPEC]
 - **Touches**: `openspec/changes/project-foundation-bootstrap/design.md`
 - **Traces**: REQ-PFB-TASK-01 (maintainer override: package name = `wheel_vocabulary`), spec REF-6
@@ -303,6 +317,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TA15-SMOKE [TEST] Create `apps/api/tests/smoke/test_smoke.py`
 
 - **Slice**: A
+- **Status**: DONE
 - **Type tag**: [TEST]
 - **Touches**: `apps/api/tests/smoke/test_smoke.py`
 - **Traces**: REQ-PFB-BOOT-01, REQ-PFB-BOOT-02, spec AC-PFB-01, AC-PFB-02, ADR-0003, Constitution Art. II.1
