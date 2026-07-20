@@ -345,6 +345,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TB101 [TEST] Settings loader tests (RED)
 
 - **Slice**: B1
+- **Status**: DONE
 - **Type tag**: [TEST]
 - **Touches**: `apps/api/tests/unit/test_settings.py`
 - **Traces**: REQ-001-007, UT-BE-001, UT-BE-002, spec AC-PFB-03 (partial), design §6.4
@@ -360,6 +361,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TB102 [IMPL] `Settings` in `infrastructure/settings.py` (GREEN)
 
 - **Slice**: B1
+- **Status**: DONE
 - **Type tag**: [IMPL]
 - **Touches**: `apps/api/src/wheel_vocabulary/infrastructure/settings.py`
 - **Traces**: REQ-001-007, REQ-001-NF-006, design §6.4 (NDD-07), spec AC-PFB-03
@@ -376,6 +378,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TB103 [TEST] `Clock` port and `FrozenClock` tests (RED)
 
 - **Slice**: B1
+- **Status**: DONE
 - **Type tag**: [TEST]
 - **Touches**: `apps/api/tests/unit/test_clock.py`
 - **Traces**: REQ-PFB-CONTRACT-01 (timestamp semantics), design §6.2, design §6.6, ADR-0002 (port in application), Constitution Art. VII.1
@@ -390,6 +393,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TB104 [IMPL] `Clock` protocol in `application/clock.py` + `SystemClock` in `infrastructure/clock.py` (GREEN)
 
 - **Slice**: B1
+- **Status**: DONE
 - **Type tag**: [IMPL]
 - **Touches**: `apps/api/src/wheel_vocabulary/application/clock.py`, `apps/api/src/wheel_vocabulary/infrastructure/clock.py`
 - **Traces**: design §6.2, design §6.6, ADR-0002, Constitution Art. VII.1 (domain purity — `application/` has zero framework imports)
@@ -406,6 +410,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TB105 [TEST] Version reader tests (RED)
 
 - **Slice**: B1
+- **Status**: DONE
 - **Type tag**: [TEST]
 - **Touches**: `apps/api/tests/unit/test_version.py`
 - **Traces**: REQ-PFB-CONTRACT-01 (`version` field must match package metadata), design §6.4 (`app_version` source)
@@ -420,6 +425,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TB106 [IMPL] Version reader in `infrastructure/version.py` (GREEN)
 
 - **Slice**: B1
+- **Status**: DONE
 - **Type tag**: [IMPL]
 - **Touches**: `apps/api/src/wheel_vocabulary/infrastructure/version.py`
 - **Traces**: REQ-PFB-CONTRACT-01, design §6.4
@@ -434,6 +440,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TB107 [SPEC] Create `apps/api/src/wheel_vocabulary/api/schemas/health.v1.json`
 
 - **Slice**: B1
+- **Status**: DONE
 - **Type tag**: [SPEC]
 - **Touches**: `apps/api/src/wheel_vocabulary/api/schemas/health.v1.json`
 - **Traces**: REQ-PFB-CONTRACT-01, design §6.3, spec §9 Hook 4, Constitution Art. VIII.1
@@ -450,6 +457,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TB108 [TEST] `HealthResponse` DTO tests (RED)
 
 - **Slice**: B1
+- **Status**: DONE
 - **Type tag**: [TEST]
 - **Touches**: `apps/api/tests/unit/test_health_dto.py`
 - **Traces**: REQ-001-002, REQ-PFB-CONTRACT-01, design §6.3, UT-BE-003
@@ -464,6 +472,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TB109 [IMPL] `HealthResponse` DTO in `api/dtos/health.py` (GREEN)
 
 - **Slice**: B1
+- **Status**: DONE
 - **Type tag**: [IMPL]
 - **Touches**: `apps/api/src/wheel_vocabulary/api/dtos/health.py`, `apps/api/src/wheel_vocabulary/api/dtos/__init__.py`
 - **Traces**: REQ-001-002, REQ-PFB-CONTRACT-01, design §6.3
@@ -478,6 +487,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TB110 [TEST] `GET /api/v1/health` route tests (RED)
 
 - **Slice**: B1
+- **Status**: DONE
 - **Type tag**: [TEST]
 - **Touches**: `apps/api/tests/api/test_health.py`
 - **Traces**: REQ-001-001, REQ-001-002, REQ-PFB-CONTRACT-01, AC-PFB-10, API-BE-001, spec §9 Hook 4, design §6.1
@@ -492,6 +502,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TB111 [IMPL] FastAPI app factory and health route (GREEN)
 
 - **Slice**: B1
+- **Status**: DONE
 - **Type tag**: [IMPL]
 - **Touches**: `apps/api/src/wheel_vocabulary/api/main.py`, `apps/api/src/wheel_vocabulary/api/routes/health.py`
 - **Traces**: REQ-001-001, REQ-001-002, REQ-PFB-CONTRACT-01, design §6.1, design §6.2, ADR-0002, Constitution Art. VII.4
@@ -509,6 +520,7 @@ Tasks use the format `T<slice><nn>` (e.g., `TA01`, `TB101` for B1, `TB201` for B
 ### TB112 [REFACTOR] Health route and factory cleanup (if needed)
 
 - **Slice**: B1
+- **Status**: DONE
 - **Type tag**: [REFACTOR]
 - **Touches**: `apps/api/src/wheel_vocabulary/api/main.py`, `apps/api/src/wheel_vocabulary/api/routes/health.py` (if any duplication surfaced)
 - **Traces**: Constitution Art. VII.6 (no speculative abstraction), ADR-0003 §Decision (no anticipatory scaffolding)
