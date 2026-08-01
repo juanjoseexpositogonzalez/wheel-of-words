@@ -62,13 +62,33 @@ Chain strategy: feature-branch-chain
 ## Phase 3: Slice B2 — Persistence baseline
 
 - [x] TB201 [TEST] RED engine/session tests in `apps/api/tests/integration/test_engine.py`.
+  - Purpose/traces: prove the SQLAlchemy integration seam for `REQ-001-005`, `INT-BE-001`, design §6.5.
+  - RED evidence: `uv run pytest tests/integration/test_engine.py` failed before TB202 because `wheel_vocabulary.infrastructure.persistence.engine` was absent.
+  - GREEN evidence: `uv run pytest tests/integration/test_engine.py -v` passed after TB202.
 - [x] TB202 [IMPL] GREEN `apps/api/src/wheel_vocabulary/infrastructure/persistence/engine.py`.
+  - Purpose/traces: provide the minimal SQLAlchemy 2 engine/session helper for `REQ-001-005`, design §6.5, ADR-0001.
+  - Verification: `uv run pytest tests/integration/test_engine.py -v`; covered by `make test-backend`.
 - [x] TB203 [TEST] RED empty-metadata test in `apps/api/tests/integration/test_base.py`.
+  - Purpose/traces: lock the empty-schema baseline for `REQ-PFB-CONTRACT-02`, design §6.5, DEC-005.
+  - RED evidence: `uv run pytest tests/integration/test_base.py` failed before TB204 because persistence `Base` was absent.
+  - GREEN evidence: `uv run pytest tests/integration/test_base.py -v` passed after TB204 with `Base.metadata.tables` empty.
 - [x] TB204 [IMPL] GREEN `apps/api/src/wheel_vocabulary/infrastructure/persistence/base.py`.
+  - Purpose/traces: expose a `DeclarativeBase` without registering user tables for `REQ-PFB-CONTRACT-02`, design §6.5, DEC-005.
+  - Verification: `uv run pytest tests/integration/test_base.py -v`; covered by `make test-backend`.
 - [x] TB205 [MIGRATION] Add `apps/api/alembic.ini`, `migrations/env.py`, `script.py.mako`, `versions/0001_baseline.py`.
+  - Purpose/traces: create the empty Alembic baseline for `REQ-001-006`, `REQ-PFB-CONTRACT-02`, `AC-PFB-11`, design §6.5.
+  - GREEN evidence: baseline migration upgrades/downgrades cleanly and creates only `alembic_version`, no user tables.
+  - Validation: `uv run alembic upgrade head`; `uv run alembic downgrade base`; `make migrate`.
 - [x] TB206 [TEST] RED/GREEN Alembic integration tests in `apps/api/tests/integration/test_alembic.py`.
+  - Purpose/traces: automate migration verification for `REQ-001-006`, `INT-BE-002`, `INT-BE-003`, `AC-PFB-11`, design §6.5.
+  - RED evidence: Alembic tests failed before the migration scaffold was complete.
+  - GREEN evidence: `uv run pytest tests/integration/test_alembic.py -v` passed after TB205/TB207.
 - [x] TB207 [IMPL] Add shared Alembic/temp-DB fixtures in `apps/api/tests/conftest.py`.
+  - Purpose/traces: centralize integration-test database setup for `REQ-001-009`, design §4.5, ADR-0003.
+  - Verification: `uv run pytest tests/integration/test_alembic.py -v`; `make test-backend`.
 - [x] TB208 [REFACTOR] Clean persistence duplication and keep tests/lint/typecheck green.
+  - Purpose/traces: preserve the minimal persistence boundary without speculative abstractions per Constitution Art. VII.6 and ADR-0003.
+  - Verification: `make test-backend`; `make lint-backend`; `make typecheck-backend`; no product-code change needed for this documentation fix.
 
 ## Phase 4: Slice C — Frontend status screen
 
