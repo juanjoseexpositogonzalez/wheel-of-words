@@ -14,8 +14,10 @@ Slice B adds: FrozenClock, TestClient factory, tmp_db_url, alembic_config.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
+from alembic.config import Config
 
 
 class FrozenClock:
@@ -41,3 +43,19 @@ class FrozenClock:
 def frozen_clock() -> FrozenClock:
     """Provide a FrozenClock with a fixed UTC timestamp for tests."""
     return FrozenClock(datetime(2026, 7, 20, 12, 0, 0, 0, tzinfo=UTC))
+
+
+@pytest.fixture
+def sqlite_database_url(tmp_path: Path) -> str:
+    """Return an isolated SQLite database URL for integration tests."""
+    return f"sqlite:///{tmp_path / 'test.db'}"
+
+
+@pytest.fixture
+def alembic_config(sqlite_database_url: str) -> Config:
+    """Build an Alembic config bound to an isolated SQLite database."""
+    api_root = Path(__file__).resolve().parents[1]
+    config = Config(str(api_root / "alembic.ini"))
+    config.set_main_option("script_location", str(api_root / "migrations"))
+    config.set_main_option("sqlalchemy.url", sqlite_database_url)
+    return config
