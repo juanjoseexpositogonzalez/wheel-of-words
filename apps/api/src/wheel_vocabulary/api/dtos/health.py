@@ -20,7 +20,7 @@ class HealthResponse(BaseModel):
 
     Fields match CONTRACT-1 exactly:
     - ``status``: literal "ok"
-    - ``service``: service name string
+    - ``service``: literal "wheel-vocabulary-api"
     - ``version``: semver string from package metadata
     - ``timestamp``: ISO-8601 UTC ms string
     """
@@ -28,6 +28,6 @@ class HealthResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: Literal["ok"]
-    service: str
+    service: Literal["wheel-vocabulary-api"]
     version: str
     timestamp: str

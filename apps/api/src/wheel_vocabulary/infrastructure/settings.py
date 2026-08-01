@@ -16,12 +16,11 @@ __all__ = ["Settings", "get_settings"]
 class Settings(BaseSettings):
     """Centralised application configuration.
 
-    All fields can be overridden by environment variables (case-insensitive).
-    An optional .env file is loaded if present in the current working directory.
+    Environment-specific fields can be overridden by environment variables
+    (case-insensitive). Public health contract fields are intentionally not
+    settings because they must not drift from the JSON schema contract.
     """
 
-    app_name: str = "wheel-vocabulary-api"
-    app_version: str = "0.1.0"
     environment: str = "development"
     database_url: str = "sqlite:///./data/wheel_vocabulary.db"
     cors_origins: list[str] = []
@@ -30,6 +29,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
+        extra="ignore",
     )
 
 

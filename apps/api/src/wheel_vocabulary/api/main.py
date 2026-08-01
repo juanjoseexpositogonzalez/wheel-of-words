@@ -13,6 +13,7 @@ from fastapi import FastAPI
 
 from wheel_vocabulary.api.dependencies import get_clock
 from wheel_vocabulary.api.routes import health as health_router_module
+from wheel_vocabulary.infrastructure.version import get_package_version
 
 __all__ = ["create_app", "get_clock"]
 
@@ -26,7 +27,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Wheel Vocabulary API",
         description="Backend for the Wheel of Words vocabulary application.",
-        version="0.1.0",
+        version=get_package_version(),
     )
     app.include_router(health_router_module.router)
     return app

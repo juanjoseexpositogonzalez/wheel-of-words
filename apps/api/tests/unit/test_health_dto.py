@@ -59,3 +59,15 @@ def test_health_response_rejects_extra_fields() -> None:
             timestamp="2026-07-20T00:00:00.000Z",
             extra_field="should-fail",
         )
+
+
+@pytest.mark.unit
+def test_health_response_rejects_non_constant_service() -> None:
+    """HealthResponse rejects service names outside the schema constant."""
+    with pytest.raises(ValidationError, match="wheel-vocabulary-api"):
+        HealthResponse(
+            status="ok",
+            service="not-the-public-contract",
+            version="0.1.0",
+            timestamp="2026-07-20T00:00:00.000Z",
+        )

@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from wheel_vocabulary.application.clock import Clock  # noqa: TC001 – runtime for FastAPI
 from wheel_vocabulary.infrastructure.clock import SystemClock
+from wheel_vocabulary.infrastructure.settings import Settings, get_settings
+from wheel_vocabulary.infrastructure.version import get_package_version
 
-__all__ = ["get_clock"]
+__all__ = ["Settings", "get_app_version", "get_clock", "get_settings"]
 
 
 def get_clock() -> Clock:
@@ -21,3 +23,8 @@ def get_clock() -> Clock:
     a FrozenClock without touching the route implementation.
     """
     return SystemClock()
+
+
+def get_app_version() -> str:
+    """Dependency provider: returns the installed wheel-vocabulary version."""
+    return get_package_version()

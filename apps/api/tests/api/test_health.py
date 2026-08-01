@@ -11,15 +11,15 @@ from __future__ import annotations
 
 import importlib.resources
 import json
-import tomllib
-from datetime import UTC, datetime
-from pathlib import Path
+from datetime import UTC, datetime, timedelta, timezone
 
 import jsonschema
 import pytest
 from fastapi.testclient import TestClient
 
-from wheel_vocabulary.api.main import create_app, get_clock
+from wheel_vocabulary.api.dependencies import get_app_version, get_clock, get_settings
+from wheel_vocabulary.api.main import create_app
+from wheel_vocabulary.api.routes.health import _format_timestamp
 
 # Fixed time used by FrozenClock in all timestamp-sensitive tests
 _FIXED_DT = datetime(2026, 7, 20, 14, 32, 0, 123000, tzinfo=UTC)
@@ -38,10 +38,11 @@ class _FrozenClock:
 
 @pytest.fixture
 def client() -> TestClient:
-    """TestClient with FrozenClock injected via FastAPI dependency override."""
+    """TestClient with deterministic dependencies injected via FastAPI overrides."""
     app = create_app()
     frozen = _FrozenClock(_FIXED_DT)
     app.dependency_overrides[get_clock] = lambda: frozen
+    app.dependency_overrides[get_app_version] = lambda: "9.8.7"
     return TestClient(app)
 
 
@@ -78,15 +79,28 @@ def test_health_service_name(client: TestClient) -> None:
 
 
 @pytest.mark.unit
-def test_health_version_matches_package(client: TestClient) -> None:
-    """body['version'] matches the version in pyproject.toml."""
-    pyproject = Path(__file__).parents[2] / "pyproject.toml"
-    with pyproject.open("rb") as f:
-        data = tomllib.load(f)
-    expected_version = data["project"]["version"]
-
+def test_health_version_uses_injected_version_provider(client: TestClient) -> None:
+    """body['version'] comes from get_app_version dependency injection."""
     response = client.get("/api/v1/health")
-    assert response.json()["version"] == expected_version
+    assert response.json()["version"] == "9.8.7"
+
+
+@pytest.mark.unit
+def test_health_does_not_resolve_settings_dependency() -> None:
+    """GET /health does not read settings from environment or .env files."""
+    app = create_app()
+    app.dependency_overrides[get_clock] = lambda: _FrozenClock(_FIXED_DT)
+    app.dependency_overrides[get_app_version] = lambda: "9.8.7"
+
+    def fail_if_resolved() -> None:
+        raise AssertionError("Health route must not resolve settings.")
+
+    app.dependency_overrides[get_settings] = fail_if_resolved
+
+    response = TestClient(app).get("/api/v1/health")
+
+    assert response.status_code == 200
+    assert response.json()["service"] == "wheel-vocabulary-api"
 
 
 @pytest.mark.unit
@@ -120,3 +134,30 @@ def test_health_no_extra_fields(client: TestClient) -> None:
     """Response body has exactly the four documented keys — no extras."""
     response = client.get("/api/v1/health")
     assert set(response.json().keys()) == {"status", "service", "version", "timestamp"}
+
+
+@pytest.mark.unit
+def test_format_timestamp_rejects_naive_datetime() -> None:
+    """_format_timestamp rejects naive datetimes before appending Z."""
+    naive = datetime(2026, 7, 20, 14, 32, 0, 123000)
+
+    with pytest.raises(ValueError, match="UTC-aware"):
+        _format_timestamp(naive)
+
+
+@pytest.mark.unit
+def test_format_timestamp_rejects_non_utc_datetime() -> None:
+    """_format_timestamp rejects aware datetimes that are not UTC."""
+    non_utc = datetime(
+        2026,
+        7,
+        20,
+        14,
+        32,
+        0,
+        123000,
+        tzinfo=timezone(timedelta(hours=2)),
+    )
+
+    with pytest.raises(ValueError, match="UTC-aware"):
+        _format_timestamp(non_utc)
