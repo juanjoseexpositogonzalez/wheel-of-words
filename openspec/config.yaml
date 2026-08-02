@@ -9,22 +9,57 @@ project:
   repo_root: /Users/isildur/code/wheel-of-words
 
 stack:
-  status: not-implemented
-  planned_backend: Python 3.12 + FastAPI + SQLAlchemy + spaCy
-  planned_frontend: React + Vite + TypeScript
-  planned_persistence: SQLite (MVP)
+  status: slice-b2-persistence-baseline-landed
+  backend: Python 3.12 + FastAPI + Pydantic Settings + SQLAlchemy/Alembic baseline
+  frontend: React 19 + Vite + TypeScript strict + Vitest scaffold
+  persistence: SQLite (MVP, SQLAlchemy engine/base and Alembic baseline landed)
   notes: |
-    No source code yet. Stack is planned per docs/adr/0001-monorepo-and-stack.md.
-    All commands below will error until code exists; they are declared so future
-    agents know what to run once the code lands.
+    Slice B2 landed the persistence baseline: SQLAlchemy declarative base, database
+    engine/session wiring, Alembic migration scaffold and baseline revision, plus
+    integration tests covering persistence and Alembic behavior. Playwright is
+    installed as a dependency and exposed via Makefile, but its config/spec is
+    scheduled for Slice D.
 
 test_commands:
-  unit: uv run pytest tests/unit
-  integration: uv run pytest tests/integration
-  all: uv run pytest
-  lint: uv run ruff check .
-  typecheck: uv run mypy .
-  format: uv run ruff format .
+  backend_all: cd apps/api && uv run pytest
+  backend_unit: cd apps/api && uv run pytest tests/unit
+  backend_api: cd apps/api && uv run pytest tests/api
+  backend_integration: cd apps/api && uv run pytest tests/integration
+  backend_smoke: cd apps/api && uv run pytest tests/smoke
+  backend_coverage: cd apps/api && uv run pytest --cov=wheel_vocabulary --cov-report=term-missing
+  frontend_all: cd apps/web && pnpm run test
+  frontend_coverage: cd apps/web && pnpm run test:coverage
+  e2e_declared: cd apps/web && pnpm exec playwright test
+  all_makefile: make test
+  lint_backend: cd apps/api && uv run ruff check .
+  lint_frontend: cd apps/web && pnpm run lint
+  typecheck_backend: cd apps/api && uv run mypy src/wheel_vocabulary
+  typecheck_frontend: cd apps/web && pnpm run typecheck
+  format_backend: cd apps/api && uv run ruff format .
+
+testing:
+  strict_tdd: true
+  detected: 2026-08-01
+  runtime_reason: pytest_vitest_and_persistence_integration_tests_detected_after_slice_b2
+  layers:
+    unit:
+      available: true
+      tools: pytest, Vitest
+    api:
+      available: true
+      tools: pytest + FastAPI TestClient/httpx
+    integration:
+      available: true
+      tools: pytest integration tests for persistence engine/base and Alembic baseline
+    e2e:
+      available: declared-only
+      tools: Playwright dependency and Makefile target present; config/spec scheduled for Slice D
+  coverage:
+    backend: pytest-cov configured, no fail-under gate yet
+    frontend: Vitest V8 coverage configured, no threshold yet
+  quality:
+    backend: Ruff + mypy, strict mypy for domain/application packages
+    frontend: ESLint script + TypeScript strict
 
 persistence_mode: openspec+engram
 
@@ -68,14 +103,14 @@ rules:
     - Tag vocabulary follows AGENTS.md §8.
   apply:
     tdd: true
-    test_command: uv run pytest
+    test_command: cd apps/api && uv run pytest
     rules:
       - TDD is MANDATORY when code changes (strict_tdd=true). Not applicable to doc-only changes.
       - Apply MUST persist apply-progress before returning.
       - Apply MUST commit with conventional-commits format.
   verify:
-    test_command: uv run pytest
-    build_command: uv run ruff check . && uv run mypy .
+    test_command: make test-backend && make test-frontend
+    build_command: make lint && make typecheck
     coverage_threshold: 80
     rules:
       - Verify MUST re-run all applicable acceptance criteria from the spec.
