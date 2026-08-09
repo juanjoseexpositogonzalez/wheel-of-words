@@ -28,10 +28,10 @@ the full requirement landscape without opening every spec directory.
 | REQ ID | Statement (short) | Acceptance criterion ref | Test file(s) | Task(s) | Status |
 |--------|--------------------|--------------------------|--------------|---------|--------|
 <<<<<<< HEAD
+<<<<<<< HEAD
 | REQ-001-001 | Backend FastAPI arrancable mediante un comando documentado | `specs/001-project-foundation/acceptance.md#AC-001` | `specs/001-project-foundation/test-plan.md` (API-BE-001) | T014–T016 | Pendiente |
 | REQ-001-002 | `GET /api/v1/health` devuelve `{"status":"ok","service":"wheel-vocabulary-api","version":"0.1.0"}` | `specs/001-project-foundation/acceptance.md#AC-001` | `specs/001-project-foundation/test-plan.md` (UT-BE-003, API-BE-001) | T012–T016 | Pendiente |
 | REQ-001-007 | El dominio no contiene imports de frameworks; arquitectura hexagonal validable | `specs/001-project-foundation/acceptance.md#AC-007` | `specs/001-project-foundation/test-plan.md` (UT-BE-001, UT-BE-002) | T004–T010 | Pendiente |
-=======
 | REQ-001-001 | Backend FastAPI arrancable mediante un comando documentado | `specs/001-project-foundation/acceptance.md#AC-001` | `apps/api/tests/api/test_health.py` | TA10, TB110–TB111 | Cumplido |
 | REQ-001-002 | `GET /api/v1/health` devuelve el contrato documentado | `specs/001-project-foundation/acceptance.md#AC-001` | `apps/api/tests/api/test_health.py` | TB107–TB111 | Cumplido |
 | REQ-001-003 | Frontend React + TypeScript arrancable mediante un comando documentado | `specs/001-project-foundation/acceptance.md#AC-002` | `apps/web/e2e/status.spec.ts` | TA06–TA10, TC11 | Cumplido |
