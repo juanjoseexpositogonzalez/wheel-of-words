@@ -1,6 +1,8 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
+declare const process: { env: Record<string, string | undefined> };
+
 // https://vitest.dev/config/
 export default defineConfig({
   plugins: [react()],
@@ -8,12 +10,12 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test-setup.ts"],
+    exclude: ["e2e/**", "node_modules/**"],
     coverage: {
       provider: "v8",
       include: ["src/**"],
       exclude: ["src/test-setup.ts", "src/main.tsx"],
-      // Coverage threshold is NOT enabled here — Slice D task TD03 activates it.
-      // coverageThreshold: { lines: 70 }  ← enabled in Slice D
+      thresholds: process.env.CI_COVERAGE_MODE === "fail" ? { lines: 70 } : undefined,
     },
   },
 });

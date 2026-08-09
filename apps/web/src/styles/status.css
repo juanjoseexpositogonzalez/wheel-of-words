@@ -1,0 +1,25 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #1f2937;
+  background: #f8fafc;
+}
+
+body { margin: 0; }
+
+.status-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 1.5rem;
+}
+
+.status-page section,
+.status-page > p {
+  max-width: 32rem;
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 12%);
+}
+
+button { cursor: pointer; }
