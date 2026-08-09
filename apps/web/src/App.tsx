@@ -1,15 +1,11 @@
 import React from "react";
+import { StatusPage } from "./pages/StatusPage";
 
-/**
- * App — top-level component stub.
- *
- * This placeholder mounts a loading message until Slice C wires the real
- * StatusPage component.
- */
 export default function App(): React.JSX.Element {
   return (
-    <main>
-      <p>Loading…</p>
+    <main className="status-page">
+      <h1>Wheel Vocabulary</h1>
+      <StatusPage />
     </main>
   );
 }
