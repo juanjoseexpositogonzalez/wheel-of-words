@@ -595,17 +595,27 @@ const IMPORT_FEATURE_MODULES = [
   "src/pages/ImportPage.tsx",
   "src/components/ImportForm.tsx",
   "src/components/FrequencyTable.tsx",
-  "src/components/DeleteImportButton.tsx",
   "src/api/imports.ts",
   "src/types/imports.ts",
+  // cut 3 appends "src/components/DeleteImportButton.tsx"
 ] as const;
 ```
+
+**The manifest is cut-scoped.** It lists the modules that exist in the current cut, never future ones. `DeleteImportButton.tsx` is created in cut 3 (T309), so listing it in cut 1c would make assertion 1 unsatisfiable inside a cut that is supposed to be independently shippable.
+
+Scoping is safe because assertion 3 is the reverse check: any new module whose name matches the feature pattern must appear in the manifest, so cut 3 cannot forget to append its component. The guard fails loudly either way, which is the property that matters.
 
 The test asserts, in order:
 
 1. the list is non-empty and **every entry exists on disk** — a renamed or deleted module fails loudly
    instead of silently shrinking the checked surface;
-2. no listed file matches the forbidden patterns.
+2. no listed file matches the forbidden patterns;
+3. **every** file under `apps/web/src/` whose name matches `/[Ii]mport|[Ff]requenc/` **appears in the
+   manifest** — a new feature module cannot be added outside the checked surface, and a later cut
+   cannot forget to append its own component.
+
+Assertions 1 and 3 are deliberately opposed: 1 forbids listing what does not exist, 3 forbids omitting
+what does. Together they are what make a cut-scoped manifest safe.
 
 Why a manifest beats the alternatives:
 
