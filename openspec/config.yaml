@@ -37,8 +37,8 @@ test_commands:
 
 testing:
   strict_tdd: true
-  detected: 2026-08-01
-  runtime_reason: pytest_vitest_and_persistence_integration_tests_detected_after_slice_b2
+  detected: 2026-08-10
+  runtime_reason: pytest_50_passed_vitest_playwright_ci_8_green_jobs_verified_main_aa3042d
   layers:
     unit:
       available: true
@@ -116,6 +116,26 @@ rules:
   archive:
     - Archive MUST sync delta specs into openspec/specs/ if the change modified a capability spec.
     - Archive MUST persist an archive-report.
+
+open_issues:
+  - id: 11
+    title: "SPEC-002: import a .txt and view word frequencies"
+    label: enhancement
+    url: https://github.com/juanjoseexpositogonzalez/wheel-of-words/issues/11
+    note: Next product cycle; not yet planned.
+  - id: 14
+    title: "fix(api): close leaked SQLite connections in Alembic integration tests"
+    label: bug
+    url: https://github.com/juanjoseexpositogonzalez/wheel-of-words/issues/14
+    note: SQLite ResourceWarning; surfaces as 6 warnings in 50-test run. Non-blocking but SHOULD resolve during or before SPEC-002.
+  - id: 15
+    title: "fix(api): resolve StarletteDeprecationWarning for httpx in TestClient"
+    label: bug
+    url: https://github.com/juanjoseexpositogonzalez/wheel-of-words/issues/15
+    note: httpx/Starlette deprecation warning. Non-blocking but SHOULD resolve during or before SPEC-002.
+
+sdd_init_refreshed: 2026-08-10
+sdd_init_engram_obs: "2413 (topic_key: sdd-init-anthropic/wheel-of-words)"
 
 # NOTE (do not remove): openspec/changes/ gitignore policy is deferred.
 # When gitignore policy is finalized after the first archive, add here:

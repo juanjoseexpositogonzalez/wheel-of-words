@@ -52,6 +52,10 @@ Thumbs.db
 # The local skill-registry cache is machine-specific, do not track it.
 .atl/.skill-registry.cache.json
 
+# The CodeGraph index is a machine-local, rebuildable code-intelligence cache.
+# It is per-checkout (never shared between worktrees), so it is not tracked.
+.codegraph/
+
 # ─── Slice A additions ────────────────────────────────────────────────────────
 
 # Python virtual environment (uv-managed; not committed)
