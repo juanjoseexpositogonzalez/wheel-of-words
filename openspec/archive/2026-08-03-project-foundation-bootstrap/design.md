@@ -19,7 +19,7 @@
 
 | Artifact | Location | Lines |
 |----------|----------|-------|
-| Delta spec v1.0.0 | `openspec/changes/project-foundation-bootstrap/spec.md` | 515 |
+| Delta spec v1.0.0 | `openspec/archive/2026-08-03-project-foundation-bootstrap/spec.md` | 515 |
 | Proposal | `openspec/changes/project-foundation-bootstrap/proposal.md` | 288 |
 | Exploration | `openspec/changes/project-foundation-bootstrap/explore.md` | 352 |
 
@@ -888,7 +888,7 @@ N/A — this design introduces no routing-shell-subprocess boundary, no VCS/PR a
 
 ## References
 
-- `openspec/changes/project-foundation-bootstrap/spec.md` (515 lines)
+- `openspec/archive/2026-08-03-project-foundation-bootstrap/spec.md` (515 lines)
 - `openspec/changes/project-foundation-bootstrap/proposal.md` (288 lines)
 - `openspec/changes/project-foundation-bootstrap/explore.md` (352 lines)
 - `specs/001-project-foundation/{spec, plan, test-plan, decisions}.md`
