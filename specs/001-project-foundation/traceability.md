@@ -16,7 +16,7 @@
 | REQ-001-012 | AC-009 | CI-001 | T045-T046, T049 | Pendiente |
 | REQ-001-013 | AC-010 | CI-002 | T047-T048, T050 | Pendiente |
 | REQ-001-014 | AC-012 | CI-001..004 | T049-T054 | Pendiente |
-| REQ-001-015 | AC-015 | Revisión estructural | T024-T025 | Pendiente |
+| REQ-001-015 | ADR-0002 | Revisión estructural | T024-T025 | Pendiente |
 | REQ-001-016 | AC-015 | Revisión documental | T002, T055-T056 | Pendiente |
 | REQ-001-017 | AC-013 | Revisión de repositorio | T007, T058 | Pendiente |
 | REQ-001-018 | AC-007, AC-013 | Revisión de seguridad | T004-T007, T058 | Pendiente |
