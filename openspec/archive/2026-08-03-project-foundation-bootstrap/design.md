@@ -798,9 +798,9 @@ if grep -qiE "REQ-001-007.*dominio no contiene imports" docs/traceability-matrix
   echo "FAIL: REQ-001-007 still mis-mapped"
 fi
 
-# REQ-001-015 row with AC-015
-grep -P "^\| REQ-001-015 \|" docs/traceability-matrix.md | grep -q "AC-015" \
-  || echo "FAIL: REQ-001-015 row missing or lacks AC-015"
+# REQ-001-015 row with structural ADR evidence
+grep -P "^\| REQ-001-015 \|" docs/traceability-matrix.md | grep -q "docs/adr/0002-hexagonal-split.md#decision" \
+  || echo "FAIL: REQ-001-015 row missing or lacks structural ADR evidence"
 ```
 **Verifies:** REQ-PFB-TRACE-01, REQ-PFB-TRACE-02, AC-PFB-09. Run in Slice D verify.
 

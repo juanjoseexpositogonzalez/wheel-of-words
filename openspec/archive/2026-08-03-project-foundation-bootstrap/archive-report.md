@@ -43,7 +43,7 @@ No existing main requirements were removed or modified; five requirements were c
 
 The complete change folder was moved to:
 
-`openspec/changes/archive/2026-08-03-project-foundation-bootstrap/`
+`openspec/archive/2026-08-03-project-foundation-bootstrap/`
 
 It contains the proposal, legacy full spec, native delta spec, design, tasks, verify report, exploration notes, and this archive report.
 
@@ -51,11 +51,11 @@ It contains the proposal, legacy full spec, native delta spec, design, tasks, ve
 
 ### OpenSpec files
 
-- `openspec/changes/project-foundation-bootstrap/proposal.md`
-- `openspec/changes/project-foundation-bootstrap/specs/001-project-foundation/spec.md`
-- `openspec/changes/project-foundation-bootstrap/design.md`
-- `openspec/changes/project-foundation-bootstrap/tasks.md`
-- `openspec/changes/project-foundation-bootstrap/verify-report.md`
+- `openspec/archive/2026-08-03-project-foundation-bootstrap/proposal.md`
+- `openspec/archive/2026-08-03-project-foundation-bootstrap/specs/001-project-foundation/spec.md`
+- `openspec/archive/2026-08-03-project-foundation-bootstrap/design.md`
+- `openspec/archive/2026-08-03-project-foundation-bootstrap/tasks.md`
+- `openspec/archive/2026-08-03-project-foundation-bootstrap/verify-report.md`
 - `openspec/specs/001-project-foundation/spec.md`
 
 ### Engram observations read
