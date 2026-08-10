@@ -27,11 +27,6 @@ the full requirement landscape without opening every spec directory.
 
 | REQ ID | Statement (short) | Acceptance criterion ref | Test file(s) | Task(s) | Status |
 |--------|--------------------|--------------------------|--------------|---------|--------|
-<<<<<<< HEAD
-| REQ-001-001 | Backend FastAPI arrancable mediante un comando documentado | `specs/001-project-foundation/acceptance.md#AC-001` | `specs/001-project-foundation/test-plan.md` (API-BE-001) | T014–T016 | Pendiente |
-| REQ-001-002 | `GET /api/v1/health` devuelve `{"status":"ok","service":"wheel-vocabulary-api","version":"0.1.0"}` | `specs/001-project-foundation/acceptance.md#AC-001` | `specs/001-project-foundation/test-plan.md` (UT-BE-003, API-BE-001) | T012–T016 | Pendiente |
-| REQ-001-007 | El dominio no contiene imports de frameworks; arquitectura hexagonal validable | `specs/001-project-foundation/acceptance.md#AC-007` | `specs/001-project-foundation/test-plan.md` (UT-BE-001, UT-BE-002) | T004–T010 | Pendiente |
-=======
 | REQ-001-001 | Backend FastAPI arrancable mediante un comando documentado | `specs/001-project-foundation/acceptance.md#AC-001` | `apps/api/tests/api/test_health.py` | TA10, TB110–TB111 | Cumplido |
 | REQ-001-002 | `GET /api/v1/health` devuelve el contrato documentado | `specs/001-project-foundation/acceptance.md#AC-001` | `apps/api/tests/api/test_health.py` | TB107–TB111 | Cumplido |
 | REQ-001-003 | Frontend React + TypeScript arrancable mediante un comando documentado | `specs/001-project-foundation/acceptance.md#AC-002` | `apps/web/e2e/status.spec.ts` | TA06–TA10, TC11 | Cumplido |
@@ -46,7 +41,7 @@ the full requirement landscape without opening every spec directory.
 | REQ-001-012 | Backend pasa Ruff y mypy con configuración acordada | `specs/001-project-foundation/acceptance.md#AC-012` | `.github/workflows/ci.yml` | TA02, TD03, TD09 | Cumplido |
 | REQ-001-013 | Frontend pasa TypeScript estricto y ESLint | `specs/001-project-foundation/acceptance.md#AC-012` | `.github/workflows/ci.yml` | TA06–TA08, TD03, TD09 | Cumplido |
 | REQ-001-014 | GitHub Actions ejecuta instalación, calidad, pruebas, E2E y migraciones | `specs/001-project-foundation/acceptance.md#AC-012` | `apps/api/tests/unit/test_ci_workflow.py` | TD03, TD09 | Cumplido |
-| REQ-001-015 | Capas backend hexagonales con fronteras de framework | `specs/001-project-foundation/acceptance.md#AC-015` | `apps/api/tests/unit/test_traceability.py` | TA04, TD04–TD05 | Cumplido |
+| REQ-001-015 | Capas backend hexagonales con fronteras de framework | `docs/adr/0002-hexagonal-split.md#decision` | inspección estructural de `apps/api/src/wheel_vocabulary/{domain,application,infrastructure,api}/` | TA04, TD04–TD05 | Cumplido |
 | REQ-001-016 | README explica requisitos, instalación, arranque, pruebas, calidad, migraciones y estructura | `specs/001-project-foundation/acceptance.md#AC-015` | `apps/api/tests/unit/test_traceability.py` | TD06 | Cumplido |
 | REQ-001-017 | El repositorio no incluye texto de libros protegido | `specs/001-project-foundation/acceptance.md#AC-013` | inspección de contenido versionado | TA12, TD09 | Cumplido |
 | REQ-001-018 | Entornos, bases locales, importaciones, cobertura, cachés y secretos están ignorados | `specs/001-project-foundation/acceptance.md#AC-007` | `.gitignore` | TA12 | Cumplido |

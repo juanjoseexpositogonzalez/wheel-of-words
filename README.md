@@ -28,7 +28,7 @@ The project is built under a strict methodology stack — Specification-Driven D
 
 ## Status
 
-This repository does **not** yet contain application code. It contains the full methodological and specification foundation the code will be built on.
+This repository contains the executable project foundation: a FastAPI health API, a React status screen, SQLite/Alembic wiring, and an automated quality pipeline.
 
 | Layer | Status |
 |-------|--------|
@@ -38,10 +38,47 @@ This repository does **not** yet contain application code. It contains the full 
 | SDD / OpenSpec bootstrap | Complete |
 | ADRs 0001–0006 | Ratified |
 | Glossary, DoD, traceability matrix | Live |
+| Project foundation (`SPEC-001`) | Implementation complete; archive pending |
+| Backend health API and frontend status screen | Complete |
 | First vertical slice (`SPEC-002` — import a `.txt` and see a frequency list) | Not started |
-| Backend / frontend code | Not started |
 
-The next planned work is `SPEC-002`: import a `.txt` file and show an alphabetical list of unique words with their frequency. That will be the first vertical slice with visible user value.
+The next planned work is `SPEC-002`: import a legally supplied `.txt` file and show an alphabetical list of unique words with their frequency. That will be the first vertical slice with visible user value.
+
+## Local development
+
+### Requirements and installation
+
+Install Python 3.12+, [uv](https://docs.astral.sh/uv/), Node.js 20+, and pnpm 9+.
+From the repository root, install the backend and frontend dependencies:
+
+```bash
+make install
+```
+
+### Start the application
+
+Start both local servers with `make dev`, then open the Vite URL shown in the terminal.
+For separate terminals, use `make dev-backend` and `make dev-frontend`.
+
+```bash
+make dev
+```
+
+### Tests, quality, and migrations
+
+Run the complete test suite (including Chromium E2E), quality checks, formatting, or the
+empty SQLite Alembic baseline from the repository root:
+
+```bash
+make test
+make lint
+make typecheck
+make format
+make migrate
+```
+
+The command definitions live in the root `Makefile`; `apps/api` uses `uv` and
+`apps/web` uses `pnpm`.
 
 ## Non-negotiable principles
 

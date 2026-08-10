@@ -439,10 +439,10 @@ for n in 001 002 003 004 005 006 007 008 009 010 011 012 013 014 015 016 017 018
 done
 # Assert REQ-001-007 does NOT map to hexagonal wording
 grep -Ei "REQ-001-007.*dominio no contiene imports" docs/traceability-matrix.md
-# Assert REQ-001-015 row references AC-015
-grep -E "^\| REQ-001-015 \|.*AC-015" docs/traceability-matrix.md
+# Assert REQ-001-015 row references the structural hexagonal evidence
+grep -E "^\| REQ-001-015 \|.*docs/adr/0002-hexagonal-split.md#decision" docs/traceability-matrix.md
 ```
-Expected: exactly one row per REQ-001-001..018 (18 rows minimum); the mis-mapping grep returns nothing (exit 1); the REQ-001-015 row exists and references AC-015. Verifies REQ-PFB-TRACE-01 / REQ-PFB-TRACE-02 / AC-PFB-09.
+Expected: exactly one row per REQ-001-001..018 (18 rows minimum); the mis-mapping grep returns nothing (exit 1); the REQ-001-015 row exists and references the structural ADR-0002 evidence. Verifies REQ-PFB-TRACE-01 / REQ-PFB-TRACE-02 / AC-PFB-09.
 
 ### Hook 4 — Health response JSON Schema validation
 Given the backend running under a test harness, the API test that verifies `GET /api/v1/health` MUST validate the response body against the shipped JSON Schema (per CONTRACT-1). Verifies AC-PFB-10.
