@@ -19,7 +19,7 @@
 
 | Artifact | Location | Lines |
 |----------|----------|-------|
-| Delta spec v1.0.0 | `openspec/changes/project-foundation-bootstrap/spec.md` | 515 |
+| Delta spec v1.0.0 | `openspec/archive/2026-08-03-project-foundation-bootstrap/spec.md` | 515 |
 | Proposal | `openspec/changes/project-foundation-bootstrap/proposal.md` | 288 |
 | Exploration | `openspec/changes/project-foundation-bootstrap/explore.md` | 352 |
 
@@ -798,9 +798,9 @@ if grep -qiE "REQ-001-007.*dominio no contiene imports" docs/traceability-matrix
   echo "FAIL: REQ-001-007 still mis-mapped"
 fi
 
-# REQ-001-015 row with AC-015
-grep -P "^\| REQ-001-015 \|" docs/traceability-matrix.md | grep -q "AC-015" \
-  || echo "FAIL: REQ-001-015 row missing or lacks AC-015"
+# REQ-001-015 row with structural ADR evidence
+grep -P "^\| REQ-001-015 \|" docs/traceability-matrix.md | grep -q "docs/adr/0002-hexagonal-split.md#decision" \
+  || echo "FAIL: REQ-001-015 row missing or lacks structural ADR evidence"
 ```
 **Verifies:** REQ-PFB-TRACE-01, REQ-PFB-TRACE-02, AC-PFB-09. Run in Slice D verify.
 
@@ -888,7 +888,7 @@ N/A — this design introduces no routing-shell-subprocess boundary, no VCS/PR a
 
 ## References
 
-- `openspec/changes/project-foundation-bootstrap/spec.md` (515 lines)
+- `openspec/archive/2026-08-03-project-foundation-bootstrap/spec.md` (515 lines)
 - `openspec/changes/project-foundation-bootstrap/proposal.md` (288 lines)
 - `openspec/changes/project-foundation-bootstrap/explore.md` (352 lines)
 - `specs/001-project-foundation/{spec, plan, test-plan, decisions}.md`

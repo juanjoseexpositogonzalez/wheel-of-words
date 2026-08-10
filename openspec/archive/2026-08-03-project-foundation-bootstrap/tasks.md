@@ -40,8 +40,8 @@ Chain strategy: feature-branch-chain
 - [x] TA10 [BOOTSTRAP] Add root `Makefile` targets for bootstrap/dev/test/lint/typecheck/migrate.
 - [x] TA11 [BOOTSTRAP] Add repo `.env.example` with backend/frontend safe defaults.
 - [x] TA12 [BOOTSTRAP] Extend `.gitignore` for venv, caches, DB, node, env files.
-- [x] TA13 [DOC] Add `apps/api/README.md` and `apps/web/README.md` stubs.
-- [x] TA14 [SPEC] Align `design.md` to `wheel_vocabulary` override.
+- [x] TA13 [BOOTSTRAP] Add `apps/api/README.md` and `apps/web/README.md` stubs.
+- [x] TA14 [BOOTSTRAP] Align `design.md` to `wheel_vocabulary` override.
 - [x] TA15-SMOKE [TEST] Add `apps/api/tests/smoke/test_smoke.py` as first RED→GREEN anchor.
 
 ## Phase 2: Slice B1 — Backend health path
@@ -92,29 +92,29 @@ Chain strategy: feature-branch-chain
 
 ## Phase 4: Slice C — Frontend status screen
 
-- [ ] TC01 [TEST] RED `apps/web/tests/api/client.test.ts` and `src/types/health.ts` contract.
-- [ ] TC02 [IMPL] GREEN `apps/web/src/api/client.ts` and `src/types/health.ts`.
-- [ ] TC03 [TEST] RED `apps/web/tests/components/StatusLoading.test.tsx`.
-- [ ] TC04 [IMPL] GREEN `apps/web/src/components/StatusLoading.tsx`.
-- [ ] TC05 [TEST] RED `apps/web/tests/components/StatusHealthy.test.tsx`.
-- [ ] TC06 [IMPL] GREEN `apps/web/src/components/StatusHealthy.tsx`.
-- [ ] TC07 [TEST] RED `apps/web/tests/components/StatusError.test.tsx`.
-- [ ] TC08 [IMPL] GREEN `apps/web/src/components/StatusError.tsx`.
-- [ ] TC09 [TEST] RED `apps/web/tests/components/StatusPage.test.tsx`.
-- [ ] TC10 [IMPL] GREEN `apps/web/src/pages/StatusPage.tsx`.
-- [ ] TC11 [IMPL] Wire `StatusPage` into `apps/web/src/App.tsx` and `main.tsx`.
-- [ ] TC12 [SPEC] Add `apps/web/src/styles/status.css` and import it.
-- [ ] TC13 [REFACTOR] Remove frontend duplication; keep test/lint/typecheck green.
+- [x] TC01 [TEST] RED `apps/web/tests/api/client.test.ts` and `src/types/health.ts` contract.
+- [x] TC02 [IMPL] GREEN `apps/web/src/api/client.ts` and `src/types/health.ts`.
+- [x] TC03 [TEST] RED `apps/web/tests/components/StatusLoading.test.tsx`.
+- [x] TC04 [IMPL] GREEN `apps/web/src/components/StatusLoading.tsx`.
+- [x] TC05 [TEST] RED `apps/web/tests/components/StatusHealthy.test.tsx`.
+- [x] TC06 [IMPL] GREEN `apps/web/src/components/StatusHealthy.tsx`.
+- [x] TC07 [TEST] RED `apps/web/tests/components/StatusError.test.tsx`.
+- [x] TC08 [IMPL] GREEN `apps/web/src/components/StatusError.tsx`.
+- [x] TC09 [TEST] RED `apps/web/tests/components/StatusPage.test.tsx`.
+- [x] TC10 [IMPL] GREEN `apps/web/src/pages/StatusPage.tsx`.
+- [x] TC11 [IMPL] Wire `StatusPage` into `apps/web/src/App.tsx` and `main.tsx`.
+- [x] TC12 [SPEC] Add `apps/web/src/styles/status.css` and import it.
+- [x] TC13 [REFACTOR] Remove frontend duplication; keep test/lint/typecheck green.
 
 ## Phase 5: Slice D — E2E, CI, docs, traceability
 
-- [ ] TD01 [E2E] Add `apps/web/e2e/status.spec.ts` without sleeps.
-- [ ] TD02 [E2E] Add `apps/web/playwright.config.ts` `webServer` + Chromium-only config.
-- [ ] TD03 [CI] Add `.github/workflows/ci.yml` with backend/frontend/migration/e2e jobs.
-- [ ] TD04 [TEST] RED traceability regression tests in `apps/api/tests/unit/test_traceability.py`.
-- [ ] TD05 [DOC] Fix `docs/traceability-matrix.md` for REQ-001-007 and REQ-001-015.
-- [ ] TD06 [DOC] Update root `README.md` status and next-work section only.
-- [ ] TD07 [DOC] Add `project-foundation-bootstrap` close-out entry to `docs/decisions-log.md`.
-- [ ] TD08 [SECURITY] Add `apps/api/tests/api/test_health_security.py` no-PII/no-env-leak assertions.
-- [ ] TD09 [REFACTOR] Final cleanup with `make lint && make typecheck && make test && make test-e2e`.
-- [ ] TD10 [BOOTSTRAP] Upsert Engram `sdd/wheel-of-words/testing-capabilities` after CI green.
+- [x] TD01 [E2E] Add `apps/web/e2e/status.spec.ts` without sleeps.
+- [x] TD02 [E2E] Add `apps/web/playwright.config.ts` `webServer` + Chromium-only config.
+- [x] TD03 [CI] Add `.github/workflows/ci.yml` with backend/frontend/migration/e2e jobs.
+- [x] TD04 [TEST] RED traceability regression tests in `apps/api/tests/unit/test_traceability.py`.
+- [x] TD05 [DOC] Fix `docs/traceability-matrix.md` for REQ-001-007 and REQ-001-015.
+- [x] TD06 [DOC] Update root `README.md` status and next-work section only.
+- [x] TD07 [DOC] Add `project-foundation-bootstrap` close-out entry to `docs/decisions-log.md`.
+- [x] TD08 [SECURITY] Add `apps/api/tests/api/test_health_security.py` no-PII/no-env-leak assertions.
+- [x] TD09 [REFACTOR] Final cleanup with `make lint && make typecheck && make test && make test-e2e`.
+- [x] TD10 [BOOTSTRAP] Upsert Engram `sdd/wheel-of-words/testing-capabilities` after CI green.

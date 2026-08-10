@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  CI_COVERAGE_MODE: fail
+
+jobs:
+  backend-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: cd apps/api && uv sync --locked --extra dev
+      - run: cd apps/api && uv run ruff check . && uv run ruff format --check .
+
+  backend-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: cd apps/api && uv sync --locked --extra dev
+      - run: cd apps/api && uv run mypy src/wheel_vocabulary
+
+  backend-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: cd apps/api && uv sync --locked --extra dev
+      - run: cd apps/api && uv run pytest --cov=wheel_vocabulary --cov-fail-under=80
+
+  migration-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: cd apps/api && uv sync --locked --extra dev
+      - run: cd apps/api && uv run alembic upgrade head
+
+  frontend-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: cd apps/web && pnpm install --frozen-lockfile
+      - run: cd apps/web && pnpm run lint
+
+  frontend-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: cd apps/web && pnpm install --frozen-lockfile
+      - run: cd apps/web && pnpm run typecheck
+
+  frontend-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: cd apps/web && pnpm install --frozen-lockfile
+      - run: cd apps/web && pnpm run test:coverage
+
+  e2e:
+    needs: [backend-test, frontend-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: cd apps/api && uv sync --locked --extra dev
+      - run: cd apps/web && pnpm install --frozen-lockfile
+      - run: cd apps/web && pnpm exec playwright install chromium
+      - run: cd apps/web && pnpm exec playwright test
