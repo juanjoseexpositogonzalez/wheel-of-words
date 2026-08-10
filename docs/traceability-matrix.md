@@ -27,9 +27,28 @@ the full requirement landscape without opening every spec directory.
 
 | REQ ID | Statement (short) | Acceptance criterion ref | Test file(s) | Task(s) | Status |
 |--------|--------------------|--------------------------|--------------|---------|--------|
-| REQ-001-001 | Backend FastAPI arrancable mediante un comando documentado | `specs/001-project-foundation/acceptance.md#AC-001` | `specs/001-project-foundation/test-plan.md` (API-BE-001) | T014–T016 | Pendiente |
-| REQ-001-002 | `GET /api/v1/health` devuelve `{"status":"ok","service":"wheel-vocabulary-api","version":"0.1.0"}` | `specs/001-project-foundation/acceptance.md#AC-001` | `specs/001-project-foundation/test-plan.md` (UT-BE-003, API-BE-001) | T012–T016 | Pendiente |
-| REQ-001-007 | El dominio no contiene imports de frameworks; arquitectura hexagonal validable | `specs/001-project-foundation/acceptance.md#AC-007` | `specs/001-project-foundation/test-plan.md` (UT-BE-001, UT-BE-002) | T004–T010 | Pendiente |
+| REQ-001-001 | Backend FastAPI arrancable mediante un comando documentado | `specs/001-project-foundation/acceptance.md#AC-001` | `apps/api/tests/api/test_health.py` | TA10, TB110–TB111 | Cumplido |
+| REQ-001-002 | `GET /api/v1/health` devuelve el contrato documentado | `specs/001-project-foundation/acceptance.md#AC-001` | `apps/api/tests/api/test_health.py` | TB107–TB111 | Cumplido |
+| REQ-001-003 | Frontend React + TypeScript arrancable mediante un comando documentado | `specs/001-project-foundation/acceptance.md#AC-002` | `apps/web/e2e/status.spec.ts` | TA06–TA10, TC11 | Cumplido |
+| REQ-001-004 | Frontend muestra carga, disponible, no disponible y reintento | `specs/001-project-foundation/acceptance.md#AC-003,AC-004` | `apps/web/tests/components/StatusPage.test.tsx` | TC03–TC11 | Cumplido |
+| REQ-001-005 | Backend conecta SQLite mediante URL configurable | `specs/001-project-foundation/acceptance.md#AC-005` | `apps/api/tests/integration/test_engine.py` | TB201–TB202 | Cumplido |
+| REQ-001-006 | Alembic configurado con migración inicial verificable | `specs/001-project-foundation/acceptance.md#AC-006` | `apps/api/tests/integration/test_alembic.py` | TB205–TB207 | Cumplido |
+| REQ-001-007 | Configuración por entorno con valores de ejemplo seguros | `specs/001-project-foundation/acceptance.md#AC-007` | `apps/api/tests/unit/test_settings.py` | TA11, TB101–TB102 | Cumplido |
+| REQ-001-008 | Superficie de comandos unificada para instalar, desarrollar, probar y migrar | `specs/001-project-foundation/acceptance.md#AC-008` | `apps/api/tests/unit/test_traceability.py` | TA10, TD06 | Cumplido |
+| REQ-001-009 | Suite con pruebas backend unitarias, API y SQLite | `specs/001-project-foundation/acceptance.md#AC-009` | `apps/api/tests/{unit,api,integration}/` | TB101–TB112, TB201–TB208 | Cumplido |
+| REQ-001-010 | Pruebas frontend cubren carga, disponible, no disponible y reintento | `specs/001-project-foundation/acceptance.md#AC-010` | `apps/web/tests/components/StatusPage.test.tsx` | TC03–TC10 | Cumplido |
+| REQ-001-011 | Playwright valida el estado integrado de salud | `specs/001-project-foundation/acceptance.md#AC-011` | `apps/web/e2e/status.spec.ts` | TD01–TD02 | Cumplido |
+| REQ-001-012 | Backend pasa Ruff y mypy con configuración acordada | `specs/001-project-foundation/acceptance.md#AC-012` | `.github/workflows/ci.yml` | TA02, TD03, TD09 | Cumplido |
+| REQ-001-013 | Frontend pasa TypeScript estricto y ESLint | `specs/001-project-foundation/acceptance.md#AC-012` | `.github/workflows/ci.yml` | TA06–TA08, TD03, TD09 | Cumplido |
+| REQ-001-014 | GitHub Actions ejecuta instalación, calidad, pruebas, E2E y migraciones | `specs/001-project-foundation/acceptance.md#AC-012` | `apps/api/tests/unit/test_ci_workflow.py` | TD03, TD09 | Cumplido |
+| REQ-001-015 | Capas backend hexagonales con fronteras de framework | `docs/adr/0002-hexagonal-split.md#decision` | inspección estructural de `apps/api/src/wheel_vocabulary/{domain,application,infrastructure,api}/` | TA04, TD04–TD05 | Cumplido |
+| REQ-001-016 | README explica requisitos, instalación, arranque, pruebas, calidad, migraciones y estructura | `specs/001-project-foundation/acceptance.md#AC-015` | `apps/api/tests/unit/test_traceability.py` | TD06 | Cumplido |
+| REQ-001-017 | El repositorio no incluye texto de libros protegido | `specs/001-project-foundation/acceptance.md#AC-013` | inspección de contenido versionado | TA12, TD09 | Cumplido |
+| REQ-001-018 | Entornos, bases locales, importaciones, cobertura, cachés y secretos están ignorados | `specs/001-project-foundation/acceptance.md#AC-007` | `.gitignore` | TA12 | Cumplido |
+| REQ-CI-001 | Backend CI jobs install locked development tooling independently | `openspec/changes/fix-pr5-ci-tooling/specs/001-project-foundation/spec.md#AC-CI-001` | `apps/api/tests/unit/test_ci_workflow.py` | TC01, TC03, TC05–TC06 | En progreso |
+| REQ-CI-002 | Frontend CI uses the repository-root lockfile and frozen installs | `openspec/changes/fix-pr5-ci-tooling/specs/001-project-foundation/spec.md#AC-CI-002` | `apps/api/tests/unit/test_ci_workflow.py` | TC02, TC04–TC06 | En progreso |
+| REQ-CI-003 | E2E CI prepares locked backend and frontend dependencies | `openspec/changes/fix-pr5-ci-tooling/specs/001-project-foundation/spec.md#AC-CI-003` | `apps/api/tests/unit/test_ci_workflow.py` | TC01, TC03, TC05–TC06 | En progreso |
+| REQ-CI-004 | CI repair does not mask unrelated functional E2E failures | `openspec/changes/fix-pr5-ci-tooling/specs/001-project-foundation/spec.md#AC-CI-004` | `apps/api/tests/unit/test_ci_workflow.py`, `apps/web/e2e/status.spec.ts` | TC02, TC04, TC06 | En progreso |
 | REQ-DOCS-004 | Skill registry lists all SDD phase skills | `openspec/changes/docs-methodology-overhaul/spec.md#AC-004` | N/A — inspección | TA02 | Cumplido |
 | REQ-DOCS-010 | `docs/adr/README.md` con índice, vocabulario de estado, convención de numeración y reglas de autoría | `openspec/changes/docs-methodology-overhaul/spec.md#AC-010` | N/A — inspección | TB01 | Cumplido |
 | REQ-DOCS-030 | `docs/glossary.md` en español con todos los términos canónicos del dominio lingüístico (≥ 13 entradas) | `openspec/changes/docs-methodology-overhaul/spec.md#AC-030` | N/A — inspección | TC07, TC08 | Cumplido |
