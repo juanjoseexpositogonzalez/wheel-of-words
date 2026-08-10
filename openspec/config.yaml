@@ -123,16 +123,8 @@ open_issues:
     label: enhancement
     url: https://github.com/juanjoseexpositogonzalez/wheel-of-words/issues/11
     note: Next product cycle; not yet planned.
-  - id: 14
-    title: "fix(api): close leaked SQLite connections in Alembic integration tests"
-    label: bug
-    url: https://github.com/juanjoseexpositogonzalez/wheel-of-words/issues/14
-    note: SQLite ResourceWarning; surfaces as 6 warnings in 50-test run. Non-blocking but SHOULD resolve during or before SPEC-002.
-  - id: 15
-    title: "fix(api): resolve StarletteDeprecationWarning for httpx in TestClient"
-    label: bug
-    url: https://github.com/juanjoseexpositogonzalez/wheel-of-words/issues/15
-    note: httpx/Starlette deprecation warning. Non-blocking but SHOULD resolve during or before SPEC-002.
+  # Issues 14 and 15 were resolved by PR #16 (commits a2d6d88, d04a85e) and closed.
+  # The backend suite is now at 50 passed with zero warnings, gated by filterwarnings.
 
 sdd_init_refreshed: 2026-08-10
 sdd_init_engram_obs: "2413 (topic_key: sdd-init-anthropic/wheel-of-words)"
