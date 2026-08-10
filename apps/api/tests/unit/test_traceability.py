@@ -6,14 +6,7 @@ from pathlib import Path
 _REPOSITORY_ROOT = Path(__file__).parents[4]
 _MATRIX = _REPOSITORY_ROOT / "docs" / "traceability-matrix.md"
 _README = _REPOSITORY_ROOT / "README.md"
-_TASKS = (
-    _REPOSITORY_ROOT
-    / "openspec"
-    / "changes"
-    / "archive"
-    / "2026-08-03-project-foundation-bootstrap"
-    / "tasks.md"
-)
+_TASKS = _REPOSITORY_ROOT / "openspec" / "changes" / "project-foundation-bootstrap" / "tasks.md"
 
 
 def test_configuration_requirement_has_its_own_traceability_row() -> None:
@@ -26,8 +19,11 @@ def test_configuration_requirement_has_its_own_traceability_row() -> None:
 def test_hexagonal_requirement_is_traced_separately() -> None:
     matrix = _MATRIX.read_text(encoding="utf-8")
 
-    assert "| REQ-001-015 | Capas backend hexagonales con fronteras de framework" in matrix
-    assert "| REQ-001-015 |" in matrix
+    row = next(line for line in matrix.splitlines() if line.startswith("| REQ-001-015 |"))
+
+    assert "Capas backend hexagonales con fronteras de framework" in row
+    assert "docs/adr/0002-hexagonal-split.md#decision" in row
+    assert "AC-015" not in row
 
 
 def test_all_functional_foundation_requirements_have_exactly_one_row() -> None:

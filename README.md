@@ -38,7 +38,7 @@ This repository contains the executable project foundation: a FastAPI health API
 | SDD / OpenSpec bootstrap | Complete |
 | ADRs 0001–0006 | Ratified |
 | Glossary, DoD, traceability matrix | Live |
-| Project foundation (`SPEC-001`) | Complete |
+| Project foundation (`SPEC-001`) | Implementation complete; archive pending |
 | Backend health API and frontend status screen | Complete |
 | First vertical slice (`SPEC-002` — import a `.txt` and see a frequency list) | Not started |
 
