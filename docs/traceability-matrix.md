@@ -41,7 +41,7 @@ the full requirement landscape without opening every spec directory.
 | REQ-001-012 | Backend pasa Ruff y mypy con configuración acordada | `specs/001-project-foundation/acceptance.md#AC-012` | `.github/workflows/ci.yml` | TA02, TD03, TD09 | Cumplido |
 | REQ-001-013 | Frontend pasa TypeScript estricto y ESLint | `specs/001-project-foundation/acceptance.md#AC-012` | `.github/workflows/ci.yml` | TA06–TA08, TD03, TD09 | Cumplido |
 | REQ-001-014 | GitHub Actions ejecuta instalación, calidad, pruebas, E2E y migraciones | `specs/001-project-foundation/acceptance.md#AC-012` | `apps/api/tests/unit/test_ci_workflow.py` | TD03, TD09 | Cumplido |
-| REQ-001-015 | Capas backend hexagonales con fronteras de framework | `specs/001-project-foundation/acceptance.md#AC-015` | `apps/api/tests/unit/test_traceability.py` | TA04, TD04–TD05 | Cumplido |
+| REQ-001-015 | Capas backend hexagonales con fronteras de framework | `docs/adr/0002-hexagonal-split.md#decision` | inspección estructural de `apps/api/src/wheel_vocabulary/{domain,application,infrastructure,api}/` | TA04, TD04–TD05 | Cumplido |
 | REQ-001-016 | README explica requisitos, instalación, arranque, pruebas, calidad, migraciones y estructura | `specs/001-project-foundation/acceptance.md#AC-015` | `apps/api/tests/unit/test_traceability.py` | TD06 | Cumplido |
 | REQ-001-017 | El repositorio no incluye texto de libros protegido | `specs/001-project-foundation/acceptance.md#AC-013` | inspección de contenido versionado | TA12, TD09 | Cumplido |
 | REQ-001-018 | Entornos, bases locales, importaciones, cobertura, cachés y secretos están ignorados | `specs/001-project-foundation/acceptance.md#AC-007` | `.gitignore` | TA12 | Cumplido |
