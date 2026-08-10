@@ -6,7 +6,13 @@ from pathlib import Path
 _REPOSITORY_ROOT = Path(__file__).parents[4]
 _MATRIX = _REPOSITORY_ROOT / "docs" / "traceability-matrix.md"
 _README = _REPOSITORY_ROOT / "README.md"
-_TASKS = _REPOSITORY_ROOT / "openspec" / "changes" / "project-foundation-bootstrap" / "tasks.md"
+_TASKS = (
+    _REPOSITORY_ROOT
+    / "openspec"
+    / "archive"
+    / "2026-08-03-project-foundation-bootstrap"
+    / "tasks.md"
+)
 
 
 def test_configuration_requirement_has_its_own_traceability_row() -> None:
