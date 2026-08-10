@@ -1,9 +1,10 @@
 # Delta for 001-project-foundation
 
-This native OpenSpec delta reconciles the legacy full spec at
-`openspec/changes/project-foundation-bootstrap/spec.md` into the dispatcher-expected
-path. The legacy file remains the detailed audit source; this file preserves its
-normative requirements and acceptance identifiers in native shape.
+This native OpenSpec delta reconciles the archived legacy full spec at
+`openspec/archive/2026-08-03-project-foundation-bootstrap/spec.md` into the
+dispatcher-expected path. The archived legacy file remains the detailed audit
+source; this file preserves its normative requirements and acceptance identifiers
+in native shape.
 
 ## ADDED Requirements
 
