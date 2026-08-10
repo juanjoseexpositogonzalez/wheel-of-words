@@ -11,16 +11,23 @@ from alembic import command
 from sqlalchemy import create_engine, inspect, text
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
     from alembic.config import Config
+    from sqlalchemy import Engine
 
 
-def test_alembic_upgrade_head_creates_only_version_table(alembic_config: Config) -> None:
+def test_alembic_upgrade_head_creates_only_version_table(
+    alembic_config: Config,
+    managed_engine: Callable[[Engine], Engine],
+) -> None:
     """A fresh SQLite database upgrades cleanly with only Alembic bookkeeping."""
     command.upgrade(alembic_config, "head")
 
-    engine = create_engine(alembic_config.get_main_option("sqlalchemy.url"), future=True)
+    engine = managed_engine(
+        create_engine(alembic_config.get_main_option("sqlalchemy.url"), future=True)
+    )
     inspector = inspect(engine)
 
     assert inspector.get_table_names() == ["alembic_version"]
@@ -29,12 +36,17 @@ def test_alembic_upgrade_head_creates_only_version_table(alembic_config: Config)
     assert version == "0001_baseline"
 
 
-def test_alembic_downgrade_base_removes_baseline_version(alembic_config: Config) -> None:
+def test_alembic_downgrade_base_removes_baseline_version(
+    alembic_config: Config,
+    managed_engine: Callable[[Engine], Engine],
+) -> None:
     """The baseline downgrade path succeeds without creating user tables."""
     command.upgrade(alembic_config, "head")
     command.downgrade(alembic_config, "base")
 
-    engine = create_engine(alembic_config.get_main_option("sqlalchemy.url"), future=True)
+    engine = managed_engine(
+        create_engine(alembic_config.get_main_option("sqlalchemy.url"), future=True)
+    )
     inspector = inspect(engine)
 
     assert inspector.get_table_names() == ["alembic_version"]

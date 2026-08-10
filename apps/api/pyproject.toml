@@ -27,6 +27,17 @@ packages = ["src/wheel_vocabulary"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts   = "--strict-markers -ra"
+# Scoped to the warning classes this suite has actively fixed, so the leak
+# cannot silently reappear. Deliberately not a blanket `error`, which would
+# fail on unrelated upstream churn.
+# A leaked sqlite3 connection raises ResourceWarning from a GC finalizer, where
+# the exception is unraisable; pytest downgrades it to
+# PytestUnraisableExceptionWarning. Erroring on ResourceWarning alone therefore
+# does NOT fail the run, so both entries are required to close the leak gate.
+filterwarnings = [
+    "error::ResourceWarning",
+    "error::pytest.PytestUnraisableExceptionWarning",
+]
 markers   = [
     "unit: pure unit test (no database, no network)",
     "integration: test with SQLite or Alembic",

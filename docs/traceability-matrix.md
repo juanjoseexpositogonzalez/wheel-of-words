@@ -59,6 +59,8 @@ the full requirement landscape without opening every spec directory.
 | REQ-DOCS-06A | `AGENTS.md` §4 cláusula MWE generalizada con wording OQ-10 canónico | `openspec/changes/docs-methodology-overhaul/spec.md#AC-071` | N/A — inspección | TE09 | Cumplido |
 | REQ-DOCS-06B | Invariante de coordinación: los cuatro archivos de enmienda aterrizan atómicamente en un único commit | `openspec/changes/docs-methodology-overhaul/spec.md#AC-072` | N/A — git log | TE01..TE13 | Cumplido |
 | REQ-DOCS-043 | `AGENTS.md` §10 puerta DoD de trazabilidad añadida | `openspec/changes/docs-methodology-overhaul/spec.md#AC-043` | N/A — inspección | TE10 | Cumplido |
+| REQ-TESTHYG-001 | Las pruebas de integración liberan cada motor SQLAlchemy que abren; la suite no emite `ResourceWarning` | issue #14 — criterios de aceptación | `apps/api/tests/integration/conftest.py`, `apps/api/tests/integration/{test_alembic,test_base,test_engine}.py`, filtro en `apps/api/pyproject.toml` | TH01–TH03 | Cumplido |
+
 
 ---
 
@@ -93,3 +95,9 @@ Additional rows will be added as new REQ-* IDs land. The four amendment REQs
 (Family F, Slice E) will appear as `Pendiente` here until Slice E lands, then
 flip to `Cumplido`. The Slice A + C divergences flagged for verify are
 separately tracked in Engram observation #2271.
+
+La familia `REQ-TESTHYG-*` cubre higiene de la suite de pruebas (fugas de
+recursos y avisos de obsolescencia de dependencias). Deliberadamente no usa el
+rango `REQ-001-*`: `apps/api/tests/unit/test_traceability.py` exige exactamente
+una fila por cada `REQ-001-001`…`REQ-001-018`, así que ampliar ese rango
+rompería esa comprobación.
