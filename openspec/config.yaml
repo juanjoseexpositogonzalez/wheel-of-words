@@ -9,16 +9,14 @@ project:
   repo_root: /Users/isildur/code/wheel-of-words
 
 stack:
-  status: slice-b2-persistence-baseline-landed
-  backend: Python 3.12 + FastAPI + Pydantic Settings + SQLAlchemy/Alembic baseline
-  frontend: React 19 + Vite + TypeScript strict + Vitest scaffold
+  status: project-foundation-archived
+  backend: Python 3.12 + FastAPI + Pydantic Settings + SQLAlchemy/Alembic baseline + health API
+  frontend: React 19 + Vite + TypeScript strict + Vitest status screen
   persistence: SQLite (MVP, SQLAlchemy engine/base and Alembic baseline landed)
   notes: |
-    Slice B2 landed the persistence baseline: SQLAlchemy declarative base, database
-    engine/session wiring, Alembic migration scaffold and baseline revision, plus
-    integration tests covering persistence and Alembic behavior. Playwright is
-    installed as a dependency and exposed via Makefile, but its config/spec is
-    scheduled for Slice D.
+    Project foundation SPEC-001 is implemented and archived. The baseline includes
+    backend health API, frontend status screen, SQLite/Alembic persistence,
+    Playwright E2E coverage, CI quality gates, documentation, and traceability.
 
 test_commands:
   backend_all: cd apps/api && uv run pytest
@@ -52,11 +50,11 @@ testing:
       available: true
       tools: pytest integration tests for persistence engine/base and Alembic baseline
     e2e:
-      available: declared-only
-      tools: Playwright dependency and Makefile target present; config/spec scheduled for Slice D
+      available: true
+      tools: Playwright Chromium E2E with configured web servers
   coverage:
-    backend: pytest-cov configured, no fail-under gate yet
-    frontend: Vitest V8 coverage configured, no threshold yet
+    backend: pytest-cov configured; CI enforces 80% fail-under
+    frontend: Vitest V8 coverage configured with project thresholds
   quality:
     backend: Ruff + mypy, strict mypy for domain/application packages
     frontend: ESLint script + TypeScript strict
