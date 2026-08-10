@@ -60,6 +60,8 @@ the full requirement landscape without opening every spec directory.
 | REQ-DOCS-06B | Invariante de coordinación: los cuatro archivos de enmienda aterrizan atómicamente en un único commit | `openspec/changes/docs-methodology-overhaul/spec.md#AC-072` | N/A — git log | TE01..TE13 | Cumplido |
 | REQ-DOCS-043 | `AGENTS.md` §10 puerta DoD de trazabilidad añadida | `openspec/changes/docs-methodology-overhaul/spec.md#AC-043` | N/A — inspección | TE10 | Cumplido |
 | REQ-TESTHYG-001 | Las pruebas de integración liberan cada motor SQLAlchemy que abren; la suite no emite `ResourceWarning` | issue #14 — criterios de aceptación | `apps/api/tests/integration/conftest.py`, `apps/api/tests/integration/{test_alembic,test_base,test_engine}.py`, filtro en `apps/api/pyproject.toml` | TH01–TH03 | Cumplido |
+| REQ-TESTHYG-002 | El cliente HTTP de pruebas usa el transporte soportado por `starlette.testclient` (`httpx2`); cero `StarletteDeprecationWarning` | issue #15 — criterios de aceptación | `apps/api/tests/api/test_health.py`, `apps/api/tests/api/test_health_security.py` | TH04 | Cumplido |
+| REQ-TESTHYG-003 | El filtro `filterwarnings` convierte en error ambas clases de aviso para que no puedan reaparecer en silencio | issues #14 y #15 — criterios de aceptación | `apps/api/pyproject.toml` (`[tool.pytest.ini_options]`) | TH05 | Cumplido |
 
 
 ---
