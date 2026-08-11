@@ -24,7 +24,10 @@ from wheel_vocabulary.application.imports.errors import (
 # Every attribute an import exception is permitted to hold. The point of the
 # allowlist is that it is a *closed* set: a field added later without a
 # deliberate decision fails the test rather than silently shipping.
-_SAFE_ATTRIBUTES = frozenset({"limit"})
+# `import_id` (cut 2, T213) is a bare integer or `None` — never text, an
+# offset, or a path — so it is exactly the kind of thing this allowlist exists
+# to permit.
+_SAFE_ATTRIBUTES = frozenset({"limit", "import_id"})
 
 _SENTINEL = "zzqxsentinel"
 

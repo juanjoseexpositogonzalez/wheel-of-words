@@ -23,12 +23,11 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from fastapi.testclient import TestClient
-
-from wheel_vocabulary.api.main import create_app
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
+    from fastapi.testclient import TestClient
 
 _ENDPOINT = "/api/v1/imports"
 _SENTINEL = "zzqxsentinel"
@@ -36,8 +35,9 @@ _OFFSET_OF_THE_BAD_BYTE = str(len(_SENTINEL))
 
 
 @pytest.fixture
-def client() -> TestClient:
-    return TestClient(create_app())
+def client(imports_client: TestClient) -> TestClient:
+    """Persistence landed in cut 2 (REQ-002-008); see `tests/conftest.py`."""
+    return imports_client
 
 
 def _upload(client: TestClient, body: bytes) -> Any:

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import importlib.resources
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import jsonschema
 import pytest
@@ -28,7 +28,21 @@ from fastapi.testclient import TestClient
 from wheel_vocabulary.api.dependencies import get_import_text
 from wheel_vocabulary.api.main import create_app
 from wheel_vocabulary.application.imports.use_cases import ImportText
+from wheel_vocabulary.infrastructure.clock import SystemClock
+from wheel_vocabulary.infrastructure.persistence.base import Base
+from wheel_vocabulary.infrastructure.persistence.book_repository import (
+    SqlAlchemyBookRepository,
+)
+from wheel_vocabulary.infrastructure.persistence.engine import (
+    create_engine_from_url,
+    create_session_factory,
+)
 from wheel_vocabulary.infrastructure.text_extraction import PlainTextExtractor
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from wheel_vocabulary.application.imports.ports import BookRepository
 
 _ENDPOINT = "/api/v1/imports"
 _SCHEMA: dict[str, Any] = json.loads(
@@ -39,16 +53,37 @@ _SCHEMA: dict[str, Any] = json.loads(
 
 
 @pytest.fixture
-def client() -> TestClient:
-    """A client whose import limit is the production default."""
-    return TestClient(create_app())
+def client(imports_client: TestClient) -> TestClient:
+    """A client whose import limit is the production default.
+
+    `imports_client` (`tests/conftest.py`) wires an isolated, schema-ready
+    SQLite database — persistence landed in cut 2 (REQ-002-008).
+    """
+    return imports_client
 
 
-def _client_with_limit(limit: int) -> TestClient:
+def _repository_for(tmp_path: Path, request: pytest.FixtureRequest) -> BookRepository:
+    """A repository bound to its own isolated, schema-ready SQLite file.
+
+    The engine is disposed via `request.addfinalizer` — mirroring
+    `tests/integration/conftest.py`'s `managed_engine` — so an undisposed
+    engine never leaks a `sqlite3.Connection` into a later test's
+    `filterwarnings` gate (REQ-TESTHYG-001).
+    """
+    engine = create_engine_from_url(f"sqlite:///{tmp_path / 'limit.db'}")
+    request.addfinalizer(engine.dispose)
+    Base.metadata.create_all(engine)
+    return SqlAlchemyBookRepository(create_session_factory(engine))
+
+
+def _client_with_limit(limit: int, tmp_path: Path, request: pytest.FixtureRequest) -> TestClient:
     """A client whose import limit is overridden, mirroring the health fixtures."""
     app = create_app()
     app.dependency_overrides[get_import_text] = lambda: ImportText(
-        extractor=PlainTextExtractor(), max_size_bytes=limit
+        extractor=PlainTextExtractor(),
+        max_size_bytes=limit,
+        repository=_repository_for(tmp_path, request),
+        clock=SystemClock(),
     )
     return TestClient(app)
 
@@ -73,12 +108,26 @@ def test_a_synthetic_txt_upload_is_created(client: TestClient) -> None:
 
 
 @pytest.mark.unit
-def test_the_success_body_omits_the_id_field_entirely(client: TestClient) -> None:
-    """T1B13: omission, not `"id": null` — there is no import identity in this cut."""
+def test_the_success_body_now_carries_a_real_id(client: TestClient) -> None:
+    """T1B13's additive completion (T209/T212): a `Book` row exists from cut 2 on.
+
+    Cut 1b's `201` omitted `id` entirely (never `null`) because there was no
+    `Book` row to report. This test replaces cut 1b's
+    `test_the_success_body_omits_the_id_field_entirely`, which is no longer
+    true from this cut onward (spec AC-002-01: "and, from cut 2 onward, an
+    import id").
+    """
     body = _upload(client, b"uno dos").json()
 
-    assert "id" not in body
-    assert set(body) == {"import_status", "distinct_form_count", "total_token_count", "forms"}
+    assert isinstance(body["id"], int)
+    assert body["id"] >= 1
+    assert set(body) == {
+        "id",
+        "import_status",
+        "distinct_form_count",
+        "total_token_count",
+        "forms",
+    }
 
 
 @pytest.mark.unit
@@ -200,9 +249,11 @@ def test_a_bom_prefixed_upload_is_accepted_without_the_bom_entering_a_form(
 
 @pytest.mark.unit
 @pytest.mark.parametrize("payload", [b"", b" \n\t"])
-def test_a_content_free_upload_is_a_success_with_a_zero_state(payload: bytes) -> None:
+def test_a_content_free_upload_is_a_success_with_a_zero_state(
+    payload: bytes, tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
     """AC-002-17: 201 with an empty list and a count of 0, never an error."""
-    response = _upload(_client_with_limit(64), payload)
+    response = _upload(_client_with_limit(64, tmp_path, request), payload)
     body = response.json()
 
     assert response.status_code == 201
@@ -212,9 +263,11 @@ def test_a_content_free_upload_is_a_success_with_a_zero_state(payload: bytes) ->
 
 
 @pytest.mark.unit
-def test_an_oversized_upload_is_refused_with_the_limit_surfaced() -> None:
+def test_an_oversized_upload_is_refused_with_the_limit_surfaced(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
     """AC-002-04: 413 and the message names the configured limit."""
-    response = _upload(_client_with_limit(64), b"a" * 65)
+    response = _upload(_client_with_limit(64, tmp_path, request), b"a" * 65)
     body = response.json()
 
     assert response.status_code == 413
@@ -223,12 +276,94 @@ def test_an_oversized_upload_is_refused_with_the_limit_surfaced() -> None:
 
 
 @pytest.mark.unit
-def test_an_upload_exactly_at_the_limit_is_accepted() -> None:
+def test_an_upload_exactly_at_the_limit_is_accepted(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
     """AC-002-04: the comparison is `>`, so 64 bytes against a 64-byte limit imports."""
-    response = _upload(_client_with_limit(64), b"a" * 64)
+    response = _upload(_client_with_limit(64, tmp_path, request), b"a" * 64)
 
     assert response.status_code == 201
     assert response.json()["forms"][0]["display_form"] == "a" * 64
+
+
+# --------------------------------------------------------------------------
+# T211 — GET /api/v1/imports/{id}
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_get_imports_on_an_unknown_id_is_the_domain_404_envelope(client: TestClient) -> None:
+    """AC-002-15 groundwork: distinguishes a wired route from an absent one.
+
+    Before the route existed, this was a bare Starlette 404
+    (`{"detail": "Not Found"}`) — proven RED in
+    `tests/integration/test_book_repository.py::test_reading_an_unknown_import_logs_the_attempted_id`,
+    which failed with an empty caplog capture for exactly this reason before
+    T212. Now the route exists, the same status code carries the shared
+    `{"error": {"code": ...}}` envelope instead of FastAPI's native shape.
+    """
+    response = client.get(f"{_ENDPOINT}/999999")
+    body = response.json()
+
+    assert response.status_code == 404
+    assert "detail" not in body
+    assert body["error"]["code"] == "IMPORT_NOT_FOUND"
+
+
+@pytest.mark.unit
+def test_get_imports_returns_the_ordered_table_with_the_persisted_id(
+    client: TestClient,
+) -> None:
+    """AC-002-08 full closure: the read path returns the same shape as POST."""
+    posted = _upload(client, "zebra \u00e1baco abandonar".encode()).json()
+
+    response = client.get(f"{_ENDPOINT}/{posted['id']}")
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["id"] == posted["id"]
+    assert [row["normalized_form"] for row in body["forms"]] == [
+        "\u00e1baco",
+        "abandonar",
+        "zebra",
+    ]
+    assert body["distinct_form_count"] == 3
+    assert body["total_token_count"] == 3
+    assert sum(row["frequency"] for row in body["forms"]) == body["total_token_count"]
+
+
+@pytest.mark.unit
+def test_get_imports_diacritic_insensitive_order(client: TestClient) -> None:
+    """AC-002-09: the read path re-derives the same diacritic-insensitive order."""
+    posted = _upload(client, "zebra \u00e1baco abandonar".encode()).json()
+
+    body = client.get(f"{_ENDPOINT}/{posted['id']}").json()
+
+    assert [row["normalized_form"] for row in body["forms"]] == [
+        "\u00e1baco",
+        "abandonar",
+        "zebra",
+    ]
+
+
+@pytest.mark.unit
+def test_get_imports_carries_the_schema_version_header(client: TestClient) -> None:
+    """Mirrors POST, so contract versioning stays uniform across both routes."""
+    posted = _upload(client, b"hola").json()
+
+    response = client.get(f"{_ENDPOINT}/{posted['id']}")
+
+    assert response.headers.get("x-schema-version") == "1"
+
+
+@pytest.mark.unit
+def test_get_imports_response_validates_against_the_pinned_schema(client: TestClient) -> None:
+    """One schema, both routes — the closed shape applies identically."""
+    posted = _upload(client, b"uno dos dos tres").json()
+
+    body = client.get(f"{_ENDPOINT}/{posted['id']}").json()
+
+    jsonschema.validate(body, _SCHEMA)
 
 
 @pytest.mark.unit

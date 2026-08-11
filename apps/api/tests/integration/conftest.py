@@ -15,8 +15,18 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from wheel_vocabulary.infrastructure.persistence.base import Base
+from wheel_vocabulary.infrastructure.persistence.book_repository import (
+    SqlAlchemyBookRepository,
+)
+from wheel_vocabulary.infrastructure.persistence.engine import (
+    create_engine_from_url,
+    create_session_factory,
+)
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
+    from pathlib import Path
 
     from sqlalchemy import Engine
 
@@ -41,3 +51,22 @@ def managed_engine() -> Iterator[Callable[[Engine], Engine]]:
 
     for engine in engines:
         engine.dispose()
+
+
+@pytest.fixture
+def book_repository(
+    tmp_path: Path,
+    managed_engine: Callable[[Engine], Engine],
+) -> SqlAlchemyBookRepository:
+    """A `SqlAlchemyBookRepository` bound to an isolated, schema-ready SQLite file.
+
+    File-backed, not `:memory:` — an in-memory SQLite database is scoped to a
+    single connection, so a second engine (as production dependency injection
+    creates per request) would see an empty database. `Base.metadata.create_all`
+    mirrors the precedent already established in `test_base.py`; the same
+    schema is what `0002_book_occurrence` creates, so the two never diverge in
+    a test run against this fixture (T203/T202 are one mapping).
+    """
+    engine = managed_engine(create_engine_from_url(f"sqlite:///{tmp_path / 'book_repository.db'}"))
+    Base.metadata.create_all(engine)
+    return SqlAlchemyBookRepository(create_session_factory(engine))

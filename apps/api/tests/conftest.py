@@ -15,9 +15,25 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from alembic.config import Config
+from fastapi.testclient import TestClient
+
+from wheel_vocabulary.api.dependencies import get_book_repository
+from wheel_vocabulary.api.main import create_app
+from wheel_vocabulary.infrastructure.persistence.base import Base
+from wheel_vocabulary.infrastructure.persistence.book_repository import (
+    SqlAlchemyBookRepository,
+)
+from wheel_vocabulary.infrastructure.persistence.engine import (
+    create_engine_from_url,
+    create_session_factory,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 
 class FrozenClock:
@@ -59,3 +75,29 @@ def alembic_config(sqlite_database_url: str) -> Config:
     config.set_main_option("script_location", str(api_root / "migrations"))
     config.set_main_option("sqlalchemy.url", sqlite_database_url)
     return config
+
+
+@pytest.fixture
+def imports_client(tmp_path: Path) -> Iterator[TestClient]:
+    """A `TestClient` wired to an isolated, schema-ready SQLite database.
+
+    Persistence landed in cut 2 (REQ-002-008): every route under
+    `/api/v1/imports` now needs a working `BookRepository`. File-backed, not
+    `:memory:` — `:memory:` is scoped to a single connection, and
+    `get_book_repository` builds a fresh engine per dependency resolution, so a
+    `POST` and a later `GET` in the same test would otherwise see two different
+    empty databases. `Base.metadata.create_all` mirrors the precedent already
+    established in `test_base.py`, and creates exactly the schema
+    `0002_book_occurrence` also creates (T203/T202 are one mapping). The engine
+    is disposed at teardown, mirroring `tests/integration/conftest.py`'s
+    `managed_engine` — an undisposed engine leaks a `sqlite3.Connection` that
+    the `filterwarnings` gate turns into a failure elsewhere in the suite
+    (REQ-TESTHYG-001).
+    """
+    engine = create_engine_from_url(f"sqlite:///{tmp_path / 'imports.db'}")
+    Base.metadata.create_all(engine)
+    repository = SqlAlchemyBookRepository(create_session_factory(engine))
+    app = create_app()
+    app.dependency_overrides[get_book_repository] = lambda: repository
+    yield TestClient(app)
+    engine.dispose()

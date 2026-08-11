@@ -47,16 +47,27 @@ _LOGGER = logging.getLogger(__name__)
 _UNKNOWN_IMPORT_ID = "-"
 
 
-def _envelope(*, code: str, message: str, status_code: int) -> JSONResponse:
+def _envelope(
+    *, code: str, message: str, status_code: int, import_id: int | None = None
+) -> JSONResponse:
     """Build the single error envelope shared by every failure on this route."""
-    _LOGGER.warning("code=%s import_id=%s", code, _UNKNOWN_IMPORT_ID)
+    logged_id = import_id if import_id is not None else _UNKNOWN_IMPORT_ID
+    _LOGGER.warning("code=%s import_id=%s", code, logged_id)
     body = ImportErrorResponse(error=ImportErrorBody(code=code, message=message))
     return JSONResponse(status_code=status_code, content=body.model_dump())
 
 
 def text_import_error_handler(_request: Request, exc: TextImportError) -> JSONResponse:
-    """Render any import failure using the code and status carried by its type."""
-    return _envelope(code=exc.code, message=exc.message, status_code=exc.http_status)
+    """Render any import failure using the code and status carried by its type.
+
+    `import_id` (cut 2, T213/T214) is read via `getattr` because only
+    `ImportNotFoundError` carries one; every other subclass fails before an
+    import ever exists to have an id.
+    """
+    import_id = getattr(exc, "import_id", None)
+    return _envelope(
+        code=exc.code, message=exc.message, status_code=exc.http_status, import_id=import_id
+    )
 
 
 def request_validation_error_handler(
