@@ -805,7 +805,7 @@ Selection MUST be a function of the multiset of textual forms in the group only.
 depends on input sequence, insertion order, database row id, or the iteration order of an unordered
 collection is FORBIDDEN, because it would break `REQ-002-016`.
 
-Neither value MAY be called, labelled, or documented as a lemma or a lexeme (`REQ-002-007`). The
+Neither value MAY be called, labelled, or presented as a lemma or a lexeme (`REQ-002-007`). The
 display form is the most frequent inflected spelling, not a dictionary headword; the two must not be
 confused (Art. V.1, Art. V.4).
 
