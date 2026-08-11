@@ -16,6 +16,7 @@ REQ-002-002, REQ-002-003, REQ-002-004, REQ-002-013, spec §4, design §9.2-9.3.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from fastapi.exceptions import RequestValidationError
@@ -36,9 +37,19 @@ __all__ = [
 INVALID_REQUEST_CODE = "INVALID_REQUEST"
 _INVALID_REQUEST_MESSAGE = "La petición no incluye un archivo .txt válido."
 
+# One module logger, and it emits exactly two fields. No `extra={"filename": …}`,
+# no interpolated message, no `logger.exception()`: `UnicodeDecodeError.__str__`
+# embeds the offending byte and its offset into the user's text, so rendering a
+# traceback on the decode path would write imported content to the log
+# (design §9.4, REQ-002-013). Until persistence lands in cut 2 there is no import
+# id to report, so the placeholder is emitted rather than a fabricated value.
+_LOGGER = logging.getLogger(__name__)
+_UNKNOWN_IMPORT_ID = "-"
+
 
 def _envelope(*, code: str, message: str, status_code: int) -> JSONResponse:
     """Build the single error envelope shared by every failure on this route."""
+    _LOGGER.warning("code=%s import_id=%s", code, _UNKNOWN_IMPORT_ID)
     body = ImportErrorResponse(error=ImportErrorBody(code=code, message=message))
     return JSONResponse(status_code=status_code, content=body.model_dump())
 
