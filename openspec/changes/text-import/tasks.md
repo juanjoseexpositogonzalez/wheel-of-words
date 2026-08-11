@@ -109,7 +109,7 @@ is at cut 2 (spec §1.2 spanning table) — `sdd-verify` MUST NOT mark it satisf
 - [x] T1A08 `[IMPL]` Create `domain/models.py::FormFrequency` and `domain/frequency.py::build_table()`/`sort_key()` per spec §2.4–2.5.
 - [x] T1A09 `[REFACTOR]` Extract D1 (count), D2 (max), D3 (tie-break) into named private helpers inside `build_table()` for auditability.
 - [ ] T1A10 `[TEST]` Structural guard (hook H2, AC-002-06): no `fastapi|sqlalchemy|pydantic|spacy` import and no ISO-639 literal across `domain/`, run **after** T1A02/T1A05/T1A08 so the scan is meaningful (an earlier run would vacuously pass on an empty package). **RED is a deliberate mutation check, not a natural failure** — an absence assertion over correct code passes on the first run, which proves nothing. Before accepting it, add `import sqlalchemy` to `domain/frequency.py`, confirm the test fails with `AssertionError` naming `frequency.py` and the matched pattern, then revert the import and confirm green. That two-step is what distinguishes a guard that detects the violation from one that is vacuously true because its file walk resolved to zero files.
-- [ ] T1A11 `[DOC]` Add `docs/traceability-matrix.md` rows for REQ-002-005/-015/-016/-017 (`Cumplido`) and note the domain leg of REQ-002-006/-018 (`En progreso`, "complete at cut 2"). Re-run `cd apps/api && uv run pytest tests/unit/test_traceability.py -q`.
+- [x] T1A11 `[DOC]` Add `docs/traceability-matrix.md` rows for REQ-002-005/-015/-016/-017 (`Cumplido`) and note the domain leg of REQ-002-006/-018 (`En progreso`, "complete at cut 2"). Re-run `cd apps/api && uv run pytest tests/unit/test_traceability.py -q`.
 
 ## Cut 1b — callable import (verificable, ~660 lines — tightest cut)
 
