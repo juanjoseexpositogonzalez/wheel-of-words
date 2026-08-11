@@ -77,13 +77,25 @@ def test_the_health_preflight_still_works(client: TestClient) -> None:
 
 
 @pytest.mark.unit
+def test_a_delete_preflight_is_allowed(client: TestClient) -> None:
+    """T305/AC-002-15: a browser cannot issue DELETE at all unless this preflight succeeds."""
+    response = _preflight(client, "DELETE")
+
+    assert response.status_code == 200
+    assert "DELETE" in response.headers["access-control-allow-methods"]
+
+
+@pytest.mark.unit
 def test_a_method_this_cut_does_not_expose_is_still_refused(client: TestClient) -> None:
-    """`DELETE` arrives in cut 3; until then the preflight must reject it.
+    """`PUT` is never exposed by this capability; the preflight must reject it.
 
     This is the negative control. Without it, an `allow_methods=["*"]` regression
-    would leave every assertion above green.
+    would leave every assertion above green. `DELETE` was this negative control
+    before cut 3 (T306); it moved to `PUT` once `DELETE` became a real, exposed
+    method — the negative control must name a method that is genuinely never
+    exposed, not one merely not-yet-exposed at authoring time.
     """
-    response = _preflight(client, "DELETE")
+    response = _preflight(client, "PUT")
 
     assert response.status_code == 400
     assert response.text == "Disallowed CORS method"

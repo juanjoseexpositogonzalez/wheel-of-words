@@ -35,13 +35,16 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
-        # POST is added by the cut that first exposes it (design §14.1). A
-        # browser preflight for a method outside this list is answered with 400,
-        # so the list has to grow with the surface, not ahead of it.
-        allow_methods=["GET", "POST"],
-        # Intentionally empty. A multipart upload sends `Content-Type`, which is
-        # already in Starlette's SAFELISTED_HEADERS, so the preflight passes
-        # without listing it. Do not "fix" this speculatively (Art. VII.6).
+        # Each method is added by the cut that first exposes it (design §14.1):
+        # POST in cut 1b, DELETE in cut 3. A browser preflight for a method
+        # outside this list is answered with 400, so the list has to grow with
+        # the surface, not ahead of it.
+        allow_methods=["GET", "POST", "DELETE"],
+        # Intentionally empty (design §14.1). A multipart upload sends
+        # `Content-Type`, already in Starlette's SAFELISTED_HEADERS, so the POST
+        # preflight passes without listing it; `DELETE` here sends no body at
+        # all, so it needs no header either. Do not "fix" this speculatively
+        # (Art. VII.6).
         allow_headers=[],
     )
     register_error_handlers(app)
