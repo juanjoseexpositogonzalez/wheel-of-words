@@ -18,12 +18,17 @@ if TYPE_CHECKING:
     from sqlalchemy import Engine
 
 
-def test_alembic_upgrade_head_creates_only_version_table(
+def test_alembic_upgrade_to_the_baseline_revision_creates_only_version_table(
     alembic_config: Config,
     managed_engine: Callable[[Engine], Engine],
 ) -> None:
-    """A fresh SQLite database upgrades cleanly with only Alembic bookkeeping."""
-    command.upgrade(alembic_config, "head")
+    """The SPEC-001 baseline revision alone still creates nothing.
+
+    Pinned against the named revision, not `head`: since `0002_book_occurrence`
+    (SPEC-002 cut 2) landed, `head` legitimately creates `book`/`occurrence`
+    too. `tests/integration/test_alembic_0002.py` covers that revision.
+    """
+    command.upgrade(alembic_config, "0001_baseline")
 
     engine = managed_engine(
         create_engine(alembic_config.get_main_option("sqlalchemy.url"), future=True)

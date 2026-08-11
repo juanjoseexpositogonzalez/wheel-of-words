@@ -20,18 +20,27 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.integration
-def test_base_metadata_starts_empty() -> None:
-    """The baseline must not introduce speculative user/domain tables."""
-    assert list(Base.metadata.tables) == []
+def test_base_metadata_declares_exactly_the_shipped_capability_tables() -> None:
+    """No speculative tables: every table on `Base` maps to a shipped migration.
+
+    SPEC-001's baseline shipped no tables (`Base.metadata.tables == []`).
+    SPEC-002 cut 2 (`0002_book_occurrence`) is the first capability to add
+    mapped models, so this now pins the closed set instead of emptiness.
+    """
+    assert set(Base.metadata.tables) == {"book", "occurrence"}
 
 
 @pytest.mark.integration
-def test_base_create_all_creates_no_user_tables(
+def test_base_create_all_creates_exactly_the_mapped_tables(
     managed_engine: Callable[[Engine], Engine],
 ) -> None:
-    """Creating metadata in SPEC-001 leaves the database with no user tables."""
+    """`create_all` on a fresh database creates exactly `Base`'s mapped tables.
+
+    Pinned against the current mapped set rather than emptiness — see
+    `test_base_metadata_declares_exactly_the_shipped_capability_tables`.
+    """
     engine = managed_engine(create_engine_from_url("sqlite:///:memory:"))
 
     Base.metadata.create_all(engine)
 
-    assert inspect(engine).get_table_names() == []
+    assert set(inspect(engine).get_table_names()) == {"book", "occurrence"}
