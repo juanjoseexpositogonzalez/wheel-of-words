@@ -77,7 +77,23 @@ The non-vacuity test below closes the other half of the same problem, because a
 file walk that resolved to zero files would make every assertion here trivially
 true.
 
-Cut 1c extends this module with the frontend leg over `apps/web/src/`.
+**Cut 1c frontend leg — a documented deviation from the AST criterion above,
+and why.** AC-002-10's own wording lists "Python sources
+(``apps/api/src/wheel_vocabulary/``, ``apps/web/src/``), parsed as an AST" as
+one bullet, but ``apps/web/src/`` is TypeScript/TSX, not Python — Python's
+``ast`` module cannot parse it, and this project takes on no new dependency
+(a TS parser, a Node subprocess) to build an equivalent for one guard. The
+frontend leg below is therefore a plain case-insensitive text search over
+``apps/web/src/**/*.{ts,tsx}``, with **no docstring or comment exemption** —
+stricter than the backend leg, not looser: a comment that named "lemma" to
+explain the prohibition would fail this leg, where it would pass the backend
+one. That is the conservative side of the ambiguity, and it holds today only
+because no frontend source under this capability names the word anywhere,
+including in prose (verified by the non-vacuity test below, which fails loudly
+if the file walk stops reaching real files). Recorded as a discovered spec
+inconsistency (AGENTS.md §9), not resolved here: parsing intent and mechanism
+for the frontend leg needs a maintainer decision if a docstring/comment
+exemption is ever wanted for TSX.
 
 REQ-002-007 / AC-002-10.
 """
@@ -100,6 +116,8 @@ if TYPE_CHECKING:
 
 _PACKAGE_ROOT = Path(__file__).resolve().parents[2] / "src" / "wheel_vocabulary"
 _SCHEMA_PATH = _PACKAGE_ROOT / "api" / "schemas" / "import.v1.json"
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
+_FRONTEND_ROOT = _REPOSITORY_ROOT / "apps" / "web" / "src"
 _FORBIDDEN_PATTERN = "lemma|lemas|lexeme|lexema"
 _FORBIDDEN = re.compile(_FORBIDDEN_PATTERN, re.IGNORECASE)
 
@@ -119,6 +137,17 @@ _EXPECTED_FILES = frozenset(
 
 _ROW_KEYS = {"normalized_form", "display_form", "frequency"}
 
+# Frontend files that make the cut-1c scan meaningful, mirroring _EXPECTED_FILES.
+_FRONTEND_EXPECTED_FILES = frozenset(
+    {
+        "pages/ImportPage.tsx",
+        "components/ImportForm.tsx",
+        "components/FrequencyTable.tsx",
+        "api/imports.ts",
+        "types/imports.ts",
+    }
+)
+
 
 def _python_modules() -> list[Path]:
     return sorted(_PACKAGE_ROOT.rglob("*.py"))
@@ -126,6 +155,26 @@ def _python_modules() -> list[Path]:
 
 def _relative(path: Path) -> str:
     return path.relative_to(_PACKAGE_ROOT).as_posix()
+
+
+def _frontend_modules() -> list[Path]:
+    return sorted(_FRONTEND_ROOT.rglob("*.ts")) + sorted(_FRONTEND_ROOT.rglob("*.tsx"))
+
+
+def _frontend_relative(path: Path) -> str:
+    return path.relative_to(_FRONTEND_ROOT).as_posix()
+
+
+def _frontend_violations(source: str, label: str) -> list[str]:
+    """Plain case-insensitive text search — see the module docstring's note on
+    why the frontend leg does not use the AST criterion the backend leg uses.
+    """
+    violations: list[str] = []
+    for line_number, line in enumerate(source.splitlines(), start=1):
+        match = _FORBIDDEN.search(line)
+        if match:
+            violations.append(f"{label}:{line_number} {match.group(0)!r}")
+    return violations
 
 
 def _docstring_constant_ids(tree: ast.AST) -> frozenset[int]:
@@ -367,3 +416,44 @@ def test_inflected_forms_stay_separate_rows(imported_body: dict[str, Any]) -> No
         "corr\u00eda",
         "corro",
     ]
+
+
+# --- Cut 1c: frontend leg (T1C14) -------------------------------------------
+#
+# Closes AC-002-10's UI half of REQ-002-007. See the module docstring for why
+# this leg is a plain text search rather than an AST walk.
+
+
+@pytest.mark.unit
+def test_the_scan_reaches_the_shipped_frontend_sources() -> None:
+    """Without this, an empty walk would make the guard below vacuously green."""
+    scanned = {_frontend_relative(path) for path in _frontend_modules()}
+
+    assert scanned >= _FRONTEND_EXPECTED_FILES
+
+
+@pytest.mark.unit
+def test_frontend_sources_contain_no_lemma_naming() -> None:
+    """AC-002-10 / REQ-002-007: zero matches across the cut-1c frontend sources.
+
+    MUTATION CHECK — this is an absence assertion. It passes on its first run
+    over correct UI copy, which proves nothing on its own. Verified the T1A10
+    way: temporarily set a `FrequencyTable.tsx` column header to `Lemma`,
+    confirmed::
+
+        AssertionError: lemma naming leaked into the frontend sources:
+        components/FrequencyTable.tsx:31 'Lemma'
+
+    then reverted and confirmed green again.
+    """
+    violations = [
+        violation
+        for module in _frontend_modules()
+        for violation in _frontend_violations(
+            module.read_text(encoding="utf-8"), _frontend_relative(module)
+        )
+    ]
+
+    assert not violations, "lemma naming leaked into the frontend sources:\n" + "\n".join(
+        violations
+    )
