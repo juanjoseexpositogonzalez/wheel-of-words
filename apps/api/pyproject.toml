@@ -9,6 +9,10 @@ dependencies = [
     "sqlalchemy>=2.0",
     "alembic>=1.13",
     "jsonschema>=4.22",
+    # Required by FastAPI to parse multipart uploads. Without it, registering a
+    # route with an UploadFile parameter fails at import time, not at request
+    # time. REQ-002-001 makes multipart the only accepted intake.
+    "python-multipart>=0.0.32",
 ]
 
 [project.optional-dependencies]
