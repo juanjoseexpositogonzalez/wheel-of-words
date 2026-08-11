@@ -51,14 +51,6 @@ class _ExplodingRepository:
         del book_id
         return None
 
-    def exists(self, book_id: int) -> bool:
-        del book_id
-        return False
-
-    def delete(self, book_id: int) -> bool:
-        del book_id
-        return False
-
 
 # --------------------------------------------------------------------------
 # T204 — create() batches the occurrence write with a Core insert()
@@ -264,45 +256,6 @@ def test_reading_an_unknown_import_logs_the_attempted_id(
 # Remaining Protocol methods and dependency providers (not gated by their own
 # task — coverage/DoD completeness, AGENTS.md §10)
 # --------------------------------------------------------------------------
-
-
-@pytest.mark.integration
-def test_exists_reports_presence_and_absence(
-    book_repository: SqlAlchemyBookRepository,
-) -> None:
-    """The `BookRepository.exists()` half of the Protocol."""
-    book_id = book_repository.create(
-        content_hash="0" * 64, token_count=0, created_at=_NOW, occurrences=()
-    )
-
-    assert book_repository.exists(book_id) is True
-    assert book_repository.exists(book_id + 1_000_000) is False
-
-
-@pytest.mark.integration
-def test_delete_removes_the_book_and_its_occurrences(
-    book_repository: SqlAlchemyBookRepository,
-) -> None:
-    """`delete()` is wired behind a route in cut 3; the repository method itself
-    ships now, alongside the rest of the schema."""
-    book_id = book_repository.create(
-        content_hash="0" * 64,
-        token_count=1,
-        created_at=_NOW,
-        occurrences=[("uno", "uno", 0)],
-    )
-
-    assert book_repository.delete(book_id) is True
-    assert book_repository.exists(book_id) is False
-    assert book_repository.frequency_pairs(book_id) is None
-
-
-@pytest.mark.integration
-def test_delete_on_an_unknown_id_returns_false(
-    book_repository: SqlAlchemyBookRepository,
-) -> None:
-    """Deleting an id that was never created reports failure, not success."""
-    assert book_repository.delete(999_999) is False
 
 
 @pytest.mark.integration

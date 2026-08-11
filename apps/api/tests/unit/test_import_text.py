@@ -78,14 +78,6 @@ class _FakeRepository:
         del book_id
         return []
 
-    def exists(self, book_id: int) -> bool:
-        del book_id
-        return True
-
-    def delete(self, book_id: int) -> bool:
-        del book_id
-        return True
-
 
 class _FakeClock:
     """A fixed-time `Clock` double — no wall-clock coupling in a unit test."""

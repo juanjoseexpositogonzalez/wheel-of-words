@@ -59,12 +59,6 @@ class _PlainRepository:
     def frequency_pairs(self, book_id: int) -> list[tuple[str, str, int]] | None:
         return [] if book_id == 1 else None
 
-    def exists(self, book_id: int) -> bool:
-        return book_id == 1
-
-    def delete(self, book_id: int) -> bool:
-        return book_id == 1
-
 
 class _NotAStream:
     """Satisfies nothing — the negative control for every assertion below."""

@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import delete as sa_delete
 from sqlalchemy import func, insert, select
 
 from wheel_vocabulary.infrastructure.persistence.models import Book, Occurrence
@@ -108,27 +107,3 @@ class SqlAlchemyBookRepository:
                 (raw_text, normalized_text, count)
                 for raw_text, normalized_text, count in session.execute(statement)
             ]
-
-    def exists(self, book_id: int) -> bool:
-        """Return whether an import with this id is present."""
-        with self._session_factory() as session:
-            return session.get(Book, book_id) is not None
-
-    def delete(self, book_id: int) -> bool:
-        """Delete an import and every occurrence derived from it.
-
-        Two explicit DELETE statements in one transaction (occurrence, then
-        book) — never `ON DELETE CASCADE` and never the ORM's own delete
-        cascade. SQLite ships with `PRAGMA foreign_keys = OFF` by default, so
-        the declared FK cascade silently does nothing unless every connection
-        sets that pragma (design §6.2). Cut 3 wires this behind
-        `DELETE /api/v1/imports/{id}`; the schema and repository are complete
-        together here, ahead of the route.
-        """
-        with self._session_factory() as session:
-            if session.get(Book, book_id) is None:
-                return False
-            session.execute(sa_delete(Occurrence).where(Occurrence.book_id == book_id))
-            session.execute(sa_delete(Book).where(Book.id == book_id))
-            session.commit()
-            return True

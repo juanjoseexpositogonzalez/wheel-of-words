@@ -66,11 +66,3 @@ class BookRepository(Protocol):
         The two MUST NOT be conflated.
         """
         ...
-
-    def exists(self, book_id: int) -> bool:
-        """Return whether an import with this id is present."""
-        ...
-
-    def delete(self, book_id: int) -> bool:
-        """Delete an import and every occurrence derived from it."""
-        ...
