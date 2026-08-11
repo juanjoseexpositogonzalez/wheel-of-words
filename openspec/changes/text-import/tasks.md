@@ -75,7 +75,7 @@ is at cut 2 (spec §1.2 spanning table) — `sdd-verify` MUST NOT mark it satisf
 | AC-07 | REQ-002-005 | 1a | T1A01, T1A04 | `tests/unit/test_tokenizer.py::test_tokenization_rules[T1..T10]`, `tests/unit/test_normalizer.py::test_normalization_rules[N1..N5]` |
 | AC-08 | REQ-002-006 `+` | 1a→1b→**2** | T1A07, T1B15, T211 | `tests/unit/test_frequency.py::test_repeated_forms_collapse_with_frequency_and_sum`; `tests/api/test_imports.py::test_post_imports_multipart_returns_201_with_forms`; `::test_get_imports_returns_ordered_table` (sum check) |
 | AC-09 | REQ-002-006 `+` | **2** | T211, T212 | `tests/api/test_imports.py::test_get_imports_diacritic_insensitive_order` |
-| AC-10 | REQ-002-007 `+` | 1b→1c→**2** | T1B20, T1C14, T217 | `tests/unit/test_no_lemma_naming.py::test_backend_sources_contain_no_lemma_naming`, `::test_frontend_sources_contain_no_lemma_naming`, `::test_persisted_columns_contain_no_lemma_naming` |
+| AC-10 | REQ-002-007 `+` | 1b→1c→**2** | T1B20, T1C14, T217 | `tests/unit/test_no_lemma_naming.py::test_no_backend_identifier_or_literal_names_a_lemma_or_a_lexeme`; `apps/web/tests/contracts/no-lemma-naming.test.ts::test_frontend_sources_contain_no_lemma_naming`; `apps/web/tests/contracts/no-lemma-naming.test.ts` describe block `findViolations (remediation — pins the comment exemption directly)` (5 tests, pins the comment exemption and the identifier/string-literal/template-literal/JSX-text detection directly, see contradiction note 6); `tests/unit/test_no_lemma_naming.py::test_persisted_columns_contain_no_lemma_naming` (cut 2, pending) |
 | AC-11 | REQ-002-008 | 2 | T201, T202 | `tests/integration/test_alembic_0002.py::test_upgrade_and_downgrade_book_occurrence` |
 | AC-12 | REQ-002-008 | 2 | T207, T208, T209 | `tests/integration/test_book_repository.py::test_frequency_pairs_survive_new_session` |
 | AC-13 | REQ-002-009 | 2 | T206 | `tests/integration/test_book_repository.py::test_content_hash_matches_independent_sha256` |
@@ -108,7 +108,7 @@ is at cut 2 (spec §1.2 spanning table) — `sdd-verify` MUST NOT mark it satisf
 - [x] T1A07 `[TEST]` `build_table()` D1–D3 worked examples (both AC-002-23 cases), `sort_key()` §2.4, the order-independence Hypothesis property over keys+frequencies+display forms (AC-002-21), and the non-negative-frequency Hypothesis property (AC-002-22) in `tests/unit/test_frequency.py`. Expects `ModuleNotFoundError: No module named 'wheel_vocabulary.domain.frequency'` at collection — `domain/frequency.py` does not exist yet; that is the correct RED because no production code has been written, so the failure cannot be a fixture or configuration fault.
 - [x] T1A08 `[IMPL]` Create `domain/models.py::FormFrequency` and `domain/frequency.py::build_table()`/`sort_key()` per spec §2.4–2.5.
 - [x] T1A09 `[REFACTOR]` Extract D1 (count), D2 (max), D3 (tie-break) into named private helpers inside `build_table()` for auditability.
-- [ ] T1A10 `[TEST]` Structural guard (hook H2, AC-002-06): no `fastapi|sqlalchemy|pydantic|spacy` import and no ISO-639 literal across `domain/`, run **after** T1A02/T1A05/T1A08 so the scan is meaningful (an earlier run would vacuously pass on an empty package). **RED is a deliberate mutation check, not a natural failure** — an absence assertion over correct code passes on the first run, which proves nothing. Before accepting it, add `import sqlalchemy` to `domain/frequency.py`, confirm the test fails with `AssertionError` naming `frequency.py` and the matched pattern, then revert the import and confirm green. That two-step is what distinguishes a guard that detects the violation from one that is vacuously true because its file walk resolved to zero files.
+- [x] T1A10 `[TEST]` Structural guard (hook H2, AC-002-06): no `fastapi|sqlalchemy|pydantic|spacy` import and no ISO-639 literal across `domain/`, run **after** T1A02/T1A05/T1A08 so the scan is meaningful (an earlier run would vacuously pass on an empty package). **RED is a deliberate mutation check, not a natural failure** — an absence assertion over correct code passes on the first run, which proves nothing. Before accepting it, add `import sqlalchemy` to `domain/frequency.py`, confirm the test fails with `AssertionError` naming `frequency.py` and the matched pattern, then revert the import and confirm green. That two-step is what distinguishes a guard that detects the violation from one that is vacuously true because its file walk resolved to zero files. **Bookkeeping fix (remediation work unit):** the checkbox had been left `[ ]` since cut 1a even though `tests/unit/test_domain_isolation.py::test_domain_has_no_framework_imports_or_iso639_literals` matches this description exactly, exists, passes (3 tests in the file), and sits inside the 100%-covered suite — confirmed by re-running `cd apps/api && uv run pytest tests/unit/test_domain_isolation.py -q` (3 passed) before flipping. No new test or production code required.
 - [x] T1A11 `[DOC]` Add `docs/traceability-matrix.md` rows for REQ-002-005/-015/-016/-017 (`Cumplido`) and note the domain leg of REQ-002-006/-018 (`En progreso`, "complete at cut 2"). Re-run `cd apps/api && uv run pytest tests/unit/test_traceability.py -q`.
 
 ## Cut 1b — callable import (verificable, ~660 lines — tightest cut)
@@ -138,21 +138,21 @@ is at cut 2 (spec §1.2 spanning table) — `sdd-verify` MUST NOT mark it satisf
 
 ## Cut 1c — visible import (observable, ~525 lines)
 
-- [ ] T1C01 `[TEST]` `apps/web/src/api/imports.ts` posts multipart and parses a typed `ImportResult` in `apps/web/tests/api/imports.test.ts`. Expects Vitest to fail the file at transform time with `Failed to resolve import "../../src/api/imports"` — the module does not exist, so zero assertions run. That is the correct RED: a resolution error can only mean absent production code, never a wrong assertion.
-- [ ] T1C02 `[IMPL]` Create `apps/web/src/api/imports.ts` + `apps/web/src/types/imports.ts` mirroring `client.ts`/`health.ts`. Per the T1B13 resolution, type the cut-1b result with **no `id` member at all** — not `id: number | null`. Cut 2 widens the type by adding `id: number`; until then the UI has no null id to branch on, so no `id == null` guard may be written in this cut.
-- [ ] T1C03 `[TEST]` `ImportForm` is keyboard-navigable with an accessible label and shows a perceptible "importando…" state while in flight (discharges Art. IX.6 per Amendment 1/CONTRA-1) in `apps/web/tests/components/ImportForm.test.tsx`. Expects `Failed to resolve import "../../src/components/ImportForm"` — the component file does not exist, so the render never happens and no query can be mis-targeted.
-- [ ] T1C04 `[IMPL]` Create `apps/web/src/components/ImportForm.tsx`.
-- [ ] T1C05 `[TEST]` Zero state renders an explicit "0 unique forms" message, not an error, for `distinct_form_count: 0` (AC-002-17) in `apps/web/tests/components/FrequencyTable.test.tsx`. Expects `Failed to resolve import "../../src/components/FrequencyTable"` — the component does not exist yet, so the zero-state branch cannot be confused with an unrendered error branch.
-- [ ] T1C06 `[IMPL]` Create `apps/web/src/components/FrequencyTable.tsx` with the zero-state branch.
-- [ ] T1C07 `[TEST]` A mocked non-alphabetical response renders DOM rows in the exact received order; a `normalized_form: "strasse"` / `display_form: "Straße"` row renders `Straße` verbatim, not re-derived; column headers are accessible and frequency is not colour-only (AC-002-19, Art. IX.1–4) in `apps/web/tests/components/FrequencyTable.test.tsx`. `FrequencyTable.tsx` already exists here (T1C06), so this is **not** a resolution error: expect a Vitest `AssertionError` from `expect(rowTexts).toEqual(receivedOrder)` reporting the rendered array reordered alphabetically, and a second from `expect(cell).toHaveTextContent("Straße")` receiving `strasse`. Those two are the proof the behavior is genuinely missing rather than mis-wired — the component renders and is queryable, it simply renders the wrong values, which is the exact defect AC-002-19 forbids.
-- [ ] T1C08 `[IMPL]` Confirm `FrequencyTable.tsx` performs zero `.sort(`/`toLowerCase(`/`localeCompare(`/`normalize(` calls; render `data.forms` as received.
-- [ ] T1C09 `[TEST]` Pinned-manifest contract test (design §11): `IMPORT_FEATURE_MODULES` is non-empty, every entry exists on disk, none matches the forbidden patterns, and every `/[Ii]mport|[Ff]requenc/`-named file under `apps/web/src/` appears in the manifest, in `apps/web/tests/contracts/no-linguistic-rules.test.ts`. Expects a Vitest `AssertionError` from the on-disk existence assertion, **not** a resolution error: `ImportForm.tsx`, `FrequencyTable.tsx`, `api/imports.ts` and `types/imports.ts` already exist by T1C02–T1C06, so the failure names `src/pages/ImportPage.tsx` — created later, in T1C11 — as missing. That is the correct RED because it is the one failure a stale manifest would hide; a forbidden-pattern-only RED would pass vacuously over a manifest that had silently shrunk to zero live entries. The manifest is cut-scoped and therefore does **not** list `DeleteImportButton.tsx`, which cut 3 creates in T309; listing a future module would make the on-disk assertion unsatisfiable inside a cut that must ship independently. Assertion 3 (every feature-named file appears in the manifest) is what stops cut 3 from forgetting to append it. Resolved — see design §11.
-- [ ] T1C10 `[IMPL]` Create the manifest test file per design §11.
-- [ ] T1C11 `[IMPL]` Create `apps/web/src/pages/ImportPage.tsx` composing `ImportForm` + `FrequencyTable`, wired to `api/imports.ts`.
-- [ ] T1C12 `[E2E]` Playwright: upload a synthetic public-domain `.txt` fixture → frequency table becomes visible, in `apps/web/e2e/import.spec.ts`. Expects a Playwright `TimeoutError` from `expect(page.getByRole("table")).toBeVisible()` — the route `ImportPage.tsx` is not mounted yet, so the locator resolves to zero elements for the full timeout. That is the correct RED: a timeout on a role-based locator means the UI never rendered, whereas a strict-mode violation or a wrong-text mismatch would mean it rendered and is merely mis-wired. Also the CORS-`POST` backstop (design §14.1) — a real browser issues the real preflight, so a `allow_methods` regression surfaces here as a failed network request rather than a missing element.
-- [ ] T1C13 `[E2E]` Add a synthetic or public-domain fixture under `apps/web/e2e/fixtures/` for T1C12 (Art. IV.1–2, H6); one-line provenance comment. Fixture text MUST be authored for this repo or taken from a public-domain source and MUST resemble no copyrighted series.
-- [ ] T1C14 `[TEST]` Extend `tests/unit/test_no_lemma_naming.py` with the frontend leg (`apps/web/src/`), closing AC-002-10's UI half. Absence assertion again — it passes on the first run over correct UI copy, which proves nothing. Verify RED the T1A10 way: temporarily set a `FrequencyTable.tsx` column header to `Lemma`, confirm the `AssertionError` names the file and the matched token, revert. Record that the mutation was seen failing; a first-run green is a vacuous guard, not a pass.
-- [ ] T1C15 `[DOC]` Add `docs/traceability-matrix.md` row for REQ-002-014 (`Cumplido`); update REQ-002-007 noting the frontend leg (`En progreso`, "complete at cut 2"). Re-run `cd apps/api && uv run pytest tests/unit/test_traceability.py -q`.
+- [x] T1C01 `[TEST]` `apps/web/src/api/imports.ts` posts multipart and parses a typed `ImportResult` in `apps/web/tests/api/imports.test.ts`. Expects Vitest to fail the file at transform time with `Failed to resolve import "../../src/api/imports"` — the module does not exist, so zero assertions run. That is the correct RED: a resolution error can only mean absent production code, never a wrong assertion.
+- [x] T1C02 `[IMPL]` Create `apps/web/src/api/imports.ts` + `apps/web/src/types/imports.ts` mirroring `client.ts`/`health.ts`. Per the T1B13 resolution, type the cut-1b result with **no `id` member at all** — not `id: number | null`. Cut 2 widens the type by adding `id: number`; until then the UI has no null id to branch on, so no `id == null` guard may be written in this cut.
+- [x] T1C03 `[TEST]` `ImportForm` is keyboard-navigable with an accessible label and shows a perceptible "importando…" state while in flight (discharges Art. IX.6 per Amendment 1/CONTRA-1) in `apps/web/tests/components/ImportForm.test.tsx`. Expects `Failed to resolve import "../../src/components/ImportForm"` — the component file does not exist, so the render never happens and no query can be mis-targeted.
+- [x] T1C04 `[IMPL]` Create `apps/web/src/components/ImportForm.tsx`.
+- [x] T1C05 `[TEST]` Zero state renders an explicit "0 unique forms" message, not an error, for `distinct_form_count: 0` (AC-002-17) in `apps/web/tests/components/FrequencyTable.test.tsx`. Expects `Failed to resolve import "../../src/components/FrequencyTable"` — the component does not exist yet, so the zero-state branch cannot be confused with an unrendered error branch.
+- [x] T1C06 `[IMPL]` Create `apps/web/src/components/FrequencyTable.tsx` with the zero-state branch.
+- [x] T1C07 `[TEST]` A mocked non-alphabetical response renders DOM rows in the exact received order; a `normalized_form: "strasse"` / `display_form: "Straße"` row renders `Straße` verbatim, not re-derived; column headers are accessible and frequency is not colour-only (AC-002-19, Art. IX.1–4) in `apps/web/tests/components/FrequencyTable.test.tsx`. `FrequencyTable.tsx` already exists here (T1C06), so this is **not** a resolution error: expect a Vitest `AssertionError` from `expect(rowTexts).toEqual(receivedOrder)` reporting the rendered array reordered alphabetically, and a second from `expect(cell).toHaveTextContent("Straße")` receiving `strasse`. Those two are the proof the behavior is genuinely missing rather than mis-wired — the component renders and is queryable, it simply renders the wrong values, which is the exact defect AC-002-19 forbids.
+- [x] T1C08 `[IMPL]` Confirm `FrequencyTable.tsx` performs zero `.sort(`/`toLowerCase(`/`localeCompare(`/`normalize(` calls; render `data.forms` as received.
+- [x] T1C09 `[TEST]` Pinned-manifest contract test (design §11): `IMPORT_FEATURE_MODULES` is non-empty, every entry exists on disk, none matches the forbidden patterns, and every `/[Ii]mport|[Ff]requenc/`-named file under `apps/web/src/` appears in the manifest, in `apps/web/tests/contracts/no-linguistic-rules.test.ts`. Expects a Vitest `AssertionError` from the on-disk existence assertion, **not** a resolution error: `ImportForm.tsx`, `FrequencyTable.tsx`, `api/imports.ts` and `types/imports.ts` already exist by T1C02–T1C06, so the failure names `src/pages/ImportPage.tsx` — created later, in T1C11 — as missing. That is the correct RED because it is the one failure a stale manifest would hide; a forbidden-pattern-only RED would pass vacuously over a manifest that had silently shrunk to zero live entries. The manifest is cut-scoped and therefore does **not** list `DeleteImportButton.tsx`, which cut 3 creates in T309; listing a future module would make the on-disk assertion unsatisfiable inside a cut that must ship independently. Assertion 3 (every feature-named file appears in the manifest) is what stops cut 3 from forgetting to append it. Resolved — see design §11.
+- [x] T1C10 `[IMPL]` Create the manifest test file per design §11.
+- [x] T1C11 `[IMPL]` Create `apps/web/src/pages/ImportPage.tsx` composing `ImportForm` + `FrequencyTable`, wired to `api/imports.ts`.
+- [x] T1C12 `[E2E]` Playwright: upload a synthetic public-domain `.txt` fixture → frequency table becomes visible, in `apps/web/e2e/import.spec.ts`. Expects a Playwright `TimeoutError` from `expect(page.getByRole("table")).toBeVisible()` — the route `ImportPage.tsx` is not mounted yet, so the locator resolves to zero elements for the full timeout. That is the correct RED: a timeout on a role-based locator means the UI never rendered, whereas a strict-mode violation or a wrong-text mismatch would mean it rendered and is merely mis-wired. Also the CORS-`POST` backstop (design §14.1) — a real browser issues the real preflight, so a `allow_methods` regression surfaces here as a failed network request rather than a missing element.
+- [x] T1C13 `[E2E]` Add a synthetic or public-domain fixture under `apps/web/e2e/fixtures/` for T1C12 (Art. IV.1–2, H6); one-line provenance comment. Fixture text MUST be authored for this repo or taken from a public-domain source and MUST resemble no copyrighted series.
+- [x] T1C14 `[TEST]` **Amended by remediation work units — see contradiction notes 5 and 6.** Add `apps/web/tests/contracts/no-lemma-naming.test.ts`, closing AC-002-10's UI half with a genuine TypeScript AST walk (the `typescript` package's own compiler API — already an `apps/web` devDependency, no new dependency added), unified with the backend leg's AST criterion instead of the plain text search cut 1c originally shipped. Checks identifiers and non-comment string literals (including JSX text and template literals) across `apps/web/src/**/*.{ts,tsx}`; `//`/block comments never reach the TS AST, so they are exempt by construction, mirroring the backend leg's docstring exemption. Absence assertion — it passes on the first run over correct UI copy, which proves nothing. **Two-legged mutation check, both required:** (1) temporarily set a `FrequencyTable.tsx` column header to `Lemma`, confirmed `AssertionError: lemma naming leaked into the frontend sources: src/components/FrequencyTable.tsx:31 JSX text "Lemma"`, reverted, confirmed green; (2) added a real code comment `// a form is not a lemma and not a lexeme` to `FrequencyTable.tsx`, confirmed the new guard stayed GREEN while the (now-removed) old plain-text guard in `test_no_lemma_naming.py` failed with `AssertionError: lemma naming leaked into the frontend sources: components/FrequencyTable.tsx:14 'lemma'` — proof the comment exemption works and the plain-text pathology is gone. Reverted. Also added a non-vacuity/mutation-resistance test asserting the glob reaches the expected frontend files, which fails (not silently passes) if the walk stops reaching them. The former frontend leg in `apps/api/tests/unit/test_no_lemma_naming.py` (`test_the_scan_reaches_the_shipped_frontend_sources`, `test_frontend_sources_contain_no_lemma_naming`) is removed; the backend leg is unchanged.
+- [x] T1C15 `[DOC]` Add `docs/traceability-matrix.md` row for REQ-002-014 (`Cumplido`); update REQ-002-007 noting the frontend leg (`En progreso`, "complete at cut 2"). Re-run `cd apps/api && uv run pytest tests/unit/test_traceability.py -q`.
 
 ## Cut 2 — persistence (observable, ~490 lines)
 
@@ -210,17 +210,89 @@ is at cut 2 (spec §1.2 spanning table) — `sdd-verify` MUST NOT mark it satisf
    null id, because it never sees one. Folded into T1B13 (decision), T1B04 and T212 (JSON Schema),
    T1B15 (`"id" not in body` assertion), T1B16 and T1C02 (DTO and TS type), T209 (additive completion).
    No requirement, acceptance criterion or cut allocation changed.
-3. **New contradiction found in this phase, surfaced not resolved — design §11's manifest spans cuts.**
-   `IMPORT_FEATURE_MODULES` lists `src/components/DeleteImportButton.tsx`, and the same test asserts
-   that **every** entry exists on disk. That component is created in T309, cut 3. Taken literally, the
-   cut-1c contract test cannot reach green inside cut 1c, which contradicts the cut being *observable*
-   and shippable on its own. Two candidate readings, neither adopted here: (a) the manifest is seeded
-   per cut and gains the `DeleteImportButton.tsx` entry in T309, or (b) the existence assertion is
-   scoped to entries whose owning cut has landed. This needs a maintainer decision before T1C09 is
-   implemented; do not guess. Related and smaller: the T1C09 `[TEST]` / T1C10 `[IMPL]` pairing reads as
-   redundant, since T1C09 already names the file T1C10 is told to create — worth confirming which task
-   owns the manifest constant. Both are recorded here rather than repaired, because repairing either
-   would change task substance, which this amendment is not authorised to do.
+3. **Contradiction found in a prior phase — design §11's manifest spanning cuts — CLOSED by maintainer
+   decision during cut 1c apply.** `IMPORT_FEATURE_MODULES` does not list `src/components/DeleteImportButton.tsx`
+   in cut 1c; cut 3 (T309) appends it. Of the two candidate readings this artifact previously left open —
+   (a) the manifest is seeded per cut and gains each new module in the cut that creates it, or (b) the
+   existence assertion is scoped to entries whose owning cut has landed — **reading (a) is adopted**.
+   Design §11 already states this explicitly ("The manifest is cut-scoped... `DeleteImportButton.tsx`
+   is created in cut 3 (T309)") and T1C09's own task text already builds a manifest that omits the
+   button and explains why: listing a future module would make the on-disk existence assertion
+   (assertion 1) unsatisfiable inside a cut required to ship independently, and the reverse assertion
+   (assertion 3 — every feature-named file on disk must appear in the manifest) is what stops a later
+   cut from forgetting to append its own component. Assertions 1 and 3 are deliberately opposed: 1
+   forbids listing what does not exist yet, 3 forbids omitting what already does; together they make a
+   cut-scoped manifest safe without needing reading (b) at all. No task substance, test behaviour, or
+   file list changed by closing this — the implementation in T1C09/T1C10 and T309 already matched
+   reading (a); only this note was stale.
+   **Which task owns the manifest constant, now confirmed and non-redundant:** T1C09 `[TEST]` is the
+   task that authors `apps/web/tests/contracts/no-linguistic-rules.test.ts` in full, including the
+   `IMPORT_FEATURE_MODULES` constant itself — the constant is test fixture data, not production code,
+   so it belongs in the file that consumes it. T1C10 `[IMPL]` is not a second authoring step for the
+   same constant; it is the pairing that satisfies the `[TEST]` → `[IMPL]` → `[REFACTOR]` convention
+   (AGENTS.md §8) for a task whose "production" deliverable *is* the test file itself — T1C09 supplies
+   the RED (the assertion fails because `ImportPage.tsx` does not exist yet), and T1C10 is the
+   confirmation step once T1C11 creates that file and the suite goes GREEN. T1C10 performs no
+   additional edit to `no-linguistic-rules.test.ts` beyond what T1C09 already wrote.
 4. Design's own non-blocking open items (§17: two consecutive non-observable cuts under Art. III.3;
    CONTRA-3's provenance-column scope; CONTRA-6's cut-1b requirement move) are design-level and already
    marked "confirm at review" there — not re-litigated here, carried forward as-is.
+5. **Deviation found in cut 1c, rejected by the maintainer, and CLOSED by a remediation work unit.**
+   Cut 1c originally shipped T1C14's frontend leg (`apps/web/tests/unit/test_no_lemma_naming.py`
+   extension, at the time) as a plain case-insensitive text search over `apps/web/src/**/*.{ts,tsx}`,
+   with no comment exemption, because Python's `ast` module cannot parse TypeScript/TSX and no TS
+   parser was named in the design. That was recorded as a deliberate, non-blocking deviation
+   (AGENTS.md §9) pending a maintainer decision. **Why plain text was rejected:** it reintroduces the
+   exact pathology cut 1b converted the backend leg away from (grep → AST) — a text search forbids the
+   word "lemma" inside the sentence that explains why "lemma" is forbidden, which forced a cut-1a
+   docstring to be reworded for no benefit. A frontend leg with no comment exemption guarantees the
+   identical false positive the first time anyone writes an explanatory comment or code comment in
+   `apps/web/src/`. **Resolution adopted:** the frontend leg moved to
+   `apps/web/tests/contracts/no-lemma-naming.test.ts`, a genuine TypeScript AST walk using the
+   `typescript` package's own compiler API (already an `apps/web` devDependency that powers
+   `tsc --noEmit`; no new dependency added). It checks identifiers and non-comment string literals
+   (including JSX text and template literal parts); `//`/block comments never reach the TS AST
+   produced by `ts.createSourceFile`, so they are exempt by construction — the same mechanism Python's
+   `ast` module already gave the backend leg. Verified with the same two-legged mutation protocol as
+   T1A10/T1B20/T1C14: a positive leg (mutate a real column header, confirm the guard fails naming the
+   file/line/token, revert) and a negative leg (add a real code comment naming the forbidden concept,
+   confirm the new guard stays green while the old plain-text guard — run one last time before removal
+   — failed on it). Both observed exactly as expected; see T1C14 above for the transcripts. The old
+   frontend leg tests in `apps/api/tests/unit/test_no_lemma_naming.py` are removed; the backend leg is
+   unchanged. **AC-002-10's own wording is now literally satisfied, not deviated from:** its text lists
+   "Python sources (`apps/api/src/wheel_vocabulary/`, `apps/web/src/`), parsed as an AST" as one
+   bullet — the frontend leg is now parsed as a TypeScript AST, which is the closest TypeScript
+   equivalent of that wording; `spec.md` itself is unchanged because it never named a specific parser
+   or dependency, only "parsed as an AST", and that is what now ships. No requirement, acceptance
+   criterion, or cut allocation changed. Also fixed in this pass, found while re-verifying: the AC-10
+   map row above cited a backend test function name that never existed
+   (`test_backend_sources_contain_no_lemma_naming`); corrected to the real name
+   (`test_no_backend_identifier_or_literal_names_a_lemma_or_a_lexeme`), pre-existing paperwork drift
+   unrelated to the frontend-leg deviation.
+6. **Gap found in cut 1c's remediation (note 5) and CLOSED by a follow-up remediation work unit.**
+   The AST conversion in note 5 fixed the frontend guard's detection but left its defining
+   property — that `//` and `/* */` comments are exempt because they never enter the tree
+   `ts.createSourceFile` produces — pinned by nothing but a one-time manual mutation described in a
+   code comment (`no-lemma-naming.test.ts` lines 136-145). The backend leg has never had this gap:
+   `test_no_lemma_naming.py` carries `test_docstrings_and_comments_may_name_the_concept_they_rule_out`,
+   `test_a_field_identifier_named_lemma_still_fails`, and
+   `test_a_response_key_string_literal_named_lemma_still_fails` as permanent regression tests, not
+   prose. The frontend leg was supposed to mirror that and did not — the exemption could regress
+   silently (e.g. a future "improvement" to the walk using `sourceFile.getFullText()` or
+   `ts.getLeadingCommentRanges`) and CI would stay green. **Resolution adopted:** `findViolations` was
+   exported (no logic change) and five permanent tests were added directly to
+   `apps/web/tests/contracts/no-lemma-naming.test.ts`, calling it with inline source strings: a `//`
+   comment and a block comment naming the concept each produce zero violations; an identifier, a
+   string literal, and a template literal naming the concept each produce exactly one violation of
+   the correct `kind`, matched `text`, and reported `line`; JSX text naming the concept over a `.tsx`
+   source produces exactly one `"JSX text"` violation. Because `findViolations` was already correct
+   and unchanged, all five passed on first run (Approval Testing, `strict-tdd.md` §"Approval Testing
+   (for refactoring existing code)"), so non-vacuity was proven by three temporary mutations instead,
+   each reverted after observation: (a) disabling `report()` entirely made the four detection tests
+   fail (`toHaveLength(1)` got `0`), proving they are not vacuous; (b) adding a temporary
+   `ts.getLeadingCommentRanges` scan to `visit()` made both comment tests fail with the comment text
+   reported as a violation, proving they would catch exactly the regression this work unit exists to
+   guard against; (c) hardcoding the reported position to `0` made all four line-number assertions
+   fail (`line: 1` instead of the correct line), proving the `getLineAndCharacterOfPosition` usage is
+   pinned, not merely asserted. No requirement, acceptance criterion, or cut allocation changed; the
+   existing two tests in the file were not weakened.

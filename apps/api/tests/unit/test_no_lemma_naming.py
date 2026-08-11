@@ -77,7 +77,23 @@ The non-vacuity test below closes the other half of the same problem, because a
 file walk that resolved to zero files would make every assertion here trivially
 true.
 
-Cut 1c extends this module with the frontend leg over `apps/web/src/`.
+**Frontend leg lives elsewhere.** AC-002-10's own wording lists "Python
+sources (``apps/api/src/wheel_vocabulary/``, ``apps/web/src/``), parsed as an
+AST" as one bullet. Cut 1c originally shipped the ``apps/web/src/`` leg here
+as a plain case-insensitive text search, because Python's ``ast`` module
+cannot parse TypeScript/TSX and no TS parser was named in the design. That
+deviation reintroduced the exact pathology this module's AST criterion exists
+to avoid: a plain text search forbids the word inside a comment explaining
+why the word is forbidden — the same regression the backend leg above was
+converted away from in cut 1b. A maintainer remediation moved the frontend
+leg to a genuine TypeScript AST walk using the ``typescript`` package's own
+compiler API (already an ``apps/web`` devDependency — no new dependency was
+added), in
+``apps/web/tests/contracts/no-lemma-naming.test.ts::test_frontend_sources_contain_no_lemma_naming``.
+That guard checks identifiers and non-comment string literals (including JSX
+text and template literals) and is now unified on the same AST criterion as
+the backend leg above, satisfying AC-002-10's "parsed as an AST" wording for
+the frontend rather than deviating from it.
 
 REQ-002-007 / AC-002-10.
 """
