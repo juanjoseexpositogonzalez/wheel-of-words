@@ -75,7 +75,7 @@ is at cut 2 (spec §1.2 spanning table) — `sdd-verify` MUST NOT mark it satisf
 | AC-07 | REQ-002-005 | 1a | T1A01, T1A04 | `tests/unit/test_tokenizer.py::test_tokenization_rules[T1..T10]`, `tests/unit/test_normalizer.py::test_normalization_rules[N1..N5]` |
 | AC-08 | REQ-002-006 `+` | 1a→1b→**2** | T1A07, T1B15, T211 | `tests/unit/test_frequency.py::test_repeated_forms_collapse_with_frequency_and_sum`; `tests/api/test_imports.py::test_post_imports_multipart_returns_201_with_forms`; `::test_get_imports_returns_ordered_table` (sum check) |
 | AC-09 | REQ-002-006 `+` | **2** | T211, T212 | `tests/api/test_imports.py::test_get_imports_diacritic_insensitive_order` |
-| AC-10 | REQ-002-007 `+` | 1b→1c→**2** | T1B20, T1C14, T217 | `tests/unit/test_no_lemma_naming.py::test_backend_sources_contain_no_lemma_naming`, `::test_frontend_sources_contain_no_lemma_naming`, `::test_persisted_columns_contain_no_lemma_naming` |
+| AC-10 | REQ-002-007 `+` | 1b→1c→**2** | T1B20, T1C14, T217 | `tests/unit/test_no_lemma_naming.py::test_no_backend_identifier_or_literal_names_a_lemma_or_a_lexeme`; `apps/web/tests/contracts/no-lemma-naming.test.ts::test_frontend_sources_contain_no_lemma_naming`; `tests/unit/test_no_lemma_naming.py::test_persisted_columns_contain_no_lemma_naming` (cut 2, pending) |
 | AC-11 | REQ-002-008 | 2 | T201, T202 | `tests/integration/test_alembic_0002.py::test_upgrade_and_downgrade_book_occurrence` |
 | AC-12 | REQ-002-008 | 2 | T207, T208, T209 | `tests/integration/test_book_repository.py::test_frequency_pairs_survive_new_session` |
 | AC-13 | REQ-002-009 | 2 | T206 | `tests/integration/test_book_repository.py::test_content_hash_matches_independent_sha256` |
@@ -151,7 +151,7 @@ is at cut 2 (spec §1.2 spanning table) — `sdd-verify` MUST NOT mark it satisf
 - [x] T1C11 `[IMPL]` Create `apps/web/src/pages/ImportPage.tsx` composing `ImportForm` + `FrequencyTable`, wired to `api/imports.ts`.
 - [x] T1C12 `[E2E]` Playwright: upload a synthetic public-domain `.txt` fixture → frequency table becomes visible, in `apps/web/e2e/import.spec.ts`. Expects a Playwright `TimeoutError` from `expect(page.getByRole("table")).toBeVisible()` — the route `ImportPage.tsx` is not mounted yet, so the locator resolves to zero elements for the full timeout. That is the correct RED: a timeout on a role-based locator means the UI never rendered, whereas a strict-mode violation or a wrong-text mismatch would mean it rendered and is merely mis-wired. Also the CORS-`POST` backstop (design §14.1) — a real browser issues the real preflight, so a `allow_methods` regression surfaces here as a failed network request rather than a missing element.
 - [x] T1C13 `[E2E]` Add a synthetic or public-domain fixture under `apps/web/e2e/fixtures/` for T1C12 (Art. IV.1–2, H6); one-line provenance comment. Fixture text MUST be authored for this repo or taken from a public-domain source and MUST resemble no copyrighted series.
-- [x] T1C14 `[TEST]` Extend `tests/unit/test_no_lemma_naming.py` with the frontend leg (`apps/web/src/`), closing AC-002-10's UI half. Absence assertion again — it passes on the first run over correct UI copy, which proves nothing. Verify RED the T1A10 way: temporarily set a `FrequencyTable.tsx` column header to `Lemma`, confirm the `AssertionError` names the file and the matched token, revert. Record that the mutation was seen failing; a first-run green is a vacuous guard, not a pass.
+- [x] T1C14 `[TEST]` **Amended by remediation work unit — see contradiction note 5.** Add `apps/web/tests/contracts/no-lemma-naming.test.ts`, closing AC-002-10's UI half with a genuine TypeScript AST walk (the `typescript` package's own compiler API — already an `apps/web` devDependency, no new dependency added), unified with the backend leg's AST criterion instead of the plain text search cut 1c originally shipped. Checks identifiers and non-comment string literals (including JSX text and template literals) across `apps/web/src/**/*.{ts,tsx}`; `//`/block comments never reach the TS AST, so they are exempt by construction, mirroring the backend leg's docstring exemption. Absence assertion — it passes on the first run over correct UI copy, which proves nothing. **Two-legged mutation check, both required:** (1) temporarily set a `FrequencyTable.tsx` column header to `Lemma`, confirmed `AssertionError: lemma naming leaked into the frontend sources: src/components/FrequencyTable.tsx:31 JSX text "Lemma"`, reverted, confirmed green; (2) added a real code comment `// a form is not a lemma and not a lexeme` to `FrequencyTable.tsx`, confirmed the new guard stayed GREEN while the (now-removed) old plain-text guard in `test_no_lemma_naming.py` failed with `AssertionError: lemma naming leaked into the frontend sources: components/FrequencyTable.tsx:14 'lemma'` — proof the comment exemption works and the plain-text pathology is gone. Reverted. Also added a non-vacuity/mutation-resistance test asserting the glob reaches the expected frontend files, which fails (not silently passes) if the walk stops reaching them. The former frontend leg in `apps/api/tests/unit/test_no_lemma_naming.py` (`test_the_scan_reaches_the_shipped_frontend_sources`, `test_frontend_sources_contain_no_lemma_naming`) is removed; the backend leg is unchanged.
 - [x] T1C15 `[DOC]` Add `docs/traceability-matrix.md` row for REQ-002-014 (`Cumplido`); update REQ-002-007 noting the frontend leg (`En progreso`, "complete at cut 2"). Re-run `cd apps/api && uv run pytest tests/unit/test_traceability.py -q`.
 
 ## Cut 2 — persistence (observable, ~490 lines)
@@ -237,3 +237,35 @@ is at cut 2 (spec §1.2 spanning table) — `sdd-verify` MUST NOT mark it satisf
 4. Design's own non-blocking open items (§17: two consecutive non-observable cuts under Art. III.3;
    CONTRA-3's provenance-column scope; CONTRA-6's cut-1b requirement move) are design-level and already
    marked "confirm at review" there — not re-litigated here, carried forward as-is.
+5. **Deviation found in cut 1c, rejected by the maintainer, and CLOSED by a remediation work unit.**
+   Cut 1c originally shipped T1C14's frontend leg (`apps/web/tests/unit/test_no_lemma_naming.py`
+   extension, at the time) as a plain case-insensitive text search over `apps/web/src/**/*.{ts,tsx}`,
+   with no comment exemption, because Python's `ast` module cannot parse TypeScript/TSX and no TS
+   parser was named in the design. That was recorded as a deliberate, non-blocking deviation
+   (AGENTS.md §9) pending a maintainer decision. **Why plain text was rejected:** it reintroduces the
+   exact pathology cut 1b converted the backend leg away from (grep → AST) — a text search forbids the
+   word "lemma" inside the sentence that explains why "lemma" is forbidden, which forced a cut-1a
+   docstring to be reworded for no benefit. A frontend leg with no comment exemption guarantees the
+   identical false positive the first time anyone writes an explanatory comment or code comment in
+   `apps/web/src/`. **Resolution adopted:** the frontend leg moved to
+   `apps/web/tests/contracts/no-lemma-naming.test.ts`, a genuine TypeScript AST walk using the
+   `typescript` package's own compiler API (already an `apps/web` devDependency that powers
+   `tsc --noEmit`; no new dependency added). It checks identifiers and non-comment string literals
+   (including JSX text and template literal parts); `//`/block comments never reach the TS AST
+   produced by `ts.createSourceFile`, so they are exempt by construction — the same mechanism Python's
+   `ast` module already gave the backend leg. Verified with the same two-legged mutation protocol as
+   T1A10/T1B20/T1C14: a positive leg (mutate a real column header, confirm the guard fails naming the
+   file/line/token, revert) and a negative leg (add a real code comment naming the forbidden concept,
+   confirm the new guard stays green while the old plain-text guard — run one last time before removal
+   — failed on it). Both observed exactly as expected; see T1C14 above for the transcripts. The old
+   frontend leg tests in `apps/api/tests/unit/test_no_lemma_naming.py` are removed; the backend leg is
+   unchanged. **AC-002-10's own wording is now literally satisfied, not deviated from:** its text lists
+   "Python sources (`apps/api/src/wheel_vocabulary/`, `apps/web/src/`), parsed as an AST" as one
+   bullet — the frontend leg is now parsed as a TypeScript AST, which is the closest TypeScript
+   equivalent of that wording; `spec.md` itself is unchanged because it never named a specific parser
+   or dependency, only "parsed as an AST", and that is what now ships. No requirement, acceptance
+   criterion, or cut allocation changed. Also fixed in this pass, found while re-verifying: the AC-10
+   map row above cited a backend test function name that never existed
+   (`test_backend_sources_contain_no_lemma_naming`); corrected to the real name
+   (`test_no_backend_identifier_or_literal_names_a_lemma_or_a_lexeme`), pre-existing paperwork drift
+   unrelated to the frontend-leg deviation.
