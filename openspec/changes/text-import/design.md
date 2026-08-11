@@ -453,12 +453,18 @@ class BookRepository(Protocol):
                created_at: datetime,
                occurrences: Sequence[tuple[str, str, int]]) -> int: ...
     def frequency_pairs(self, book_id: int) -> list[tuple[str, str, int]] | None: ...
-    def exists(self, book_id: int) -> bool: ...
-    def delete(self, book_id: int) -> bool: ...
+    def delete(self, book_id: int) -> bool: ...   # cut 3
 ```
 
 `frequency_pairs` returns `None` for an unknown id (→ 404) and `[]` for an empty import
 (→ `REQ-002-012` zero state). Those two cases must not be conflated.
+
+**No `exists()` on this port.** An earlier revision of this snippet declared one, and cut 2 shipped
+it, but nothing ever called it: `frequency_pairs` already distinguishes the unknown id (`None`) from
+the empty import (`[]`), and §6.2's `DELETE` flow calls `delete()` directly for both the `204` and
+the `404` leg. It was removed before cut 2 merged rather than left as an unused port member — see
+`tasks.md` contradiction note 8 and the T208 amendment. `delete()` is declared here because this
+snippet documents the port's final shape; it is implemented in cut 3, not before.
 
 ### 7.3 Infrastructure adapters
 
