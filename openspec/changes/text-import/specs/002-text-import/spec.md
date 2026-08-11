@@ -82,6 +82,19 @@ Authoritative allocation (Amendment 3, reconciled with `design.md`). Five cuts, 
 | **2** | persistence | *observable* | `-008`, `-009`, `-010`, `-013` (closed), plus the **persistence half** of `-006` and `-018` | ~490 |
 | **3** | deletion | *observable* | `-011` | ~330 |
 
+**The `Est. lines` column counts PRODUCTION lines, not total diff.** Recalibrated by maintainer decision
+after cut 1a shipped: forecast ~435, actual 305 production plus 552 test, 929 changed lines total.
+
+The estimates were sound as production forecasts and never accounted for the test volume these same
+requirements mandate — the parametrized `T1`–`T10` and `N1`–`N5` rule tables, the Hypothesis
+properties, and the three-legged domain-isolation guard. Cut 1a's production came in *under* forecast.
+
+The review budget exists to protect reviewer attention, and a line is not a uniform unit of it. A rule
+row such as `("T3", "don't", ["don't"])` is a spec row transcribed, not logic to reason about. So the
+ceiling applies to production lines, and declarative test data does not count against it. Two
+conditions keep that honest and are not optional: coverage must not regress, and tests must not be
+padded. A cut whose *production* side approaches the ceiling still needs splitting.
+
 **Spanning requirements — `sdd-verify` MUST NOT mark any of these satisfied before cut 2.**
 `REQ-002-006`, `REQ-002-007`, `REQ-002-013`, and `REQ-002-018` are each discharged in stages and are
 complete **only at cut 2**:
@@ -177,6 +190,14 @@ multi-character fuzzing; a different order breaks `REQ-002-015`.
 
 **N4 MUST run after N2/N3, never before.** `U+0149 ŉ` casefolds to `U+02BC` + `n`; folding
 apostrophes first makes `normalize(normalize(x)) != normalize(x)` and fails `REQ-002-015`.
+
+**The standalone `ŉ` of the N5 row above is illustrative only and MUST NOT be the sole test of
+that ordering.** Standing alone, the `U+02BC` that casefolding exposes lands on an edge, so N5
+strips it under *either* order and `normalize("ŉ")` is `n`, idempotently, even when N4 runs first.
+The ordering is therefore only observable when the expansion occurs **internally**, where N5 cannot
+reach it: with N4 misordered, `a\u0149b` yields `aʼnb` on the first pass and `a'nb` on the second.
+Any suite verifying this ordering MUST include at least one internal occurrence; a suite built on
+the standalone example alone reports green on a non-idempotent pipeline.
 
 Diacritics are **preserved**: `sí` ≠ `si`, `schon` ≠ `schön`. NFKC/NFKD are rejected — their
 compatibility mappings are lossy (`½` → `1⁄2`, `№` → `No`) and nobody asked for them; deferring is
