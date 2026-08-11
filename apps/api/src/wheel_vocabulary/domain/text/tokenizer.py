@@ -17,23 +17,9 @@ from __future__ import annotations
 import unicodedata
 
 from wheel_vocabulary.domain.models import Token
+from wheel_vocabulary.domain.text._chars import JOINERS, SOFT_HYPHEN
 
 __all__ = ["tokenize"]
-
-_SOFT_HYPHEN = "\u00ad"
-
-# §2.1 joiners: apostrophes and hyphens only. En dash, em dash and minus sign
-# are deliberately absent — they punctuate clauses and never join words (T5).
-_JOINERS = frozenset(
-    {
-        "\u0027",  # APOSTROPHE
-        "\u2019",  # RIGHT SINGLE QUOTATION MARK
-        "\u02bc",  # MODIFIER LETTER APOSTROPHE
-        "\u2018",  # LEFT SINGLE QUOTATION MARK
-        "\u002d",  # HYPHEN-MINUS
-        "\u2010",  # HYPHEN
-    }
-)
 
 
 def tokenize(text: str) -> tuple[Token, ...]:
@@ -43,7 +29,7 @@ def tokenize(text: str) -> tuple[Token, ...]:
     internal joiners between word characters (T2/T3/T4). Tokens carrying no
     letter are discarded (T6), so positions are contiguous over what is emitted.
     """
-    stream = [(index, char) for index, char in enumerate(text) if char != _SOFT_HYPHEN]
+    stream = [(index, char) for index, char in enumerate(text) if char != SOFT_HYPHEN]
     tokens: list[Token] = []
     cursor = 0
 
@@ -94,7 +80,7 @@ def _is_word_char(char: str) -> bool:
 
 def _is_joiner(char: str) -> bool:
     """§2.1: an apostrophe or hyphen that may sit between two word characters."""
-    return char in _JOINERS
+    return char in JOINERS
 
 
 def _contains_letter(text: str) -> bool:

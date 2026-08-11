@@ -18,16 +18,14 @@ from __future__ import annotations
 
 import unicodedata
 
-from wheel_vocabulary.domain.text.tokenizer import _JOINERS, _SOFT_HYPHEN
+from wheel_vocabulary.domain.text._chars import APOSTROPHES, HYPHENS, JOINERS, SOFT_HYPHEN
 
 __all__ = ["normalize"]
 
-_APOSTROPHES = frozenset({"\u0027", "\u2019", "\u02bc", "\u2018"})
-_HYPHENS = frozenset({"\u002d", "\u2010"})
-_JOINER_FOLD = {ord(char): "\u0027" for char in _APOSTROPHES} | {
-    ord(char): "\u002d" for char in _HYPHENS
+_JOINER_FOLD = {ord(char): "\u0027" for char in APOSTROPHES} | {
+    ord(char): "\u002d" for char in HYPHENS
 }
-_JOINER_CHARS = "".join(sorted(_JOINERS))
+_JOINER_CHARS = "".join(sorted(JOINERS))
 
 
 def normalize(text: str) -> str:
@@ -46,7 +44,7 @@ def normalize(text: str) -> str:
 
 def _strip_soft_hyphens(text: str) -> str:
     """T1 leg: invisible formatting is never part of the grouping key (design §5)."""
-    return text.replace(_SOFT_HYPHEN, "")
+    return text.replace(SOFT_HYPHEN, "")
 
 
 def _n1_compose(text: str) -> str:
