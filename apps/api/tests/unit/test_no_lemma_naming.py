@@ -107,12 +107,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from fastapi.testclient import TestClient
 
 from wheel_vocabulary.api.main import create_app
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+    from fastapi.testclient import TestClient
 
 _PACKAGE_ROOT = Path(__file__).resolve().parents[2] / "src" / "wheel_vocabulary"
 _SCHEMA_PATH = _PACKAGE_ROOT / "api" / "schemas" / "import.v1.json"
@@ -130,8 +131,15 @@ _EXPECTED_FILES = frozenset(
         "api/dtos/imports.py",
         "application/imports/use_cases.py",
         "domain/models.py",
+        "infrastructure/persistence/models.py",
     }
 )
+
+# The migration lives outside `_PACKAGE_ROOT` (`apps/api/migrations/`, not
+# `apps/api/src/wheel_vocabulary/`), so the walk above never reaches it. Its
+# `sa.Column("...", ...)` names are string literals, not identifiers — the
+# persisted-column leg below checks both files.
+_MIGRATION_PATH = _PACKAGE_ROOT.parents[1] / "migrations" / "versions" / "0002_book_occurrence.py"
 
 _ROW_KEYS = {"normalized_form", "display_form", "frequency"}
 
@@ -242,9 +250,10 @@ def _json_violations(document: Any) -> list[str]:
 
 
 @pytest.fixture
-def imported_body() -> dict[str, Any]:
-    client = TestClient(create_app())
-    response = client.post(
+def imported_body(imports_client: TestClient) -> dict[str, Any]:
+    """`imports_client` (`tests/conftest.py`) wires an isolated, schema-ready
+    SQLite database — persistence landed in cut 2 (REQ-002-008)."""
+    response = imports_client.post(
         "/api/v1/imports",
         files={"file": ("sample.txt", "corro corres corr\u00eda corro".encode(), "text/plain")},
     )
@@ -272,6 +281,51 @@ def test_no_backend_identifier_or_literal_names_a_lemma_or_a_lexeme() -> None:
     ]
 
     assert not violations, "lemma naming leaked into the backend sources:\n" + "\n".join(violations)
+
+
+@pytest.mark.unit
+def test_persisted_columns_contain_no_lemma_naming() -> None:
+    """AC-002-10 closing leg (T217): persisted schema, not just source identifiers.
+
+    Two checks, because the migration lives outside `_PACKAGE_ROOT` and so is
+    never reached by `test_no_backend_identifier_or_literal_names_a_lemma_or_a_lexeme`:
+
+    1. The AST walk (identifiers + non-docstring literals) over
+       `infrastructure/persistence/models.py` AND the `0002_book_occurrence`
+       migration, so a `sa.Column("...")` string literal is caught even though
+       it is a literal, not an identifier.
+    2. The ACTUAL mapped column names read back from `Base.metadata`, which
+       catches a rename regardless of how the source spells it (SQLAlchemy
+       infers the DB column name from the attribute unless overridden).
+
+    MUTATION CHECK — an absence assertion. Verified by renaming
+    `Occurrence.normalized_text` to `lemma_text` in `persistence/models.py`,
+    confirming an `AssertionError` naming `persistence/models.py` and the
+    matched token `lemma_text`, then reverting.
+    """
+    from wheel_vocabulary.infrastructure.persistence.base import Base
+
+    models_path = _PACKAGE_ROOT / "infrastructure" / "persistence" / "models.py"
+    violations = [
+        *_python_violations(models_path.read_text(encoding="utf-8"), _relative(models_path)),
+        *_python_violations(
+            _MIGRATION_PATH.read_text(encoding="utf-8"),
+            f"migrations/versions/{_MIGRATION_PATH.name}",
+        ),
+    ]
+    assert not violations, "lemma naming leaked into the persisted schema source:\n" + "\n".join(
+        violations
+    )
+
+    column_names = [
+        column.name
+        for table in ("book", "occurrence")
+        for column in Base.metadata.tables[table].columns
+    ]
+    reflected_violations = [name for name in column_names if _FORBIDDEN.search(name)]
+    assert not reflected_violations, (
+        "lemma naming leaked into a persisted column name: " + ", ".join(reflected_violations)
+    )
 
 
 @pytest.mark.unit
