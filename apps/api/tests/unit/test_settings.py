@@ -83,3 +83,21 @@ def test_settings_log_level_default() -> None:
     """Default log_level is INFO."""
     s = _settings_without_env_file()
     assert s.log_level == "INFO"
+
+
+@pytest.mark.unit
+def test_max_import_size_bytes_defaults_to_four_mebibytes() -> None:
+    """AC-002-03: the documented default is 4 MiB, expressed in bytes."""
+    s = _settings_without_env_file()
+
+    assert s.max_import_size_bytes == 4194304
+
+
+@pytest.mark.unit
+def test_max_import_size_bytes_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC-002-03: MAX_IMPORT_SIZE_BYTES overrides the default."""
+    monkeypatch.setenv("MAX_IMPORT_SIZE_BYTES", "64")
+
+    s = _settings_without_env_file()
+
+    assert s.max_import_size_bytes == 64

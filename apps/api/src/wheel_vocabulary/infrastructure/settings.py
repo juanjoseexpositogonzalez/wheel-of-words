@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     cors_origins: list[str] = []
     log_level: str = "INFO"
 
+    # REQ-002-003: 4 MiB. Above War and Peace (~3.2 MB of public-domain plain
+    # text) and below the synchronous-request timeout risk the design quantified
+    # for 10 MiB. Overridable with MAX_IMPORT_SIZE_BYTES.
+    max_import_size_bytes: int = 4_194_304
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

@@ -113,8 +113,8 @@ is at cut 2 (spec §1.2 spanning table) — `sdd-verify` MUST NOT mark it satisf
 
 ## Cut 1b — callable import (verificable, ~660 lines — tightest cut)
 
-- [ ] T1B01 `[TEST]` `Settings.max_import_size_bytes` default `4194304` + `MAX_IMPORT_SIZE_BYTES` override (AC-002-03) in `tests/unit/test_settings.py`. Expects `AttributeError: 'Settings' object has no attribute 'max_import_size_bytes'` — the module imports fine, so the failure is not a wiring or fixture fault; it is the field itself being absent, which is exactly the missing behavior.
-- [ ] T1B02 `[IMPL]` Add `max_import_size_bytes: int = 4_194_304` to `infrastructure/settings.py`.
+- [x] T1B01 `[TEST]` `Settings.max_import_size_bytes` default `4194304` + `MAX_IMPORT_SIZE_BYTES` override (AC-002-03) in `tests/unit/test_settings.py`. Expects `AttributeError: 'Settings' object has no attribute 'max_import_size_bytes'` — the module imports fine, so the failure is not a wiring or fixture fault; it is the field itself being absent, which is exactly the missing behavior.
+- [x] T1B02 `[IMPL]` Add `max_import_size_bytes: int = 4_194_304` to `infrastructure/settings.py`.
 - [ ] T1B03 `[TEST]` Five exception classes carry a `code` `ClassVar` and only safe fields (no text/offset/path) in `tests/unit/test_import_errors.py`. Expects `ModuleNotFoundError: No module named 'wheel_vocabulary.application.imports.errors'` at collection — the package does not exist yet, so no partial implementation can mask the gap.
 - [ ] T1B04 `[IMPL]` Create `application/imports/errors.py` (five classes per design §9.1) + `api/errors.py` handlers (incl. `INVALID_REQUEST` for `RequestValidationError`) + `api/dtos/imports.py` error DTO (`extra="forbid"`) + `api/schemas/import.v1.json` (Draft 2020-12, `X-Schema-Version: 1`). Per the T1B13 resolution, the 1b success schema declares **no `id` property at all** — not `"id": {"type": ["integer", "null"]}` — and does not list `id` in `required`; cut 2 (T212) then adds it additively.
 - [ ] T1B05 `[REFACTOR]` Align `api/errors.py` handler registration with `dtos/health.py`/`main.py` conventions. No behavior change.
