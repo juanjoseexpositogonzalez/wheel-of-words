@@ -33,8 +33,9 @@ class FormFrequency:
     ``normalized_form`` is the grouping key from §2.3 — synthetic, and possibly a
     spelling that appears nowhere in the text. ``display_form`` is the textual
     form the user reads, selected per §2.5 D1-D3. The two are distinct concepts
-    and MUST NOT be conflated: a display form is the most frequent inflected
-    spelling in its group, never a canonical dictionary headword (REQ-002-007).
+    and MUST NOT be conflated; neither is a lemma or a lexeme (REQ-002-007). A
+    display form is the most frequent inflected spelling in its group, never a
+    dictionary headword.
     """
 
     normalized_form: str
