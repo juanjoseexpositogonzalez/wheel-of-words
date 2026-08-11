@@ -52,6 +52,7 @@ markers   = [
     "integration: test with SQLite or Alembic",
     "e2e: Playwright end-to-end test",
     "smoke: infrastructure smoke test",
+    "bench: T-BENCH synthetic-corpus benchmark (design §3.3-3.5). Runs every CI invocation; deterministic invariants always assert. Wall-clock budget assertions are gated behind WHEEL_BENCH_STRICT=1 and are not part of the default CI job (tasks.md contradiction note 7).",
 ]
 
 [tool.coverage.run]
