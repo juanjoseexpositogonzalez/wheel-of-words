@@ -100,6 +100,11 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: cd apps/api && uv sync --locked --extra dev
+      # Required from SPEC-002 cut 2 onward: POST /api/v1/imports persists,
+      # so the e2e import flow needs the `book`/`occurrence` tables to exist
+      # before the dev-mode backend starts serving. `make dev-backend` (used
+      # by playwright.config.ts's webServer) never runs migrations itself.
+      - run: cd apps/api && uv run alembic upgrade head
       - run: cd apps/web && pnpm install --frozen-lockfile
       - run: cd apps/web && pnpm exec playwright install chromium
       - run: cd apps/web && pnpm exec playwright test
