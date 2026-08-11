@@ -34,8 +34,8 @@ class FormFrequencyResponse(BaseModel):
     - ``display_form``: the textual form the user reads, selected per §2.5.
     - ``frequency``: occurrences in the group, always ``>= 1`` (REQ-002-017).
 
-    Neither form is a lemma or a lexeme, and neither may be labelled as one
-    (REQ-002-007).
+    Neither value is a canonical dictionary headword, and no label attached to
+    either may describe it as one (REQ-002-007).
     """
 
     model_config = ConfigDict(extra="forbid")
