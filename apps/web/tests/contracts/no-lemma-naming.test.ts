@@ -72,7 +72,7 @@ function scriptKindFor(path: string): ts.ScriptKind {
   return path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
 }
 
-function findViolations(path: string, source: string): Violation[] {
+export function findViolations(path: string, source: string): Violation[] {
   const sourceFile = ts.createSourceFile(
     path,
     source,
@@ -146,5 +146,116 @@ describe("frontend lemma-naming guard (AC-002-10, T1C14)", () => {
     const violations = violationsAcrossFrontendSources();
 
     expect(violations, formatViolations(violations)).toEqual([]);
+  });
+});
+
+/**
+ * Remediation work unit — pins `findViolations` itself against inline source
+ * strings, in BOTH directions, mirroring the backend guard's
+ * `test_docstrings_and_comments_may_name_the_concept_they_rule_out`,
+ * `test_a_field_identifier_named_lemma_still_fails`, and
+ * `test_a_response_key_string_literal_named_lemma_still_fails` in
+ * `apps/api/tests/unit/test_no_lemma_naming.py`.
+ *
+ * The two tests above prove the guard over the *shipped* frontend sources.
+ * They say nothing about the comment exemption itself — that property was
+ * only ever proven once, by a manual mutation described in a code comment
+ * (lines 136-145 above), and is otherwise pinned by nothing: a later change
+ * to the walk (e.g. switching to `sourceFile.getFullText()` or
+ * `ts.getLeadingCommentRanges`) could make comments visible again and CI
+ * would stay green. These tests close that gap.
+ *
+ * Ordinary assertions, not absence assertions: each one calls `findViolations`
+ * directly with a real input and asserts a specific, non-trivial expected
+ * output (kind, matched text, and line number) that only holds if the walk's
+ * production logic is correct.
+ */
+describe("findViolations (remediation — pins the comment exemption directly)", () => {
+  it("a // line comment naming the forbidden concept produces zero violations", () => {
+    const source = [
+      "function noop(): void {",
+      "  // a form is not a lemma and not a lexeme",
+      "  return;",
+      "}",
+    ].join("\n");
+
+    expect(findViolations("synthetic.ts", source)).toEqual([]);
+  });
+
+  it("a block comment naming the forbidden concept produces zero violations", () => {
+    const source = [
+      "function noop(): void {",
+      "  /* a form is not a lemma and not a lexeme */",
+      "  return;",
+      "}",
+    ].join("\n");
+
+    expect(findViolations("synthetic.ts", source)).toEqual([]);
+  });
+
+  it("an identifier naming the forbidden concept is reported as one identifier violation at the right line", () => {
+    const source = [
+      "function noop(): void {",
+      "  // filler line so the violation is not on line 1",
+      "  const lemmaCount = 0;",
+      "  return;",
+      "}",
+    ].join("\n");
+
+    const violations = findViolations("synthetic.ts", source);
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({ kind: "identifier", text: "lemmaCount", line: 3 });
+  });
+
+  it("a string literal naming the forbidden concept is reported as one string-literal violation at the right line", () => {
+    const source = [
+      "function noop(): string {",
+      "  // filler line so the violation is not on line 1",
+      '  const key = "lemma_form";',
+      "  return key;",
+      "}",
+    ].join("\n");
+
+    const violations = findViolations("synthetic.ts", source);
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({ kind: "string literal", text: "lemma_form", line: 3 });
+  });
+
+  it("a template literal naming the forbidden concept is reported as one string-literal violation at the right line", () => {
+    const source = [
+      "function label(): string {",
+      "  // filler line so the violation is not on line 1",
+      "  const msg = `lemma`;",
+      "  return msg;",
+      "}",
+    ].join("\n");
+
+    const violations = findViolations("synthetic.ts", source);
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({ kind: "string literal", text: "lemma", line: 3 });
+  });
+
+  it("JSX text naming the forbidden concept is reported as one JSX-text violation at the right line, and requires a .tsx path", () => {
+    const source = [
+      "function Header(): JSX.Element {",
+      "  return (",
+      "    <table>",
+      "      <thead>",
+      "        <tr>",
+      "          <th>Lemma</th>",
+      "        </tr>",
+      "      </thead>",
+      "    </table>",
+      "  );",
+      "}",
+    ].join("\n");
+
+    const violations = findViolations("synthetic.tsx", source);
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({ kind: "JSX text", text: "Lemma", line: 6 });
   });
 });
