@@ -99,9 +99,9 @@ is at cut 2 (spec §1.2 spanning table) — `sdd-verify` MUST NOT mark it satisf
 
 ## Cut 1a — language engine (verificable, ~435 lines)
 
-- [ ] T1A01 `[TEST]` Parametrized tokenizer rule table for T1–T10 in `tests/unit/test_tokenizer.py::test_tokenization_rules[...]`. Expects `ModuleNotFoundError` — `domain/text/tokenizer.py` does not exist yet; that is the correct RED because no production code has been written.
-- [ ] T1A02 `[IMPL]` Create `domain/models.py::Token` and `domain/text/tokenizer.py::tokenize()` per spec §2.2.
-- [ ] T1A03 `[REFACTOR]` Extract the §2.1 word-char/joiner/separator Unicode-category checks into named private helpers in `tokenizer.py` for reuse by `normalizer.py`. T1A01 stays green.
+- [x] T1A01 `[TEST]` Parametrized tokenizer rule table for T1–T10 in `tests/unit/test_tokenizer.py::test_tokenization_rules[...]`. Expects `ModuleNotFoundError` — `domain/text/tokenizer.py` does not exist yet; that is the correct RED because no production code has been written.
+- [x] T1A02 `[IMPL]` Create `domain/models.py::Token` and `domain/text/tokenizer.py::tokenize()` per spec §2.2.
+- [x] T1A03 `[REFACTOR]` Extract the §2.1 word-char/joiner/separator Unicode-category checks into named private helpers in `tokenizer.py` for reuse by `normalizer.py`. T1A01 stays green.
 - [ ] T1A04 `[TEST]` Parametrized rule table for N1–N5, adversarial code points (`ŉ`, `Straße`, `ẞ`, `İ`, `ΣΊΣΥΦΟΣ`), and the Hypothesis idempotence property (AC-002-20) in `tests/unit/test_normalizer.py`. Expects `ModuleNotFoundError: No module named 'wheel_vocabulary.domain.text.normalizer'` at collection — `domain/text/normalizer.py` does not exist yet; that is the correct RED because no production code has been written, so the failure cannot be a fixture or configuration fault.
 - [ ] T1A05 `[IMPL]` Create `domain/text/normalizer.py::normalize()` implementing N1–N5 in the normative order (N4 after N2/N3, per §2.3).
 - [ ] T1A06 `[REFACTOR]` Name each N1–N5 step as a private helper for direct spec-row traceability. No behavior change.
