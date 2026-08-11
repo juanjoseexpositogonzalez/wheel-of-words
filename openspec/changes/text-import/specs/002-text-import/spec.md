@@ -440,24 +440,70 @@ frontend renders that received order unchanged.
 
 ### Requirement: REQ-002-007 — Neither the grouping key nor the display form is labelled "lemma" or "lexeme"
 
-No API path, request field, response key, error code, database column, or user-visible string
-introduced by this capability SHALL contain `lemma`, `lemas`, `lexeme`, or `lexema`. The grouping
-key MUST be named `normalized_form` and the display form MUST be named `display_form`. Neither name
-nor any label attached to either MAY describe the value as a lemma or a lexeme — a display form is
-the most frequent *textual form* in the group, not a canonical dictionary headword. The UI MUST
-state that it lists normalized forms and MUST NOT claim that inflected forms are merged (Art. V.1).
+No API path, request field, response key, error code, database column, identifier, or user-visible
+string introduced by this capability SHALL contain `lemma`, `lemas`, `lexeme`, or `lexema`. The
+grouping key MUST be named `normalized_form` and the display form MUST be named `display_form`.
+Neither name nor any label attached to either MAY describe the value as a lemma or a lexeme — a
+display form is the most frequent *textual form* in the group, not a canonical dictionary headword.
+The UI MUST state that it lists normalized forms and MUST NOT claim that inflected forms are merged
+(Art. V.1).
 
-Acceptance: **AC-002-10** — Given the shipped backend and frontend sources plus the versioned JSON
-Schema, when a case-insensitive search for `lemma|lemas|lexeme|lexema` runs over
-`apps/api/src/wheel_vocabulary/` and `apps/web/src/`, then the match count is zero; and when the
-read response is inspected, then the per-row grouping key is `normalized_form` and the per-row
-display value is `display_form`.
+The prohibition binds **naming and contract surface, not explanatory prose**. Module, class, and
+function docstrings and `#` comments MAY name the forbidden concepts, because the clearest way to
+record that a value is not a lemma is to write the word "lemma". One exception, and it is a
+narrowing rather than a loophole: a docstring that a framework publishes is contract surface, not
+prose. A Pydantic model docstring is serialised by FastAPI into `components.schemas.*.description`
+in the served `/openapi.json` and rendered in the API browser, so it remains fully bound by the
+prohibition above.
+
+Acceptance: **AC-002-10** — Given the shipped backend and frontend sources, the versioned JSON
+Schema, and the served OpenAPI document, when each is inspected structurally for
+`lemma|lemas|lexeme|lexema` (case-insensitive), then the match count is zero in each of:
+
+- **Python sources** (`apps/api/src/wheel_vocabulary/`, `apps/web/src/`), parsed as an AST: every
+  identifier — variable, parameter, function, method, class, attribute, import alias, and dataclass
+  or model field name — and every string literal that is **not** a docstring. The exemption is
+  defined as the first statement of a module, class, or function body, never as "any string
+  constant": exempting string constants at large would remove response keys, JSON Schema property
+  names, and user-facing messages from the guard, which is the majority of what it exists to catch.
+  `#` comments are outside the AST and therefore outside the guard by construction.
+- **The versioned JSON Schema** (`api/schemas/import.v1.json`), parsed as JSON: every object key and
+  every string value. JSON has no docstring, so nothing in it is exempt.
+- **The served OpenAPI document**: every string. This leg is what keeps the docstring exemption
+  scoped — it catches a docstring at exactly the point where it stops being prose and becomes
+  published contract.
+
+and when the read response is inspected, then the per-row grouping key is `normalized_form` and the
+per-row display value is `display_form`.
+
+**Rationale — this MUST NOT be reverted to a text search.** `AC-002-10` originally mandated a
+literal case-insensitive grep over the source tree. That guard forbade the word inside the very
+sentence explaining why the word is forbidden, and it caused a concrete regression: cut `1a` shipped
+`domain/models.py:36` reading "neither is a lemma or a lexeme (`REQ-002-007`)" — accurate, useful
+documentation — and cut `1b` had to reword it to "canonical dictionary headword" solely to get the
+suite green, making the docstring less clear in order to satisfy a check that was never aimed at
+docstrings. This project had already resolved the identical dilemma in the opposite direction: the
+domain isolation guard for `AC-002-06` (hook H2, `tests/unit/test_domain_isolation.py`) is AST-based
+precisely because domain docstrings legitimately contain "FastAPI", "SQLAlchemy", and "Pydantic"
+while explaining that those imports are prohibited. A text search would false-positive on the
+comment documenting the rule. The two guards are hereby unified on the AST criterion. A text search
+is the weaker instrument, not the stronger one: it cannot tell a field name from a comment, so it
+fires on prose it should ignore while catching nothing that a structural walk misses.
 
 #### Scenario: No lemma naming leaks into the contract
 
-- GIVEN the backend sources, frontend sources, and JSON Schema
-- WHEN a case-insensitive search for `lemma|lexeme|lema|lexema` runs
+- GIVEN the backend sources, frontend sources, JSON Schema, and served OpenAPI document
+- WHEN each is inspected structurally for `lemma|lemas|lexeme|lexema` — identifiers and
+  non-docstring literals for Python, keys and values for JSON and OpenAPI
 - THEN there are zero matches
+
+#### Scenario: Prose may name the concept it rules out, naming may not
+
+- GIVEN a class docstring reading "neither is a lemma or a lexeme (`REQ-002-007`)"
+- WHEN the guard runs over it
+- THEN the docstring passes
+- AND a field in the same module renamed to `lemma_form` still fails
+- AND a response-key literal changed to `"lemma_form"` still fails
 
 #### Scenario: Inflected forms stay separate and are labelled honestly
 
@@ -862,7 +908,7 @@ candidate beyond the single `display_form` of `REQ-002-018`.
 
 | Hook | Check | Verifies |
 |------|-------|----------|
-| H1 | Case-insensitive search for `lemma\|lemas\|lexeme\|lexema` across `apps/api/src/wheel_vocabulary/` and `apps/web/src/` returns zero matches | AC-002-10 |
+| H1 | Structural (AST) search for `lemma\|lemas\|lexeme\|lexema` across `apps/api/src/wheel_vocabulary/` and `apps/web/src/` — identifiers and non-docstring literals — plus every key and string value of `import.v1.json` and of the served OpenAPI document, returns zero matches. Docstrings and `#` comments are out of scope, per the AC-002-10 rationale; do not revert this to a grep | AC-002-10 |
 | H2 | Search `domain/` for `fastapi\|sqlalchemy\|pydantic\|spacy` and for ISO-639 literals returns zero matches | AC-002-06 |
 | H3 | `alembic upgrade head` then `alembic downgrade -1` against a fresh SQLite both exit `0` | AC-002-11 |
 | H4 | Hypothesis properties for idempotence, order-independence (keys, frequencies, **and display forms**), and non-negative frequency pass with the `filterwarnings` gate unchanged | AC-002-20, AC-002-21, AC-002-22 |
