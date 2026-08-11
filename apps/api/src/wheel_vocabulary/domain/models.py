@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-__all__ = ["Token"]
+__all__ = ["FormFrequency", "Token"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,3 +24,18 @@ class Token:
 
     raw_text: str
     position: int
+
+
+@dataclass(frozen=True, slots=True)
+class FormFrequency:
+    """One row of the frequency table.
+
+    ``normalized_form`` is the grouping key from §2.3 — synthetic, and possibly a
+    spelling that appears nowhere in the text. ``display_form`` is the textual
+    form the user reads, selected per §2.5 D1-D3. The two are distinct concepts
+    and MUST NOT be conflated; neither is a lemma or a lexeme (REQ-002-007).
+    """
+
+    normalized_form: str
+    display_form: str
+    frequency: int
