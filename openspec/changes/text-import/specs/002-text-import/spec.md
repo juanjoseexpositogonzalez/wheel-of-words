@@ -178,6 +178,14 @@ multi-character fuzzing; a different order breaks `REQ-002-015`.
 **N4 MUST run after N2/N3, never before.** `U+0149 ŉ` casefolds to `U+02BC` + `n`; folding
 apostrophes first makes `normalize(normalize(x)) != normalize(x)` and fails `REQ-002-015`.
 
+**The standalone `ŉ` of the N5 row above is illustrative only and MUST NOT be the sole test of
+that ordering.** Standing alone, the `U+02BC` that casefolding exposes lands on an edge, so N5
+strips it under *either* order and `normalize("ŉ")` is `n`, idempotently, even when N4 runs first.
+The ordering is therefore only observable when the expansion occurs **internally**, where N5 cannot
+reach it: with N4 misordered, `a\u0149b` yields `aʼnb` on the first pass and `a'nb` on the second.
+Any suite verifying this ordering MUST include at least one internal occurrence; a suite built on
+the standalone example alone reports green on a non-idempotent pipeline.
+
 Diacritics are **preserved**: `sí` ≠ `si`, `schon` ≠ `schön`. NFKC/NFKD are rejected — their
 compatibility mappings are lossy (`½` → `1⁄2`, `№` → `No`) and nobody asked for them; deferring is
 cheaper than reversing.

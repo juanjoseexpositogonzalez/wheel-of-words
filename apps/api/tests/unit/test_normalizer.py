@@ -60,6 +60,14 @@ _RULE_CASES: list[tuple[str, str, str]] = [
     ("N4", "a\u2010b", "a-b"),
     # N4 must run AFTER N2/N3: the U+02BC exposed by casefolding U+0149 has to
     # be folded in the same pass, or a second pass would change the result.
+    #
+    # LOAD-BEARING — do not simplify this row to the standalone `ŉ` the spec
+    # uses as its N5 example. Standing alone the exposed U+02BC sits on an edge,
+    # so N5 strips it under either order and `normalize("ŉ")` is `n` and
+    # idempotent even with N4 misordered. Only an INTERNAL occurrence escapes
+    # N5 and exposes the bug: misordered, this input gives `aʼnb` on the first
+    # pass and `a'nb` on the second. Delete this row and a non-idempotent
+    # pipeline ships green (spec §2.3, REQ-002-015).
     ("N4", "a\u0149b", "a'nb"),
     # N5: strip leading and trailing joiners; discard when nothing remains.
     ("N5", "\u0149", "n"),
