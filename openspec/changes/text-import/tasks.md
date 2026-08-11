@@ -163,7 +163,7 @@ is at cut 2 (spec §1.2 spanning table) — `sdd-verify` MUST NOT mark it satisf
 - [x] T205 `[TEST]` Every persisted `Occurrence.pos is None`; `raw_text`/`normalized_text` are separate values (e.g. `Straße`/`strasse`) (AC-002-14) in `tests/integration/test_occurrence_pos.py`. Same `ModuleNotFoundError` RED as T204 — with no repository nothing is written, so the "two columns stay distinct" assertion has no row that could satisfy it by coincidence.
 - [x] T206 `[TEST]` Two uploads of identical bytes → equal `content_hash`, matching an independently computed SHA-256 hex digest; one-byte-different files → different hashes (AC-002-13) in `tests/integration/test_book_repository.py`. Same `ModuleNotFoundError` RED as T204. Note the test computes the expected digest independently with `hashlib`, so once the module exists the failure mode shifts to an `AssertionError` comparing two hex strings — never a tautology against the implementation's own hash.
 - [x] T207 `[TEST]` `frequency_pairs()` returns `None` for an unknown id, `[]` for an empty import, and the same list from a **new session** against the same database (AC-002-12) in `tests/integration/test_book_repository.py`. Same `ModuleNotFoundError` RED as T204. The `None`-vs-`[]` distinction is what makes it non-vacuous: a stub returning `[]` for both would pass a weaker test and still break the 404 path.
-- [x] T208 `[IMPL]` Create `infrastructure/persistence/book_repository.py::SqlAlchemyBookRepository` — `create()` (Core batched insert), `exists()`, `frequency_pairs()`. `delete()` is added in cut 3.
+- [x] T208 `[IMPL]` Create `infrastructure/persistence/book_repository.py::SqlAlchemyBookRepository` — `create()` (Core batched insert), `frequency_pairs()`. `delete()` is added in cut 3. **Amended by remediation work unit — see contradiction note 8.** The original text also prescribed `exists()`, which shipped with the rest of cut 2 despite having no caller anywhere in `src/`; removed from the prescribed method list.
 - [x] T209 `[IMPL]` Wire `ImportText`'s persistence branch (calls `BookRepository.create()`, 201 body now carries a real `id` for the first time — the **additive** completion of the T1B13 resolution: cut 1b omitted the field, so adding it here introduces a new property rather than changing the meaning of an existing one) and add `ReadImport` use case (`frequency_pairs` → `domain.frequency.build_table()`).
 - [x] T210 `[REFACTOR]` Extract the streaming SHA-256 helper (already incremental per design §8) into a shared function used by `ImportText` and the T-BENCH fixture generator (T216).
 - [x] T211 `[TEST]` `GET /api/v1/imports/{id}` returns the ordered list with `distinct_form_count`+`total_token_count`, diacritic-insensitive order (AC-002-09), and `Σfrequency == total_token_count` (AC-002-08 full closure), in `tests/api/test_imports.py`. Expects `404` from Starlette's router because `GET /api/v1/imports/{id}` is not registered — distinguishable from the domain-level `404 IMPORT_NOT_FOUND` by its body, which carries FastAPI's bare `{"detail": "Not Found"}` instead of the `{"error": {"code": ...}}` envelope. Assert on that body shape, not the status alone, or a wired route returning a spurious `IMPORT_NOT_FOUND` would look identical.
@@ -324,3 +324,27 @@ is at cut 2 (spec §1.2 spanning table) — `sdd-verify` MUST NOT mark it satisf
    work unit — that edit needs a maintainer decision, since it is a design-artifact wording change,
    not a task-substance change. No requirement, acceptance criterion, or cut allocation changed; T216
    stays test-infrastructure only, and the fixture remains generated in-test and never committed.
+8. **Deviation found in cut 2 apply, CLOSED by maintainer decision (remediation work unit, this
+   session).** Cut 2 (T208) shipped `BookRepository.delete()` and `.exists()` with zero callers
+   anywhere in `apps/api/src/`, discovered by the orchestrator via `git grep` after PR #23 was already
+   open (16/16 checks green, not merged). Two different provenances, not one: **`delete()` contradicted
+   T208's own task text**, which explicitly said "`delete()` is added in cut 3" — the implementation
+   ignored its own task description. **`exists()` had no such contradiction on paper** — T208 as
+   originally written prescribed it directly, so that deviation was in the task text itself, not just
+   the implementation. **Why it matters beyond AGENTS.md §3 GREEN** ("No anticipar funcionalidades
+   futuras. No introducir abstracciones sin uso real"): shipping a repository method ahead of the route
+   that will use it pre-burns the RED of the task meant to introduce it. Cut 3's T301–T303 delete tests
+   are written to expect a router-level `404` (the route does not exist) as their RED; had `delete()`
+   already existed with its own tests already green, T304 would have nothing left to make fail for the
+   right reason — the exact trap already hit twice during cut 1c (notes 5–6). **Resolution adopted:**
+   both methods removed entirely — from the port (`application/imports/ports.py`), the adapter
+   (`infrastructure/persistence/book_repository.py`), the 2 dedicated `delete()` integration tests, the
+   1 dedicated `exists()` integration test, and the `exists()`/`delete()` stubs in all 3 test doubles
+   (`_ExplodingRepository`, `_PlainRepository`, `_FakeRepository`). T208's task text amended above to
+   drop `exists()` from its prescribed method list; the existing "`delete()` is added in cut 3" clause
+   is unchanged, because it was always correct — the implementation was the thing that ignored it.
+   **Cut 3's tasks (T301–T311) were checked and require no amendment:** T304 already reads "Implement
+   `SqlAlchemyBookRepository.delete()`" as new work, and design §6.2's `DELETE` route flow calls
+   `delete()` directly for both the `204` and `404` legs — no caller anywhere in the design ever needed
+   a separate `exists()` check. Coverage held at 100.00%; backend suite 293 → 290 tests, all passing.
+   No requirement, acceptance criterion, or cut allocation changed.
