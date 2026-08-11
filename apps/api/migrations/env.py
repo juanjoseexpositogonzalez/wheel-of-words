@@ -14,7 +14,14 @@ from wheel_vocabulary.infrastructure.persistence.base import Base
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # `disable_existing_loggers=False` is required: `fileConfig`'s default
+    # (`True`) disables every logger that already exists and is not listed in
+    # `alembic.ini`'s `[loggers]` section (only `root`, `sqlalchemy`,
+    # `alembic`). Without this, any test that runs an Alembic command before
+    # exercising `wheel_vocabulary.api.errors`'s module logger silently loses
+    # every subsequent log record from it for the rest of the process —
+    # discovered via cut-2 test-order flakiness (T213/T214).
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 

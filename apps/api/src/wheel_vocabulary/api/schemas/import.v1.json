@@ -1,11 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:wheel-vocabulary:import:v1",
-  "title": "Import result — POST /api/v1/imports (X-Schema-Version: 1)",
+  "title": "Import result — POST /api/v1/imports, GET /api/v1/imports/{id} (X-Schema-Version: 1)",
   "type": "object",
-  "required": ["import_status", "distinct_form_count", "total_token_count", "forms"],
+  "required": ["id", "import_status", "distinct_form_count", "total_token_count", "forms"],
   "additionalProperties": false,
   "properties": {
+    "id": {
+      "type": "integer",
+      "minimum": 1
+    },
     "import_status": {
       "type": "string",
       "enum": ["succeeded"]
@@ -51,7 +55,8 @@
                 "FILE_TOO_LARGE",
                 "INVALID_ENCODING",
                 "IMPORT_NOT_FOUND",
-                "INVALID_REQUEST"
+                "INVALID_REQUEST",
+                "PERSISTENCE_FAILURE"
               ]
             },
             "message": { "type": "string", "minLength": 1 }

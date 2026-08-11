@@ -1,18 +1,20 @@
-"""Wire-contract tests for the import endpoint — design §9.2-9.3 (T1B04).
+"""Wire-contract tests for the import endpoint — design §9.2-9.3 (T1B04, T212).
 
 Three things are pinned here, all of them decisions rather than details:
 
-1. The cut-1b success body OMITS ``id`` entirely — it is not ``"id": null``.
-   There is no ``Book`` row in this cut, so there is no identity to report, and
-   ``null`` would assert that the concept exists with an unknown value. The
-   schema enforces this mechanically through ``additionalProperties: false``,
-   which is why a body carrying ``"id": null`` must FAIL validation.
+1. Cut 2 adds ``id`` to the success body **additively** (T1B13's completion).
+   Cut 1b omitted the field entirely because no ``Book`` row existed yet;
+   ``null`` was never correct either, because it would have asserted the
+   concept existed with an unknown value. A body carrying ``"id": null`` must
+   still FAIL validation now, for a different reason: `id` is a required
+   integer, and `null` does not satisfy `type: integer`.
 2. Every failure on this route shares one envelope, ``{"error": {code, message}}``.
    Without the ``INVALID_REQUEST`` handler, FastAPI's native ``{"detail": [...]}``
    would give the capability two different 422 shapes (spec §4).
 3. No error body carries imported text, a byte offset, a path, or a stack trace.
 
-REQ-002-001, REQ-002-012, REQ-002-018, spec §4, design §9.2-9.3.
+REQ-002-001, REQ-002-006, REQ-002-008, REQ-002-012, REQ-002-018, spec §4,
+design §9.2-9.3.
 """
 
 from __future__ import annotations
@@ -42,10 +44,12 @@ from wheel_vocabulary.application.imports.errors import (
     ImportNotFoundError,
     InvalidEncodingError,
     InvalidFileTypeError,
+    PersistenceFailedError,
     TextImportError,
 )
 
 _SUCCESS_BODY: dict[str, Any] = {
+    "id": 1,
     "import_status": "succeeded",
     "distinct_form_count": 2,
     "total_token_count": 3,
@@ -72,10 +76,11 @@ def _body_of(response: object) -> dict[str, Any]:
 
 
 @pytest.mark.unit
-def test_success_dto_declares_no_id_field_at_all() -> None:
-    """T1B13: omission says the true thing — this cut has no import identity."""
-    assert "id" not in ImportResultResponse.model_fields
+def test_success_dto_declares_an_id_field() -> None:
+    """T212: additive over cut 1b, which had no `Book` row to report."""
+    assert "id" in ImportResultResponse.model_fields
     assert set(ImportResultResponse.model_fields) == {
+        "id",
         "import_status",
         "distinct_form_count",
         "total_token_count",
@@ -84,17 +89,30 @@ def test_success_dto_declares_no_id_field_at_all() -> None:
 
 
 @pytest.mark.unit
-def test_success_dto_serialises_without_an_id_key() -> None:
-    """A declared-but-None field would serialise as `"id": null`. There is none."""
+def test_success_dto_serialises_with_the_id_key() -> None:
+    """The persisted import's identity is now a required part of the shape."""
     dumped = ImportResultResponse(
+        id=7,
         import_status="succeeded",
         distinct_form_count=1,
         total_token_count=1,
         forms=[FormFrequencyResponse(normalized_form="a", display_form="A", frequency=1)],
     ).model_dump()
 
-    assert "id" not in dumped
+    assert dumped["id"] == 7
     assert dumped["forms"][0]["display_form"] == "A"
+
+
+@pytest.mark.unit
+def test_success_dto_requires_the_id_field() -> None:
+    """A missing `id` must fail loudly, not silently default to something."""
+    with pytest.raises(ValidationError):
+        ImportResultResponse(
+            import_status="succeeded",
+            distinct_form_count=0,
+            total_token_count=0,
+            forms=[],
+        )
 
 
 @pytest.mark.unit
@@ -124,12 +142,12 @@ def test_schema_is_draft_2020_12_and_versioned() -> None:
 
 
 @pytest.mark.unit
-def test_schema_declares_no_id_property_and_does_not_require_it() -> None:
-    """Cut 2 adds `id` additively; cut 1b must not pre-declare it as nullable."""
+def test_schema_declares_and_requires_the_id_property() -> None:
+    """T212: `id` is added additively and is required — every row has one now."""
     schema = _schema()
 
-    assert "id" not in schema["properties"]
-    assert "id" not in schema["required"]
+    assert schema["properties"]["id"]["type"] == "integer"
+    assert "id" in schema["required"]
     assert schema["additionalProperties"] is False
 
 
@@ -174,6 +192,7 @@ def test_schema_accepts_the_error_envelope() -> None:
         (FileTooLargeError(limit=64), 413, "FILE_TOO_LARGE"),
         (InvalidEncodingError(), 422, "INVALID_ENCODING"),
         (ImportNotFoundError(), 404, "IMPORT_NOT_FOUND"),
+        (PersistenceFailedError(), 500, "PERSISTENCE_FAILURE"),
     ],
 )
 def test_handler_maps_each_error_to_its_status_and_envelope(

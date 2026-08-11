@@ -24,6 +24,7 @@ __all__ = [
     "ImportNotFoundError",
     "InvalidEncodingError",
     "InvalidFileTypeError",
+    "PersistenceFailedError",
     "TextImportError",
 ]
 
@@ -87,10 +88,33 @@ class InvalidEncodingError(TextImportError):
 
 
 class ImportNotFoundError(TextImportError):
-    """The requested import id is unknown or already deleted."""
+    """The requested import id is unknown or already deleted.
+
+    ``import_id`` is the attempted id itself — a bare integer, never a slice of
+    the user's text — so a 404 stays diagnosable by id without logging content
+    (REQ-002-013 closing leg). Optional so cut-1b call sites (before any `id`
+    existed to report) keep working unchanged.
+    """
 
     code: ClassVar[str] = "IMPORT_NOT_FOUND"
     http_status: ClassVar[int] = 404
 
-    def __init__(self) -> None:
+    def __init__(self, *, import_id: int | None = None) -> None:
         super().__init__("La importación solicitada no existe.")
+        self.import_id = import_id
+
+
+class PersistenceFailedError(TextImportError):
+    """Gate 6: the repository failed to persist the import.
+
+    Distinguishes an internal storage failure (Art. X.3) from the user-facing
+    validation codes above. Carries no detail from the underlying exception —
+    only the fact that persistence failed — so a driver error message can never
+    surface imported content through this path (REQ-002-013).
+    """
+
+    code: ClassVar[str] = "PERSISTENCE_FAILURE"
+    http_status: ClassVar[int] = 500
+
+    def __init__(self) -> None:
+        super().__init__("No se pudo guardar la importación. Inténtalo de nuevo.")

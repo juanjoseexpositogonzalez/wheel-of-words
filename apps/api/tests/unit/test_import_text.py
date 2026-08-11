@@ -57,8 +57,44 @@ class _ExplodingStream:
         raise AssertionError(message)
 
 
+class _FakeRepository:
+    """An in-memory `BookRepository` double — no real database (AGENTS.md §6).
+
+    These are unit tests for the ordered gate; cut-2 persistence is covered by
+    the real `SqlAlchemyBookRepository` in `tests/integration/`. This double
+    only has to hand back an incrementing id.
+    """
+
+    def __init__(self) -> None:
+        self._next_id = 1
+
+    def create(self, **kwargs: object) -> int:
+        del kwargs
+        book_id = self._next_id
+        self._next_id += 1
+        return book_id
+
+    def frequency_pairs(self, book_id: int) -> list[tuple[str, str, int]] | None:
+        del book_id
+        return []
+
+
+class _FakeClock:
+    """A fixed-time `Clock` double — no wall-clock coupling in a unit test."""
+
+    def now_utc(self):  # noqa: ANN201 - returns datetime; inferred to keep the helper terse
+        from datetime import UTC, datetime
+
+        return datetime(2026, 8, 11, tzinfo=UTC)
+
+
 def _use_case(*, max_size_bytes: int = 4_194_304) -> ImportText:
-    return ImportText(extractor=PlainTextExtractor(), max_size_bytes=max_size_bytes)
+    return ImportText(
+        extractor=PlainTextExtractor(),
+        max_size_bytes=max_size_bytes,
+        repository=_FakeRepository(),
+        clock=_FakeClock(),
+    )
 
 
 def _import(

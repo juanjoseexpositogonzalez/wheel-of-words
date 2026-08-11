@@ -4,12 +4,15 @@ Strict Pydantic models corresponding one-to-one with ``import.v1.json``. Extra
 fields are forbidden, mirroring ``dtos/health.py``, so the schema stays the
 authority on the wire shape.
 
-``ImportResultResponse`` declares **no** ``id`` field. This cut writes no
-``Book`` row, so there is no import identity to report; an ``id: int | None``
-would serialise as ``"id": null`` and assert that the concept exists with an
-unknown value, which is false. Cut 2 adds the field additively.
+``ImportResultResponse`` now declares ``id`` (cut 2, T212). Cut 1b's body
+omitted it entirely — never ``"id": null`` — because no ``Book`` row existed
+yet. Adding the field here is purely additive under the versioned JSON Schema
+(``X-Schema-Version`` stays ``1``): a new property, not a changed one
+(T1B13's resolution, completed at T209/T212). The same response shape is now
+returned by both ``POST`` (creation) and ``GET`` (read) — one DTO for the
+capability's one row shape.
 
-REQ-002-001, REQ-002-006 (response half), REQ-002-012, REQ-002-018, design §9.3.
+REQ-002-001, REQ-002-006, REQ-002-008, REQ-002-012, REQ-002-018, design §9.3.
 """
 
 from __future__ import annotations
@@ -46,8 +49,10 @@ class FormFrequencyResponse(BaseModel):
 
 
 class ImportResultResponse(BaseModel):
-    """Response body for POST /api/v1/imports.
+    """Response body for POST /api/v1/imports and GET /api/v1/imports/{id}.
 
+    - ``id``: the persisted import's identity (cut 2). Additive over cut 1b,
+      which had no `Book` row and therefore omitted this field entirely.
     - ``import_status``: terminal only — this capability ships no intermediate
       state (REQ-002-013).
     - ``distinct_form_count``: number of rows; ``0`` is a success, not an error
@@ -59,6 +64,7 @@ class ImportResultResponse(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    id: int
     import_status: Literal["succeeded"]
     distinct_form_count: int
     total_token_count: int
