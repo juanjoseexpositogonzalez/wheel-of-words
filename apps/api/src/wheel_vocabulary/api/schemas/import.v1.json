@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel-vocabulary:import:v1",
+  "title": "Import result — POST /api/v1/imports (X-Schema-Version: 1)",
+  "type": "object",
+  "required": ["import_status", "distinct_form_count", "total_token_count", "forms"],
+  "additionalProperties": false,
+  "properties": {
+    "import_status": {
+      "type": "string",
+      "enum": ["succeeded"]
+    },
+    "distinct_form_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "total_token_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "forms": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/form" }
+    }
+  },
+  "$defs": {
+    "form": {
+      "type": "object",
+      "required": ["normalized_form", "display_form", "frequency"],
+      "additionalProperties": false,
+      "properties": {
+        "normalized_form": { "type": "string", "minLength": 1 },
+        "display_form": { "type": "string", "minLength": 1 },
+        "frequency": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "error": {
+      "type": "object",
+      "required": ["error"],
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "INVALID_FILE_TYPE",
+                "FILE_TOO_LARGE",
+                "INVALID_ENCODING",
+                "IMPORT_NOT_FOUND",
+                "INVALID_REQUEST"
+              ]
+            },
+            "message": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  }
+}

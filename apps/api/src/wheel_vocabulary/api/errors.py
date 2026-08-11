@@ -1,0 +1,64 @@
+"""Exception handlers that translate import failures into the wire envelope.
+
+Design §9.2 specifies one handler per exception class. A single handler
+registered against the base class is used instead: Starlette resolves handlers
+by walking ``type(exc).__mro__``, so the base catches all four subclasses, and
+each subclass already carries its own ``code`` and ``http_status``. That keeps
+the status mapping on the exception — one source of truth — instead of
+duplicating it in a parallel table that could drift.
+
+``INVALID_REQUEST`` is registered so that FastAPI's native ``{"detail": [...]}``
+never reaches a client of this capability. That native body echoes the rejected
+input, which on this route is the user's own upload metadata (Art. X.2).
+
+REQ-002-002, REQ-002-003, REQ-002-004, REQ-002-013, spec §4, design §9.2-9.3.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+from wheel_vocabulary.api.dtos.imports import ImportErrorBody, ImportErrorResponse
+from wheel_vocabulary.application.imports.errors import TextImportError
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from fastapi import FastAPI, Request
+
+__all__ = [
+    "register_error_handlers",
+    "request_validation_error_handler",
+    "text_import_error_handler",
+]
+
+INVALID_REQUEST_CODE = "INVALID_REQUEST"
+_INVALID_REQUEST_MESSAGE = "La petición no incluye un archivo .txt válido."
+
+
+def _envelope(*, code: str, message: str, status_code: int) -> JSONResponse:
+    """Build the single error envelope shared by every failure on this route."""
+    body = ImportErrorResponse(error=ImportErrorBody(code=code, message=message))
+    return JSONResponse(status_code=status_code, content=body.model_dump())
+
+
+def text_import_error_handler(_request: Request, exc: TextImportError) -> JSONResponse:
+    """Render any import failure using the code and status carried by its type."""
+    return _envelope(code=exc.code, message=exc.message, status_code=exc.http_status)
+
+
+def request_validation_error_handler(
+    _request: Request, _exc: RequestValidationError
+) -> JSONResponse:
+    """Render a malformed request without echoing anything the client submitted."""
+    return _envelope(code=INVALID_REQUEST_CODE, message=_INVALID_REQUEST_MESSAGE, status_code=422)
+
+
+def register_error_handlers(app: FastAPI) -> None:
+    """Wire both handlers onto the application, mirroring router inclusion."""
+    app.add_exception_handler(TextImportError, text_import_error_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(
+        RequestValidationError,
+        request_validation_error_handler,  # type: ignore[arg-type]
+    )
