@@ -184,8 +184,8 @@ is at cut 2 (spec §1.2 spanning table) — `sdd-verify` MUST NOT mark it satisf
 - [x] T305 `[TEST]` CORS preflight for `DELETE`: `OPTIONS /api/v1/imports/{id}` with explicit `Origin` + `Access-Control-Request-Method: DELETE` → 200, `access-control-allow-methods` contains `DELETE`, in `tests/api/test_imports_cors.py`. Expects `assert response.status_code == 200` to fail on `400` with Starlette's `Disallowed CORS method` body, because `allow_methods` is still `["GET", "POST"]` after cut 1b. Same concrete failure mode as T1B17, and it proves the middleware is reached and refusing rather than the route being absent.
 - [x] T306 `[IMPL]` Extend `main.py:36` to `allow_methods=["GET", "POST", "DELETE"]`.
 - [x] T307 `[REFACTOR]` Confirm `allow_headers=[]` is unchanged (multipart's `Content-Type` is Starlette-safelisted; `DELETE` sends no body) — add a one-line comment referencing design §14.1 so it is not "fixed" speculatively (Art. VII.6).
-- [ ] T308 `[TEST]` `DeleteImportButton` requires explicit confirmation: one activation shows an accessibly-named confirmation control and issues no request; confirming issues exactly one `DELETE`; cancelling issues none (AC-002-16) in `apps/web/tests/components/DeleteImportButton.test.tsx`. Expects `Failed to resolve import "../../src/components/DeleteImportButton"` — the component does not exist, so no render occurs and the "zero requests issued" assertion cannot pass vacuously for the wrong reason.
-- [ ] T309 `[IMPL]` Create `apps/web/src/components/DeleteImportButton.tsx`; wire into `ImportPage.tsx`. Append `"src/components/DeleteImportButton.tsx"` to `IMPORT_FEATURE_MODULES` in `apps/web/tests/contracts/no-linguistic-rules.test.ts` (design §11, cut-scoped manifest). Skipping the append fails T1C09's assertion 3, because the new file matches `/[Ii]mport/` and would be outside the checked surface — that failure is the intended guard, not an obstacle to work around.
+- [x] T308 `[TEST]` `DeleteImportButton` requires explicit confirmation: one activation shows an accessibly-named confirmation control and issues no request; confirming issues exactly one `DELETE`; cancelling issues none (AC-002-16) in `apps/web/tests/components/DeleteImportButton.test.tsx`. Expects `Failed to resolve import "../../src/components/DeleteImportButton"` — the component does not exist, so no render occurs and the "zero requests issued" assertion cannot pass vacuously for the wrong reason.
+- [x] T309 `[IMPL]` Create `apps/web/src/components/DeleteImportButton.tsx`; wire into `ImportPage.tsx`. Append `"src/components/DeleteImportButton.tsx"` to `IMPORT_FEATURE_MODULES` in `apps/web/tests/contracts/no-linguistic-rules.test.ts` (design §11, cut-scoped manifest). Skipping the append fails T1C09's assertion 3, because the new file matches `/[Ii]mport/` and would be outside the checked surface — that failure is the intended guard, not an obstacle to work around.
 - [ ] T310 `[E2E]` Playwright: import → delete with confirmation → zero state renders, in `apps/web/e2e/delete-import.spec.ts`. Expects a Playwright `TimeoutError` from `page.getByRole("button", { name: /eliminar/i }).click()` — `DeleteImportButton` is not mounted into `ImportPage.tsx` until T309, so the locator never resolves. A timeout on the trigger proves the control is absent; a later failure on the zero-state assertion would instead mean the control exists and the flow is mis-wired. Also the CORS-`DELETE` backstop (design §14.1) — a real browser issues the real preflight.
 - [ ] T311 `[DOC]` Add `docs/traceability-matrix.md` row for REQ-002-011 (`Cumplido`); re-run `cd apps/api && uv run pytest tests/unit/test_traceability.py -q`; run the full suite once (`cd apps/api && uv run pytest -q` and `cd apps/web && npx vitest run`) confirming the 0-warning / 99% coverage gate holds for the whole capability.
 
@@ -361,3 +361,19 @@ is at cut 2 (spec §1.2 spanning table) — `sdd-verify` MUST NOT mark it satisf
    only the in-task prose description of the intermediate RED status was corrected, in the test
    docstrings themselves (`tests/integration/test_delete_import.py`). No requirement, acceptance
    criterion, or cut allocation changed.
+10. **Gap found in cut 3 apply, closed as necessary T309 plumbing — non-blocking.**
+    `apps/web/src/types/imports.ts`'s `ImportResult` never gained an `id` member after the backend
+    additively completed it in cut 2 (T212, `api/dtos/imports.py::ImportResultResponse.id`), because
+    cut 2 was backend-only per design §12.4's cut split — no cut-2 task touched frontend files.
+    `DeleteImportButton` needs the import's id to call `DELETE /api/v1/imports/{id}`, so T309's "wire
+    into ImportPage.tsx" requires this widening as unavoidable plumbing. **Resolution adopted:** added
+    `id: number` (required, matching the backend's always-populated `id: int` since cut 2 — not
+    optional, and not the cut-1b-era `id: number | null` the T1B13 resolution explicitly rejected).
+    Four pre-existing test literals typed as `ImportResult`
+    (`apps/web/tests/api/imports.test.ts`, `apps/web/tests/components/FrequencyTable.test.tsx` ×2,
+    `apps/web/tests/components/ImportForm.test.tsx`) needed a consequential `id: <n>` field added to
+    keep `tsc --noEmit` green — none of those tests assert on `id`, so the values chosen are
+    arbitrary. Symmetric direct tests for `deleteImport()` were also added to
+    `apps/web/tests/api/imports.test.ts` (mirroring `postImport`'s existing success/rejection pair),
+    closing a coverage gap the component-level mock in `DeleteImportButton.test.tsx` could not reach
+    on its own. No requirement, acceptance criterion, or cut allocation changed.

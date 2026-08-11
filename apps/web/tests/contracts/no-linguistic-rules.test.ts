@@ -8,9 +8,9 @@ import { describe, expect, it } from "vitest";
  * mechanism that keeps the search scoped to import/frequency-table code
  * without abandoning the flat `pages/components/api/types` layout.
  *
- * The manifest is cut-scoped: it lists the modules that exist in cut 1c, not
- * future ones. `DeleteImportButton.tsx` is created in cut 3 (T309), which
- * appends it here — see design §11's "cut-scoped manifest" reading.
+ * The manifest is cut-scoped: it lists the modules that exist in the current
+ * cut. Cut 3 (T309) appends `DeleteImportButton.tsx` here — see design §11's
+ * "cut-scoped manifest" reading.
  *
  * Uses `import.meta.glob` rather than `node:fs` so this file needs no
  * `@types/node`, matching this project's existing minimal-dependency
@@ -21,9 +21,9 @@ const IMPORT_FEATURE_MODULES = [
   "src/pages/ImportPage.tsx",
   "src/components/ImportForm.tsx",
   "src/components/FrequencyTable.tsx",
+  "src/components/DeleteImportButton.tsx",
   "src/api/imports.ts",
   "src/types/imports.ts",
-  // cut 3 appends "src/components/DeleteImportButton.tsx"
 ] as const;
 
 const FEATURE_NAME_PATTERN = /[Ii]mport|[Ff]requenc/;

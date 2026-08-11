@@ -22,3 +22,14 @@ export async function postImport(file: File): Promise<ImportResult> {
 
   return response.json() as Promise<ImportResult>;
 }
+
+export async function deleteImport(id: number): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/api/v1/imports/${id}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    const errorBody = (await response.json()) as ImportErrorResponse;
+    throw new Error(errorBody.error.message);
+  }
+}
