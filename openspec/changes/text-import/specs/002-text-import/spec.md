@@ -460,13 +460,22 @@ Acceptance: **AC-002-10** — Given the shipped backend and frontend sources, th
 Schema, and the served OpenAPI document, when each is inspected structurally for
 `lemma|lemas|lexeme|lexema` (case-insensitive), then the match count is zero in each of:
 
-- **Python sources** (`apps/api/src/wheel_vocabulary/`, `apps/web/src/`), parsed as an AST: every
-  identifier — variable, parameter, function, method, class, attribute, import alias, and dataclass
-  or model field name — and every string literal that is **not** a docstring. The exemption is
-  defined as the first statement of a module, class, or function body, never as "any string
-  constant": exempting string constants at large would remove response keys, JSON Schema property
-  names, and user-facing messages from the guard, which is the majority of what it exists to catch.
-  `#` comments are outside the AST and therefore outside the guard by construction.
+- **Python sources** (`apps/api/src/wheel_vocabulary/`), parsed into an AST with the standard
+  library `ast` module: every identifier — variable, parameter, function, method, class, attribute,
+  import alias, and dataclass or model field name — and every string literal that is **not** a
+  docstring. The exemption is defined as the first statement of a module, class, or function body,
+  never as "any string constant": exempting string constants at large would remove response keys,
+  JSON Schema property names, and user-facing messages from the guard, which is the majority of what
+  it exists to catch. `#` comments are outside the AST and therefore outside the guard by
+  construction.
+- **TypeScript sources** (`apps/web/src/**/*.{ts,tsx}`), parsed into an AST with the TypeScript
+  compiler API (`ts.createSourceFile`, already available through the `typescript` dependency that
+  backs `tsc --noEmit`, so this leg adds no package): every identifier, every string literal, every
+  template-literal token, and every JSX text node. TypeScript has no docstring construct, so this
+  leg defines no docstring exemption — the equivalent carve-out is unnecessary because `//` and
+  `/* */` comments never enter the tree `ts.createSourceFile` produces, exactly as `#` comments never
+  enter the Python one. This directory is TypeScript, not Python; the two legs are stated separately
+  because they are parsed by different tools, not because they enforce different rules.
 - **The versioned JSON Schema** (`api/schemas/import.v1.json`), parsed as JSON: every object key and
   every string value. JSON has no docstring, so nothing in it is exempt.
 - **The served OpenAPI document**: every string. This leg is what keeps the docstring exemption
@@ -494,7 +503,8 @@ fires on prose it should ignore while catching nothing that a structural walk mi
 
 - GIVEN the backend sources, frontend sources, JSON Schema, and served OpenAPI document
 - WHEN each is inspected structurally for `lemma|lemas|lexeme|lexema` — identifiers and
-  non-docstring literals for Python, keys and values for JSON and OpenAPI
+  non-docstring literals for Python, identifiers and non-comment literals (including template
+  literals and JSX text) for TypeScript, keys and values for JSON and OpenAPI
 - THEN there are zero matches
 
 #### Scenario: Prose may name the concept it rules out, naming may not
@@ -504,6 +514,12 @@ fires on prose it should ignore while catching nothing that a structural walk mi
 - THEN the docstring passes
 - AND a field in the same module renamed to `lemma_form` still fails
 - AND a response-key literal changed to `"lemma_form"` still fails
+- GIVEN a TypeScript source containing the code comment
+  `// a form is not a lemma and not a lexeme`
+- WHEN the guard runs over it
+- THEN the comment passes
+- AND an identifier such as `lemmaCount` in the same source still fails
+- AND a string literal such as `"lemma_form"` in the same source still fails
 
 #### Scenario: Inflected forms stay separate and are labelled honestly
 
