@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func, insert, select
+from sqlalchemy import delete, func, insert, select
 
 from wheel_vocabulary.infrastructure.persistence.models import Book, Occurrence
 
@@ -107,3 +107,24 @@ class SqlAlchemyBookRepository:
                 (raw_text, normalized_text, count)
                 for raw_text, normalized_text, count in session.execute(statement)
             ]
+
+    def delete(self, book_id: int) -> bool:
+        """Delete a `Book` and every `Occurrence` derived from it — design §6.2.
+
+        Existence is checked first with its own query, mirroring
+        `frequency_pairs`'s unknown-vs-empty pattern above, so the `False`
+        return does not depend on a driver-specific `rowcount` value. Once
+        existence is confirmed, two explicit `DELETE` statements run in one
+        transaction (`occurrence` then `book`) — never `ON DELETE CASCADE`:
+        SQLite ships with `PRAGMA foreign_keys = OFF` by default, and this
+        engine (`infrastructure/persistence/engine.py`) never turns it on, so
+        the FK's declared cascade would silently do nothing.
+        """
+        with self._session_factory() as session:
+            if session.get(Book, book_id) is None:
+                return False
+
+            session.execute(delete(Occurrence).where(Occurrence.book_id == book_id))
+            session.execute(delete(Book).where(Book.id == book_id))
+            session.commit()
+            return True

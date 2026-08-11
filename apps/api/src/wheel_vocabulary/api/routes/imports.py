@@ -1,15 +1,16 @@
-"""Imports routes — POST /api/v1/imports, GET /api/v1/imports/{id}.
+"""Imports routes — POST /api/v1/imports, GET+DELETE /api/v1/imports/{id}.
 
 Deliberately thin: each adapts its plumbing to a use case and nothing else.
 The ordered validation gate is application policy and lives in ``ImportText``
 (Art. VII.4, design §8); the read path is `ReadImport`, which calls the SAME
-`domain.frequency.build_table()` (design §1, REQ-002-006 full closure).
+`domain.frequency.build_table()` (design §1, REQ-002-006 full closure); the
+delete path is `DeleteImport`, permanent and not undoable (REQ-002-011).
 
-Both handlers are plain ``def`` rather than ``async def`` so FastAPI runs them
+All handlers are plain ``def`` rather than ``async def`` so FastAPI runs them
 in the threadpool. That is what lets the ``ByteStream`` port stay synchronous
 and keeps the application layer free of async plumbing.
 
-REQ-002-001, REQ-002-006, REQ-002-008, REQ-002-012, REQ-002-018.
+REQ-002-001, REQ-002-006, REQ-002-008, REQ-002-011, REQ-002-012, REQ-002-018.
 """
 
 from __future__ import annotations
@@ -18,10 +19,15 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Response, UploadFile
 
-from wheel_vocabulary.api.dependencies import get_import_text, get_read_import
+from wheel_vocabulary.api.dependencies import (
+    get_delete_import,
+    get_import_text,
+    get_read_import,
+)
 from wheel_vocabulary.api.dtos.imports import FormFrequencyResponse, ImportResultResponse
 from wheel_vocabulary.application.imports.errors import ImportNotFoundError
 from wheel_vocabulary.application.imports.use_cases import (
+    DeleteImport,  # noqa: TC001 – FastAPI resolves at runtime
     ImportResult,  # noqa: TC001 – used as a plain parameter type below
     ImportText,  # noqa: TC001 – FastAPI resolves at runtime
     ReadImport,  # noqa: TC001 – FastAPI resolves at runtime
@@ -85,3 +91,17 @@ def read_import(
     if result is None:
         raise ImportNotFoundError(import_id=import_id)
     return _response_body(result)
+
+
+@router.delete("/imports/{import_id}", status_code=204)
+def delete_import(
+    import_id: int,
+    use_case: Annotated[DeleteImport, Depends(get_delete_import)],
+) -> None:
+    """Permanently delete an import and every row derived from it (REQ-002-011).
+
+    204 with no body on success. Deleting an unknown or already-deleted id
+    raises `ImportNotFoundError`, translated to the shared 404 envelope by
+    `api/errors.py` — the same handler `read_import` above already uses.
+    """
+    use_case.execute(import_id)

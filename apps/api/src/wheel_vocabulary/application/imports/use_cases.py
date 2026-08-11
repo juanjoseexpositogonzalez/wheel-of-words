@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING
 
 from wheel_vocabulary.application.imports.errors import (
     FileTooLargeError,
+    ImportNotFoundError,
     InvalidFileTypeError,
     PersistenceFailedError,
 )
@@ -47,7 +48,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     )
     from wheel_vocabulary.domain.models import FormFrequency
 
-__all__ = ["ImportResult", "ImportText", "ReadImport", "read_bounded_and_hash"]
+__all__ = ["DeleteImport", "ImportResult", "ImportText", "ReadImport", "read_bounded_and_hash"]
 
 _ACCEPTED_SUFFIX = ".txt"
 _ACCEPTED_MEDIA_TYPES = frozenset({"text/plain", "application/octet-stream"})
@@ -238,6 +239,24 @@ class ReadImport:
             distinct_form_count=len(forms),
             total_token_count=sum(row.frequency for row in forms),
         )
+
+
+class DeleteImport:
+    """Delete a persisted import and its derived data — the DELETE use case.
+
+    Permanent, not reversible (REQ-002-011): a soft delete is forbidden by
+    spec (Art. IV.8 vs Art. IX.5's confirmation-or-reversible disjunction), so
+    this calls the repository's hard delete directly with no intermediate
+    status flag.
+    """
+
+    def __init__(self, *, repository: BookRepository) -> None:
+        self._repository = repository
+
+    def execute(self, book_id: int) -> None:
+        """Delete the import, or raise `ImportNotFoundError` if unknown."""
+        if not self._repository.delete(book_id):
+            raise ImportNotFoundError(import_id=book_id)
 
 
 def _suffix_of(filename: str | None) -> str:
