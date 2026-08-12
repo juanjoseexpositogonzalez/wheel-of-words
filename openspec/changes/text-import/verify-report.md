@@ -60,7 +60,7 @@ quality issues that do not block testing the feature today.
 | `make typecheck` | Backend mypy clean, frontend TypeScript clean | clean | ✅ |
 | `cd apps/api && uv run ruff format --check .` | `72 files already formatted`, exit 0 | clean | ✅ |
 
-Every number in the last apply report is accurate. Nothing was overstated.
+Every measured command result above is accurate for this remediation pass.
 
 ### 2.1 T-BENCH, both modes (measured on this machine)
 
@@ -402,7 +402,7 @@ I did not manufacture findings. Specifically, these came back **clean**:
 
 ## 11. Report metadata
 
-- Updated in `openspec/changes/text-import/verify-report.md` in the working tree.
-  **Not committed, not pushed, not staged.**
+- Included in PR #25 as the durable verification artifact for the SPEC-002 critical evidence
+  gap remediation.
 - Remediation changes modify tests, tasks, traceability, and this report only; no production
   source changed.
