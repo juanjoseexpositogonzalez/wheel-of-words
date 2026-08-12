@@ -79,7 +79,7 @@ is at cut 2 (spec §1.2 spanning table) — `sdd-verify` MUST NOT mark it satisf
 | AC-11 | REQ-002-008 | 2 | T201, T202 | `tests/integration/test_alembic_0002.py::test_upgrade_and_downgrade_book_occurrence` |
 | AC-12 | REQ-002-008 | 2 | T207, T208, T209 | `tests/integration/test_book_repository.py::test_frequency_pairs_survives_a_new_session_against_the_same_database` |
 | AC-13 | REQ-002-009 | 2 | T206 | `tests/integration/test_book_repository.py::test_content_hash_matches_an_independently_computed_sha256` |
-| AC-14 | REQ-002-010 | 2 | T205 | `tests/integration/test_occurrence_pos.py::test_every_persisted_occurrence_has_pos_none`, `::test_raw_text_and_normalized_text_stay_separate_values` |
+| AC-14 | REQ-002-010 | 2 | T205 | `tests/integration/test_occurrence_pos.py::test_every_persisted_occurrence_has_pos_none`, `::test_raw_text_and_normalized_text_stay_separate_values`, `::test_book_table_has_no_part_of_speech_column` |
 | AC-15 | REQ-002-011 | 3 | T301, T302, T304 | `tests/integration/test_delete_import.py::test_delete_removes_book_and_occurrences_with_zero_orphans` |
 | AC-16 | REQ-002-011 | 3 | T308, T309 | `apps/web/tests/components/DeleteImportButton.test.tsx::test_requires_confirmation_before_deleting` |
 | AC-17 | REQ-002-012 | 1b | T1B12, T1B13 | `tests/unit/test_import_text.py::test_empty_and_whitespace_only_upload_succeeds`, `tests/api/test_imports.py::test_post_empty_file_returns_201_zero_forms` |

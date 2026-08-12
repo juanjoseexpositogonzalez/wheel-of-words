@@ -43,3 +43,20 @@ def test_upgrade_and_downgrade_book_occurrence(
     with engine.connect() as connection:
         version = connection.execute(text("select version_num from alembic_version")).scalar_one()
     assert version == "0001_baseline"
+
+
+def test_upgrade_adds_no_display_form_column(
+    alembic_config: Config,
+    managed_engine: Callable[[Engine], Engine],
+) -> None:
+    """AC-002-24: no `display_form` column exists on `book` or `occurrence`."""
+    command.upgrade(alembic_config, "head")
+
+    engine = managed_engine(
+        create_engine(alembic_config.get_main_option("sqlalchemy.url"), future=True)
+    )
+    inspector = inspect(engine)
+    book_columns = {column["name"] for column in inspector.get_columns("book")}
+    occurrence_columns = {column["name"] for column in inspector.get_columns("occurrence")}
+    assert "display_form" not in book_columns
+    assert "display_form" not in occurrence_columns

@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
+from sqlalchemy import inspect
 
 from wheel_vocabulary.infrastructure.persistence.models import Occurrence
 
@@ -56,3 +57,14 @@ def test_raw_text_and_normalized_text_stay_separate_values(
     assert row.raw_text == "Stra\u00dfe"
     assert row.normalized_text == "strasse"
     assert row.raw_text != row.normalized_text
+
+
+@pytest.mark.integration
+def test_book_table_has_no_part_of_speech_column(
+    book_repository: SqlAlchemyBookRepository,
+) -> None:
+    """AC-002-14: `book` carries no part-of-speech column."""
+    with book_repository._session_factory() as session:  # noqa: SLF001 - test-only introspection
+        columns = {column["name"] for column in inspect(session.bind).get_columns("book")}
+
+    assert not columns & {"pos", "part_of_speech"}
