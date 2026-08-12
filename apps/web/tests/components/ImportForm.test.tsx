@@ -14,6 +14,7 @@ function makeFile(name: string): File {
 }
 
 const result: ImportResult = {
+  id: 1,
   import_status: "succeeded",
   distinct_form_count: 2,
   total_token_count: 3,

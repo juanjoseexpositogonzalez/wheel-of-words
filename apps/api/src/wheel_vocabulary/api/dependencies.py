@@ -17,7 +17,7 @@ from wheel_vocabulary.application.imports.ports import (
     BookRepository,  # noqa: TC001 – runtime for FastAPI
     TextExtractor,  # noqa: TC001 – runtime for FastAPI
 )
-from wheel_vocabulary.application.imports.use_cases import ImportText, ReadImport
+from wheel_vocabulary.application.imports.use_cases import DeleteImport, ImportText, ReadImport
 from wheel_vocabulary.infrastructure.clock import SystemClock
 from wheel_vocabulary.infrastructure.persistence.book_repository import (
     SqlAlchemyBookRepository,
@@ -35,6 +35,7 @@ __all__ = [
     "get_app_version",
     "get_book_repository",
     "get_clock",
+    "get_delete_import",
     "get_import_text",
     "get_read_import",
     "get_settings",
@@ -100,3 +101,10 @@ def get_read_import(
 ) -> ReadImport:
     """Dependency provider: assembles the read use case from its port."""
     return ReadImport(repository=repository)
+
+
+def get_delete_import(
+    repository: Annotated[BookRepository, Depends(get_book_repository)],
+) -> DeleteImport:
+    """Dependency provider: assembles the delete use case from its port."""
+    return DeleteImport(repository=repository)

@@ -4,6 +4,7 @@ import { FrequencyTable } from "../../src/components/FrequencyTable";
 import type { ImportResult } from "../../src/types/imports";
 
 const zeroResult: ImportResult = {
+  id: 1,
   import_status: "succeeded",
   distinct_form_count: 0,
   total_token_count: 0,
@@ -14,6 +15,7 @@ const zeroResult: ImportResult = {
 // alphabetical order; this is not it. `strasse`/`Straße` is the pinned case
 // where the display form must not be re-derived from the normalized form.
 const nonAlphabeticalResult: ImportResult = {
+  id: 2,
   import_status: "succeeded",
   distinct_form_count: 3,
   total_token_count: 4,

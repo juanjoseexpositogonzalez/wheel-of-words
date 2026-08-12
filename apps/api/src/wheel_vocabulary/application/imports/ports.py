@@ -45,7 +45,13 @@ class TextExtractor(Protocol):
 
 @runtime_checkable
 class BookRepository(Protocol):
-    """Persistence port for imported corpora. Implemented in cut 2."""
+    """Persistence port for imported corpora.
+
+    ``create`` and ``frequency_pairs`` are implemented in cut 2. ``delete`` is
+    declared here because this Protocol documents the port's final shape, but
+    is implemented in cut 3 (design §7.2) — no caller anywhere in the design
+    ever needed a separate ``exists()`` check, so this port has none.
+    """
 
     def create(
         self,
@@ -64,5 +70,14 @@ class BookRepository(Protocol):
         ``None`` means the id is unknown, which is a 404. An empty list means the
         import exists and contains no forms, which is a success (REQ-002-012).
         The two MUST NOT be conflated.
+        """
+        ...
+
+    def delete(self, book_id: int) -> bool:
+        """Permanently delete the import and every row derived from it.
+
+        Returns ``False`` when ``book_id`` is unknown (→ 404 ``IMPORT_NOT_FOUND``),
+        ``True`` when a row was deleted. Permanent — no soft delete, no
+        tombstone (REQ-002-011, hook H8).
         """
         ...
