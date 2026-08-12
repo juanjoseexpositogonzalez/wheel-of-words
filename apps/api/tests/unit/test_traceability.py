@@ -67,10 +67,10 @@ def test_all_text_import_requirements_have_exactly_one_row() -> None:
 
 def test_text_import_traceability_rows_are_fulfilled_and_evidenced() -> None:
     matrix = _MATRIX.read_text(encoding="utf-8")
+    rows = _rows_for_prefix(matrix, "REQ-002-")
 
-    for req_id, _statement, acceptance, tests, tasks, status in _rows_for_prefix(
-        matrix, "REQ-002-"
-    ):
+    assert rows
+    for req_id, _statement, acceptance, tests, tasks, status in rows:
         assert status.startswith("Cumplido"), req_id
         assert "openspec/changes/text-import/specs/002-text-import/spec.md" in acceptance
         assert tests, req_id
