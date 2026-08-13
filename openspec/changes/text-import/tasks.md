@@ -194,7 +194,7 @@ not prove the no-`display_form` column clause.
 - [x] T308 `[TEST]` `DeleteImportButton` requires explicit confirmation: one activation shows an accessibly-named confirmation control and issues no request; confirming issues exactly one `DELETE`; cancelling issues none (AC-002-16) in `apps/web/tests/components/DeleteImportButton.test.tsx`. Expects `Failed to resolve import "../../src/components/DeleteImportButton"` — the component does not exist, so no render occurs and the "zero requests issued" assertion cannot pass vacuously for the wrong reason.
 - [x] T309 `[IMPL]` Create `apps/web/src/components/DeleteImportButton.tsx`; wire into `ImportPage.tsx`. Append `"src/components/DeleteImportButton.tsx"` to `IMPORT_FEATURE_MODULES` in `apps/web/tests/contracts/no-linguistic-rules.test.ts` (design §11, cut-scoped manifest). Skipping the append fails T1C09's assertion 3, because the new file matches `/[Ii]mport/` and would be outside the checked surface — that failure is the intended guard, not an obstacle to work around.
 - [x] T310 `[E2E]` Playwright: import → delete with confirmation → zero state renders, in `apps/web/e2e/delete-import.spec.ts`. Expects a Playwright `TimeoutError` from `page.getByRole("button", { name: /eliminar/i }).click()` — `DeleteImportButton` is not mounted into `ImportPage.tsx` until T309, so the locator never resolves. A timeout on the trigger proves the control is absent; a later failure on the zero-state assertion would instead mean the control exists and the flow is mis-wired. Also the CORS-`DELETE` backstop (design §14.1) — a real browser issues the real preflight.
-- [x] T311 `[DOC]` Add `docs/traceability-matrix.md` row for REQ-002-011 (`Cumplido`); re-run `cd apps/api && uv run pytest tests/unit/test_traceability.py -q`; run the full suite once (`cd apps/api && uv run pytest -q` and `cd apps/web && npx vitest run`) confirming the 0-warning / 99% coverage gate holds for the whole capability.
+- [x] T311 `[DOC]` Add `docs/traceability-matrix.md` row for REQ-002-011 (`Cumplido`); re-run `cd apps/api && uv run pytest tests/unit/test_traceability.py -q`; run the full suite once (`cd apps/api && uv run pytest -q` and `cd apps/web && npx vitest run`) confirming the suite remains zero-warning and above the configured coverage gates. **Amended by remediation work unit — see contradiction note 13:** 99% was the observed backend coverage result, not the configured coverage gate.
 
 ---
 
@@ -415,3 +415,12 @@ not prove the no-`display_form` column clause.
     cut-scoped `IMPORT_FEATURE_MODULES` manifest and now formats actionable diagnostics instead of
     returning only the violating file names. No production code, requirement, acceptance criterion, or
     cut allocation changed.
+13. **Documentation drift found in T311/design §13 and CLOSED by a remediation work unit.**
+    The task list and design text described a "99% coverage gate" for SPEC-002. That wording was false:
+    99% was the observed backend coverage result at the start of the change, while the configured hard
+    gates are the existing project thresholds (`.github/workflows/ci.yml` runs backend pytest with
+    `--cov-fail-under=80`, and `apps/web/vitest.config.ts` enables frontend `{ lines: 70 }` when
+    `CI_COVERAGE_MODE=fail`). **Resolution adopted:** design §13 now distinguishes observed coverage
+    from configured gates, and T311 now says the suite stayed zero-warning and above the configured
+    coverage gates rather than claiming a 99% gate. No production code, requirement, acceptance
+    criterion, or cut allocation changed.
