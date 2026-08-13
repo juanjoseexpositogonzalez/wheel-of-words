@@ -36,7 +36,8 @@ def _requirement_ids(rows: list[list[str]]) -> list[str]:
 
 
 def _is_placeholder(value: str) -> bool:
-    return bool(_PLACEHOLDER_RE.search(value.strip()))
+    normalized = value.strip().strip("`").strip()
+    return bool(_PLACEHOLDER_RE.search(normalized))
 
 
 def test_configuration_requirement_has_its_own_traceability_row() -> None:
@@ -94,6 +95,7 @@ def test_text_import_traceability_guard_rejects_missing_duplicate_or_open_rows()
             "| REQ-002-001 | duplicate | spec.md — AC-01 | test.py | T1 | Cumplido |",
             "| REQ-002-003 | open | spec.md — AC-03 | test.py | T3 | En progreso |",
             "| REQ-002-004 | placeholder | spec.md — AC-04 | TODO | TBD | Cumplido |",
+            "| REQ-002-005 | markdown placeholder | spec.md — AC-05 | `TODO` | `TBD` | Cumplido |",
         ]
     )
     rows = _rows_for_prefix(matrix, "REQ-002-")
