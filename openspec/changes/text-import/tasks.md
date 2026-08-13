@@ -265,8 +265,10 @@ not prove the no-`display_form` column clause.
    file/line/token, revert) and a negative leg (add a real code comment naming the forbidden concept,
    confirm the new guard stays green while the old plain-text guard — run one last time before removal
    — failed on it). Both observed exactly as expected; see T1C14 above for the transcripts. The old
-   frontend leg tests in `apps/api/tests/unit/test_no_lemma_naming.py` are removed; the backend leg is
-   unchanged. **AC-002-10's own wording is now literally satisfied, not deviated from:** its text lists
+   Python-hosted frontend leg in `apps/api/tests/unit/test_no_lemma_naming.py` was removed; the
+   replacement TypeScript contract checks live in `apps/web/tests/contracts/no-lemma-naming.test.ts`
+   and are the AC-10 row's current frontend evidence. The backend leg is unchanged. **AC-002-10's own
+   wording is now literally satisfied, not deviated from:** its text lists
    "Python sources (`apps/api/src/wheel_vocabulary/`, `apps/web/src/`), parsed as an AST" as one
    bullet — the frontend leg is now parsed as a TypeScript AST, which is the closest TypeScript
    equivalent of that wording; `spec.md` itself is unchanged because it never named a specific parser
