@@ -66,11 +66,11 @@ is at cut 2 (spec §1.2 spanning table) — `sdd-verify` MUST NOT mark it satisf
 
 | AC | REQ | Cut(s) | Task(s) | Test file :: function |
 |---|---|---|---|---|
-| AC-01 | REQ-002-001 | 1b | T1B15, T1B16 | `tests/api/test_imports.py::test_post_imports_multipart_returns_201_with_forms`, `::test_post_imports_json_path_returns_422` |
-| AC-02 | REQ-002-002 | 1b | T1B10, T1B13, T1B16 | `tests/unit/test_import_text.py::test_filename_and_content_type_gate[wrong_extension]`, `tests/api/test_imports.py::test_post_notes_pdf_returns_422_invalid_file_type` |
-| AC-03 | REQ-002-003 | 1b | T1B01, T1B02 | `tests/unit/test_settings.py::test_max_import_size_bytes_default_and_override` |
-| AC-04 | REQ-002-003 | 1b | T1B11, T1B13 | `tests/unit/test_import_text.py::test_size_gate_streaming_abort[oversized]`, `[at_limit]` |
-| AC-05 | REQ-002-004 | 1b | T1B06, T1B07 | `tests/unit/test_text_extraction.py::test_strict_utf8_decode_and_bom_strip` |
+| AC-01 | REQ-002-001 | 1b | T1B15, T1B16 | `tests/api/test_imports.py::test_a_synthetic_txt_upload_is_created`, `tests/api/test_imports.py::test_a_json_filesystem_path_is_refused_and_nothing_is_computed` |
+| AC-02 | REQ-002-002 | 1b | T1B10, T1B13, T1B16 | `tests/unit/test_import_text.py::test_unsupported_filename_is_rejected_before_any_byte_is_read`, `tests/unit/test_import_text.py::test_unsupported_content_type_is_rejected_before_any_byte_is_read`, `tests/api/test_imports.py::test_a_wrong_extension_is_refused_naming_the_accepted_one` |
+| AC-03 | REQ-002-003 | 1b | T1B01, T1B02 | `tests/unit/test_settings.py::test_max_import_size_bytes_defaults_to_four_mebibytes`, `tests/unit/test_settings.py::test_max_import_size_bytes_env_override` |
+| AC-04 | REQ-002-003 | 1b | T1B11, T1B13 | `tests/unit/test_import_text.py::test_body_one_byte_over_the_limit_is_rejected`, `tests/unit/test_import_text.py::test_body_exactly_at_the_limit_is_accepted`, `tests/unit/test_import_text.py::test_an_absent_declared_size_is_still_rejected_at_the_streaming_gate` |
+| AC-05 | REQ-002-004 | 1b | T1B06, T1B07 | `tests/unit/test_text_extraction.py::test_invalid_utf8_is_rejected`, `tests/unit/test_text_extraction.py::test_leading_bom_is_stripped` |
 | AC-06 | REQ-002-005 | 1a | T1A10 | `tests/unit/test_domain_isolation.py::test_domain_has_no_framework_imports_or_iso639_literals` |
 | AC-07 | REQ-002-005 | 1a | T1A01, T1A04 | `tests/unit/test_tokenizer.py::test_tokenization_rules[T1..T10]`, `tests/unit/test_normalizer.py::test_normalization_rules[N1..N5]` |
 | AC-08 | REQ-002-006 `+` | 1a→1b→**2** | T1A07, T1B15, T211 | `tests/unit/test_frequency.py::test_repeated_forms_collapse_with_frequency_and_sum`; `tests/api/test_imports.py::test_a_synthetic_txt_upload_is_created`; `::test_get_imports_returns_the_ordered_table_with_the_persisted_id` (sum check) |
@@ -82,18 +82,25 @@ is at cut 2 (spec §1.2 spanning table) — `sdd-verify` MUST NOT mark it satisf
 | AC-14 | REQ-002-010 | 2 | T205 | `tests/integration/test_occurrence_pos.py::test_every_persisted_occurrence_has_pos_none`, `::test_raw_text_and_normalized_text_stay_separate_values` |
 | AC-15 | REQ-002-011 | 3 | T301, T302, T304 | `tests/integration/test_delete_import.py::test_delete_removes_book_and_occurrences_with_zero_orphans` |
 | AC-16 | REQ-002-011 | 3 | T308, T309 | `apps/web/tests/components/DeleteImportButton.test.tsx::test_requires_confirmation_before_deleting` |
-| AC-17 | REQ-002-012 | 1b | T1B12, T1B13 | `tests/unit/test_import_text.py::test_empty_and_whitespace_only_upload_succeeds`, `tests/api/test_imports.py::test_post_empty_file_returns_201_zero_forms` |
+| AC-17 | REQ-002-012 | 1b | T1B12, T1B13 | `tests/unit/test_import_text.py::test_a_content_free_upload_succeeds_with_zero_forms`, `tests/api/test_imports.py::test_a_content_free_upload_is_a_success_with_a_zero_state` |
 | AC-18 | REQ-002-013 `+` | 1b(partial)→**2**(closed) | T1B18, T1B19, T213, T214 | `tests/api/test_imports_logging.py::test_a_successful_import_logs_no_imported_text`, `::test_a_decode_failure_logs_the_error_code_and_the_import_id`; `tests/integration/test_book_repository.py::test_a_persistence_failure_during_create_logs_code_and_no_raw_text`, `::test_reading_an_unknown_import_logs_the_attempted_id` |
 | AC-19 | REQ-002-014 | 1c | T1C07, T1C09 | `apps/web/tests/components/FrequencyTable.test.tsx::test_renders_received_order_and_display_form_verbatim`, `::test_frequency_column_is_not_colour_only`; `apps/web/tests/contracts/no-linguistic-rules.test.ts::test_import_modules_have_no_linguistic_rules` |
 | AC-20 | REQ-002-015 | 1a | T1A04 | `tests/unit/test_normalizer.py::test_normalize_is_idempotent` |
 | AC-21 | REQ-002-016 | 1a | T1A07 | `tests/unit/test_frequency.py::test_aggregation_is_order_independent_hypothesis` |
 | AC-22 | REQ-002-017 | 1a | T1A07 | `tests/unit/test_frequency.py::test_frequencies_are_never_negative_hypothesis` |
-| AC-23 | REQ-002-018 `+` | 1a→1b→**2** | T1A07, T1B15 | `tests/unit/test_frequency.py::test_majority_and_tie_break_display_form`; `tests/api/test_imports.py::test_post_imports_response_includes_display_form` |
+| AC-23 | REQ-002-018 `+` | 1a→1b→**2** | T1A07, T1B15 | `tests/unit/test_frequency.py::test_majority_and_tie_break_display_form`; `tests/api/test_imports.py::test_each_row_carries_both_the_grouping_key_and_the_display_form` |
 | AC-24 | REQ-002-018 `+` | 1a→1b→**2** | T1A07, T1B15, T202 | `tests/unit/test_frequency.py::test_display_form_is_substring_of_source`; `tests/integration/test_alembic_0002.py::test_upgrade_adds_no_display_form_column` |
 
 **REQ index (all 18) → primary cut:** `-001` 1b · `-002` 1b · `-003` 1b · `-004` 1b · `-005` 1a ·
 `-006`+ 1a/1b/**2** · `-007`+ 1b/1c/**2** · `-008` 2 · `-009` 2 · `-010` 2 · `-011` 3 · `-012` 1b ·
 `-013`+ 1b/**2** · `-014` 1c · `-015` 1a · `-016` 1a · `-017` 1a · `-018`+ 1a/1b/**2**.
+
+**Citation-drift remediation (W4).** Several cut-1b AC-map rows above cited pre-rename
+test names even though equivalent shipped tests existed under clearer names. This pass updates
+only those citations. It deliberately leaves AC-24's historical
+`tests/integration/test_alembic_0002.py::test_upgrade_adds_no_display_form_column` untouched:
+that is the separate C1 evidence gap, not a rename, because the currently shipped Alembic test does
+not prove the no-`display_form` column clause.
 
 ---
 
