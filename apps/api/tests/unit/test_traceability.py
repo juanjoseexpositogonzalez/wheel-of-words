@@ -36,7 +36,7 @@ def _requirement_ids(rows: list[list[str]]) -> list[str]:
 
 
 def _is_placeholder(value: str) -> bool:
-    normalized = value.strip().strip("`").strip()
+    normalized = value.strip().strip("`*_ ").strip()
     return bool(_PLACEHOLDER_RE.search(normalized))
 
 
@@ -96,13 +96,16 @@ def test_text_import_traceability_guard_rejects_missing_duplicate_or_open_rows()
             "| REQ-002-003 | open | spec.md — AC-03 | test.py | T3 | En progreso |",
             "| REQ-002-004 | placeholder | spec.md — AC-04 | TODO | TBD | Cumplido |",
             "| REQ-002-005 | markdown placeholder | spec.md — AC-05 | `TODO` | `TBD` | Cumplido |",
+            "| REQ-002-006 | emphasized placeholder | spec.md — AC-06 | **TODO** | _TBD_ | Cumplido |",
         ]
     )
     rows = _rows_for_prefix(matrix, "REQ-002-")
 
     assert _requirement_ids(rows) != [f"REQ-002-{number:03d}" for number in range(1, 19)]
     assert any(not row[5].startswith("Cumplido") for row in rows)
-    assert any(_is_placeholder(row[3]) or _is_placeholder(row[4]) for row in rows)
+    assert any(row[0] == "REQ-002-004" and _is_placeholder(row[3]) for row in rows)
+    assert any(row[0] == "REQ-002-005" and _is_placeholder(row[3]) for row in rows)
+    assert any(row[0] == "REQ-002-006" and _is_placeholder(row[3]) for row in rows)
 
 
 def test_readme_documents_the_foundation_command_surface() -> None:
