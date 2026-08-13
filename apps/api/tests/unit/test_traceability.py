@@ -14,7 +14,7 @@ _TASKS = (
     / "tasks.md"
 )
 
-_PLACEHOLDER_RE = re.compile(r"^(?:N/A|TODO|TBD|NONE|PENDING)\b", re.IGNORECASE)
+_PLACEHOLDER_RE = re.compile(r"(?:^|\b)(?:N/A|TODO|TBD|NONE|PENDING)\b", re.IGNORECASE)
 
 
 def _matrix_rows(matrix: str) -> list[list[str]]:
@@ -80,6 +80,7 @@ def test_text_import_traceability_rows_are_fulfilled_and_evidenced() -> None:
     for req_id, _statement, acceptance, tests, tasks, status in rows:
         assert status.startswith("Cumplido"), req_id
         assert "openspec/changes/text-import/specs/002-text-import/spec.md" in acceptance
+        assert not _is_placeholder(acceptance), req_id
         assert tests, req_id
         assert not _is_placeholder(tests), req_id
         assert tasks, req_id
@@ -97,6 +98,7 @@ def test_text_import_traceability_guard_rejects_missing_duplicate_or_open_rows()
             "| REQ-002-004 | placeholder | spec.md — AC-04 | TODO | TBD | Cumplido |",
             "| REQ-002-005 | markdown placeholder | spec.md — AC-05 | `TODO` | `TBD` | Cumplido |",
             "| REQ-002-006 | emphasized placeholder | spec.md — AC-06 | **TODO** | _TBD_ | Cumplido |",
+            "| REQ-002-007 | acceptance placeholder | spec.md — TODO | test.py | T7 | Cumplido |",
         ]
     )
     rows = _rows_for_prefix(matrix, "REQ-002-")
@@ -106,6 +108,7 @@ def test_text_import_traceability_guard_rejects_missing_duplicate_or_open_rows()
     assert any(row[0] == "REQ-002-004" and _is_placeholder(row[3]) for row in rows)
     assert any(row[0] == "REQ-002-005" and _is_placeholder(row[3]) for row in rows)
     assert any(row[0] == "REQ-002-006" and _is_placeholder(row[3]) for row in rows)
+    assert any(row[0] == "REQ-002-007" and _is_placeholder(row[2]) for row in rows)
 
 
 def test_readme_documents_the_foundation_command_surface() -> None:
