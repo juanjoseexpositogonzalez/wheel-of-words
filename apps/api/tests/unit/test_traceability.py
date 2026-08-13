@@ -15,6 +15,24 @@ _TASKS = (
 )
 
 
+def _matrix_rows(matrix: str) -> list[list[str]]:
+    """Return content rows from the repository traceability matrix."""
+    rows: list[list[str]] = []
+    for line in matrix.splitlines():
+        if not line.startswith("| REQ-"):
+            continue
+        rows.append([cell.strip() for cell in line.strip("|").split("|")])
+    return rows
+
+
+def _rows_for_prefix(matrix: str, prefix: str) -> list[list[str]]:
+    return [row for row in _matrix_rows(matrix) if row[0].startswith(prefix)]
+
+
+def _requirement_ids(rows: list[list[str]]) -> list[str]:
+    return [row[0] for row in rows]
+
+
 def test_configuration_requirement_has_its_own_traceability_row() -> None:
     matrix = _MATRIX.read_text(encoding="utf-8")
 
@@ -38,6 +56,43 @@ def test_all_functional_foundation_requirements_have_exactly_one_row() -> None:
     for number in range(1, 19):
         requirement = f"| REQ-001-{number:03d} |"
         assert matrix.count(requirement) == 1
+
+
+def test_all_text_import_requirements_have_exactly_one_row() -> None:
+    matrix = _MATRIX.read_text(encoding="utf-8")
+    rows = _rows_for_prefix(matrix, "REQ-002-")
+
+    assert sorted(_requirement_ids(rows)) == [f"REQ-002-{number:03d}" for number in range(1, 19)]
+
+
+def test_text_import_traceability_rows_are_fulfilled_and_evidenced() -> None:
+    matrix = _MATRIX.read_text(encoding="utf-8")
+    rows = _rows_for_prefix(matrix, "REQ-002-")
+
+    assert rows
+    for req_id, _statement, acceptance, tests, tasks, status in rows:
+        assert status.startswith("Cumplido"), req_id
+        assert "openspec/changes/text-import/specs/002-text-import/spec.md" in acceptance
+        assert tests, req_id
+        assert tests != "N/A", req_id
+        assert tasks, req_id
+        assert tasks != "N/A", req_id
+
+
+def test_text_import_traceability_guard_rejects_missing_duplicate_or_open_rows() -> None:
+    matrix = "\n".join(
+        [
+            "| REQ ID | Statement | Acceptance | Test file(s) | Task(s) | Status |",
+            "|--------|--------------------|--------------------------|--------------|---------|--------|",
+            "| REQ-002-001 | one | spec.md — AC-01 | test.py | T1 | Cumplido |",
+            "| REQ-002-001 | duplicate | spec.md — AC-01 | test.py | T1 | Cumplido |",
+            "| REQ-002-003 | open | spec.md — AC-03 | test.py | T3 | En progreso |",
+        ]
+    )
+    rows = _rows_for_prefix(matrix, "REQ-002-")
+
+    assert _requirement_ids(rows) != [f"REQ-002-{number:03d}" for number in range(1, 19)]
+    assert any(not row[5].startswith("Cumplido") for row in rows)
 
 
 def test_readme_documents_the_foundation_command_surface() -> None:
