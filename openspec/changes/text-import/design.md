@@ -740,11 +740,14 @@ Chain strategy `stacked-to-main` is unchanged.
 | Repo-wide | H1 `lemma\|lemas\|lexeme\|lexema` = 0 across `apps/api/src/` + `apps/web/src/`; H8 `deleted_at\|is_deleted\|tombstone` = 0 | `unit` | extends the existing `tests/unit/test_traceability.py` pattern |
 | E2E, Playwright | upload synthetic `.txt` → table visible → delete with confirmation → zero state | `e2e` | Chromium only, per the foundation design §8.3 |
 
-**Non-negotiable gate constraints.** The suite is at 50 passed / 0 warnings / 99 % coverage and
-`filterwarnings` is an error gate. Nothing here weakens it: no new `filterwarnings` entry, no
-`--cov-fail-under` change, no `pytest.ini` edit. Every new branch — the size early-abort, the BOM
-strip, the `None`-vs-`[]` distinction in `frequency_pairs`, each error handler — needs its own test
-to hold 99 %.
+**Non-negotiable gate constraints.** The suite starts from 50 passed / 0 warnings / 99 % observed
+coverage, while the configured hard thresholds remain the project gates: backend global coverage
+must satisfy CI's `--cov-fail-under=80`, frontend line coverage must satisfy `vitest.config.ts`'s
+`CI_COVERAGE_MODE=fail` threshold `{ lines: 70 }`, and `filterwarnings` is an error gate. Nothing
+here weakens those gates: no new `filterwarnings` entry, no `--cov-fail-under` change, no
+`pytest.ini` edit. Every new branch — the size early-abort, the BOM strip, the `None`-vs-`[]`
+distinction in `frequency_pairs`, each error handler — needs its own test so coverage remains a
+useful signal above the configured thresholds.
 
 ---
 
