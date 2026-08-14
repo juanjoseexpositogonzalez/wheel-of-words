@@ -97,7 +97,8 @@ def test_text_import_traceability_guard_rejects_missing_duplicate_or_open_rows()
             "| REQ-002-003 | open | spec.md — AC-03 | test.py | T3 | En progreso |",
             "| REQ-002-004 | placeholder | spec.md — AC-04 | TODO | TBD | Cumplido |",
             "| REQ-002-005 | markdown placeholder | spec.md — AC-05 | `TODO` | `TBD` | Cumplido |",
-            "| REQ-002-006 | emphasized placeholder | spec.md — AC-06 | **TODO** | _TBD_ | Cumplido |",
+            "| REQ-002-006 | emphasized placeholder | spec.md — AC-06 "
+            "| **TODO** | _TBD_ | Cumplido |",
             "| REQ-002-007 | acceptance placeholder | spec.md — TODO | test.py | T7 | Cumplido |",
         ]
     )
