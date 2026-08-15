@@ -24,11 +24,12 @@ export function FrequencyTable({ result }: FrequencyTableProps): JSX.Element {
   return (
     <table>
       <caption>
-        Lista de formas normalizadas del texto importado, en el orden que devuelve el servidor.
+        Lista del texto mostrado y su clave de agrupación, en el orden que devuelve el servidor.
       </caption>
       <thead>
         <tr>
-          <th scope="col">Forma mostrada</th>
+          <th scope="col">Texto mostrado</th>
+          <th scope="col">Clave de agrupación</th>
           <th scope="col">Apariciones</th>
         </tr>
       </thead>
@@ -36,6 +37,7 @@ export function FrequencyTable({ result }: FrequencyTableProps): JSX.Element {
         {result.forms.map((row, index) => (
           <tr key={`${row.normalized_form}-${index}`}>
             <td>{row.display_form}</td>
+            <td>{row.normalized_form}</td>
             <td>{row.frequency}</td>
           </tr>
         ))}

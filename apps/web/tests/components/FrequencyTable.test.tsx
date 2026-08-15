@@ -35,23 +35,32 @@ describe("FrequencyTable", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
-  it("test_renders_received_order_and_display_form_verbatim", () => {
+  it("renders each received display form, grouping key, and frequency in server order", () => {
     render(<FrequencyTable result={nonAlphabeticalResult} />);
 
     const dataRows = screen.getAllByRole("row").slice(1);
-    const firstCellTexts = dataRows.map((row) => within(row).getAllByRole("cell")[0]?.textContent);
+    const cellTexts = dataRows.map((row) =>
+      within(row).getAllByRole("cell").map((cell) => cell.textContent),
+    );
 
-    expect(firstCellTexts).toEqual(["Zorro", "árbol", "Straße"]);
-    expect(screen.getByText("Straße")).toBeVisible();
-    expect(screen.queryByText("strasse")).not.toBeInTheDocument();
+    expect(cellTexts).toEqual([
+      ["Zorro", "zorro", "1"],
+      ["árbol", "arbol", "2"],
+      ["Straße", "strasse", "1"],
+    ]);
   });
 
-  it("test_frequency_column_is_not_colour_only", () => {
+  it("explains the shown text and grouping key without linguistic claims", () => {
     render(<FrequencyTable result={nonAlphabeticalResult} />);
 
-    expect(screen.getByRole("columnheader", { name: "Forma mostrada" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Texto mostrado" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Clave de agrupación" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Apariciones" })).toBeInTheDocument();
-    // Frequency is exposed as plain text content, not as a colour-only cue.
-    expect(screen.getByText("2")).toBeVisible();
+    expect(screen.getByText(/texto mostrado y su clave de agrupación/i)).toBeVisible();
+
+    const tableText = screen.getByRole("table").textContent?.toLowerCase();
+    expect(tableText).not.toContain("canónica");
+    expect(tableText).not.toContain("lema");
+    expect(tableText).not.toContain("lexema");
   });
 });
