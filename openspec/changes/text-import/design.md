@@ -323,8 +323,8 @@ Two consequences that are **intended behaviour, not defects**, and must be state
 2. A `display_form` may contain an invisible `U+00AD`. It renders identically and it genuinely occurs
    in the file. `AC-002-24`'s substring assertion holds literally.
 
-**Divergence from the letter of `T1`** (which says SHY is "removed from the text before tokenization"):
-implementing it as a document pre-pass is the *only* reading that breaks `AC-002-24`. See **§10 CONTRA-2**.
+T1 is reconciled with this design: SHY is tokenizer-transparent, no document-level rewrite is
+permitted, and only normalization/grouping keys remove it. See **§10 CONTRA-2**.
 
 ---
 
@@ -573,12 +573,12 @@ offending byte and its offset. Handlers re-raise as `InvalidEncodingError` with 
 
 ---
 
-## 10. Contradictions surfaced (AGENTS.md §9 — recorded, NOT silently resolved)
+## 10. Contradictions resolved (AGENTS.md §9)
 
-| ID | Contradiction | Where | This design's provisional handling | Needs maintainer |
+| ID | Contradiction | Where | Resolution | Status |
 |---|---|---|---|---|
 | **CONTRA-1** | ~~`REQ-002-013`'s terminal-only `import_status` vs. Art. IX.6 at a multi-second import.~~ **WITHDRAWN — not a contradiction. My reading was wrong.** | `docs/constitution.md:101` | Art. IX.6 reads "progreso **o** estado" — a **disjunction**, structurally identical to Art. IX.5 at `docs/constitution.md:100` ("confirmación **o** reversibles"), which the spec phase read correctly and `REQ-002-011` depends on. A perceptible "importando…" state discharges it on the *estado* branch; the three-state contract already established by `StatusPage.tsx` supplies it in cut 1c. `succeeded\|failed` stands as specified. No progress bar, no async state machine. The failure was mine: I applied the disjunction correctly to Art. IX.5 and then failed to apply it to Art. IX.6 one article later. | **Closed** |
-| **CONTRA-2** | `T1` says `U+00AD` is "removed from the text **before tokenization**" (a document-level rewrite), but `AC-002-24` requires every `display_form` to occur verbatim in the imported text. A document pre-pass makes `raw_text` a string absent from the file. | spec §2.2 T1 vs `AC-002-24` | Implemented as a **transparent character in the tokenizer + stripped inside `normalize()`**; `raw_text` retains the SHY (§5). Preserves both `T1`'s observable effect (no split token, SHY absent from the key) and `AC-002-24` literally. | Confirm the reading; no spec edit strictly required |
+| **CONTRA-2** | T1 previously described a document-level SHY removal that conflicted with `AC-002-24`'s verbatim display-form requirement. | spec §2.2 T1 vs `AC-002-24` | **No document-level rewrite is permitted.** SHY is transparent to token boundaries, `raw_text` and `display_form` retain it, and only normalization/grouping keys remove it (§5). | **Closed** |
 | **CONTRA-3** | `proposal.md §Schema extensibility` says provenance/confidence columns are "reserved nullable" now; spec §7 lists provenance among explicit non-additions and Art. VII.6 forbids speculative abstraction. | proposal vs spec §7 | Ships **only** `pos` reserved. `ADD COLUMN` keeps the proposal's additive path open at zero cost (§6.3). | Low risk; confirm at review |
 | **CONTRA-4** | The brief refers to hook **H2** as the frontend `.sort(` grep. In the shipped spec, H2 is the `domain/` framework-import check; the `.sort(` grep is `AC-002-19` under `REQ-002-014`. | brief vs spec §8 | Scoping designed for `AC-002-19` (§11). H2 read as written. | Informational |
 | **CONTRA-5** | Cut 1 as allocated carries 12/18 requirements and far exceeds the accepted 400–700 `size:exception` band. | proposal §Sizing vs spec §1.2 | **Accepted.** Cut 1 splits; `T-GUARD` dropped and `REQ-002-003` moved into the first cut as a real setting. Re-sliced into five cuts in §12, all inside the band. | **Closed** |

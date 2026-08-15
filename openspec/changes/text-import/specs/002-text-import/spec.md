@@ -160,7 +160,7 @@ no precomposed forms, and excluding them would silently truncate those scripts (
 
 | # | Rule | Example | Reason |
 |---|------|---------|--------|
-| T1 | `U+00AD SOFT HYPHEN` is removed from the text before tokenization | `inter⟨SHY⟩national` → `international` | It is invisible formatting, never part of the word |
+| T1 | `U+00AD SOFT HYPHEN` is transparent to token-boundary detection. It MUST NOT be removed from the document before tokenization; emitted `raw_text` and `display_form` retain it, while normalization/grouping keys remove it. | `inter⟨SHY⟩national` → one raw/display token retaining SHY; grouping key `international` | It is invisible formatting for grouping, but preserving source slices keeps display forms verbatim for `AC-002-24`. |
 | T2 | A token is a maximal run of word characters, optionally joined by **single internal** joiners between word characters | `state-of-the-art` → one token | Hyphenated compounds are one lexical unit; splitting invents four words the author did not write |
 | T3 | An apostrophe between word characters is internal, so the token is not split | `don't`, `l'homme`, `O'Neill` → one token each | Splitting yields the noise token `t`. Where the split is real (French `l'`) it is language-specific and needs the deferred NLP adapter (OQ-4) — a **documented limitation**, not a silent guess |
 | T4 | A joiner that is not between two word characters is a separator | `inter-⏎national` → `inter`, `national`; `-dash-` → `dash` | Prevents dangling punctuation entering a token |
@@ -872,9 +872,11 @@ is inspected, then no column was added for the display form.
 | `FILE_TOO_LARGE` | 413 | Byte length above `max_import_size_bytes` | User |
 | `INVALID_ENCODING` | 422 | Bytes are not valid UTF-8 | Format |
 | `IMPORT_NOT_FOUND` | 404 | Unknown or already-deleted import `id` | User |
+| `INVALID_REQUEST` | 422 | Request validation fails, including an omitted multipart file or an incompatible body (`AC-002-01`) | User |
 
 Every error body MUST carry a distinct code and a message that is comprehensible and actionable
-(Art. VIII.4), and MUST NOT contain imported text, stack traces, file paths, or environment values.
+(Art. VIII.4), including `INVALID_REQUEST`; all rows use the shared error envelope. Error bodies MUST
+NOT contain imported text, stack traces, file paths, or environment values.
 
 ---
 
