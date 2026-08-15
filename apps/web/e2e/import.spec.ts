@@ -11,5 +11,5 @@ test("uploading a .txt file makes the frequency table visible", async ({ page })
   await page.getByRole("button", { name: "Importar" }).click();
 
   await expect(page.getByRole("table")).toBeVisible();
-  await expect(page.getByText("lobo")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "lobo" }).first()).toBeVisible();
 });
