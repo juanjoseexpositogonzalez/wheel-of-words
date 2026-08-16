@@ -364,9 +364,15 @@ No `pos` column, no `deleted_at`, no `is_deleted`, no tombstone (`REQ-002-010`, 
 | `ix_book_content_hash` | `(content_hash)` — **non-unique** | cut 2. Non-unique is deliberate: spec §7 excludes re-import dedup by hash |
 
 **No index on `(book_id, position)`.** A `UNIQUE` guard there would cost ~26 MB and an extra b-tree
-write per row at the ceiling, to protect an invariant that a pure `domain` property test proves for
-free (positions are `0..n-1`, contiguous, by construction of `tokenize`). Storage and insert
-throughput win; the guarantee is unchanged.
+write per row at the ceiling, to protect an invariant nothing depends on. Persisted `position` values
+are **not** guaranteed contiguous: `tokenize` emits `0..n-1`, but `ImportText._gate_5_aggregate`
+(`use_cases.py`) drops any token whose normalized form is empty — e.g. `U+02BC MODIFIER LETTER
+APOSTROPHE`, which `tokenize` emits (category `Lm`) yet `normalize` folds to `U+0027` at N4 and then
+strips to `""` at N5 (spec §2.3 "discard the token if nothing remains"). The surviving rows therefore
+keep their original, possibly gapped, `position` values. This is correct and intended; no uniqueness
+constraint exists to violate and no consumer relies on contiguity. Storage and insert throughput win;
+the guarantee that matters (`position` is a stable per-token ordinal, never reused within a book) is
+unchanged.
 
 ### 6.2 Deletion — explicit, not `ON DELETE CASCADE`
 

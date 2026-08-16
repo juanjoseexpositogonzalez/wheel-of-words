@@ -79,3 +79,6 @@ apps/web/dist/
 apps/web/coverage/
 apps/web/test-results/
 apps/web/playwright-report/
+
+# Design mockups/prototypes (throwaway; intentionally not version-controlled)
+mockups/
