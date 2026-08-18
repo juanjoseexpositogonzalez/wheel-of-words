@@ -680,6 +680,14 @@ or `failed`; no intermediate state ships in this capability. This terminal-only 
 **confirmed** against Art. IX.6 — see §5 `CONTRA-1`; the in-flight signal is a UI state
 (`REQ-002-014`), not a persisted status value.
 
+> **Contract note (schema narrowing).** The two-value enum above is the domain vocabulary. The
+> serialized response contract deliberately narrows it: `api/schemas/import.v1.json` sets
+> `import_status` to `{"enum": ["succeeded"]}`, because a failed import returns an error envelope and
+> never a 201 success body — `"failed"` can never be serialized on this route. `persistence/models.py`
+> documents the same terminal-only invariant. The narrowing is intentional and tighter than this
+> requirement; it is recorded here so the spec/contract divergence is explicit rather than a trap for a
+> reader who expects the served enum to carry both values.
+
 Acceptance: **AC-002-18** — Given a synthetic text containing the distinctive sentinel token
 `zzqxsentinel`, when the file is imported and, separately, when an import fails after decoding, then
 no captured log record from any logger contains `zzqxsentinel`, and the failure record contains the
