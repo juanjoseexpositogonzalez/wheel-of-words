@@ -1,10 +1,19 @@
 """Interpreter pin — REQ-003-001, AC-003-01 (Phase 1, task 1.1).
 
-`thinc 9.1.1` publishes wheels for **cp312 only**, the narrowest constraint
-in the dependency chain. Before this pin, `apps/api/.venv` resolved to a
-newer interpreter than either package supports as a prebuilt wheel: `uv add`
-would still succeed and then attempt a source build. A green `uv add` is not
-evidence of a working install (design §OQ-3).
+`spacy 3.8.15` declares `thinc<8.4.0,>=8.3.12` and never resolves thinc 9.x;
+`apps/api/uv.lock` resolves `thinc==8.3.13`, which publishes wheels for
+cp312, cp313 **and** cp314. `spacy 3.8.15` itself publishes wheels for cp312
+and cp313 only — no cp314 — making spaCy, not thinc, the narrowest
+constraint in the dependency chain. Before this pin, `apps/api/.venv` could
+resolve to an interpreter newer than spaCy supports as a prebuilt wheel:
+`uv add` would still succeed and then attempt a source build. A green
+`uv add` is not evidence of a working install (design §OQ-3).
+
+`requires-python` states what is *supported* (`>=3.12,<3.14`, bounded by
+spaCy's wheel matrix). `.python-version` states what is *tested*: it stays
+pinned to exactly 3.12, the single interpreter this project runs its suite
+against, which matters with a pinned statistical model. The two are allowed
+to differ, and do, on purpose.
 
 Pins the interpreter version, `requires-python`'s upper bound, and mypy's
 `python_version` so the three cannot drift apart. AC-003-01 scenario 3 (wheel
@@ -38,14 +47,14 @@ def test_the_resolved_interpreter_is_312() -> None:
 
 
 @pytest.mark.unit
-def test_requires_python_excludes_313_and_above() -> None:
+def test_requires_python_excludes_314_and_above() -> None:
     """AC-003-01 scenario 2: the declared bound cannot silently drift upward."""
     project = _pyproject()["project"]
     assert isinstance(project, dict)
 
     requires_python = project["requires-python"]
 
-    assert requires_python == ">=3.12,<3.13"
+    assert requires_python == ">=3.12,<3.14"
 
 
 @pytest.mark.unit

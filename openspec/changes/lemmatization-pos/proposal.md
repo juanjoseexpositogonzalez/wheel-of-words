@@ -66,7 +66,7 @@ enforced on every read, never at write, so reprocessing can never silently overw
 
 | Risk | Likelihood | Mitigation |
 |------|------------|------------|
-| `thinc 9.1.1` wheels are cp312-only; venv resolves to 3.14.5 | High | Pin 3.12 first, as its own slice, before any NLP work |
+| `spacy 3.8.15` wheels are cp312/cp313 only; venv resolves to 3.14.5 | High | Pin 3.12 first, as its own slice, before any NLP work |
 | Cut 2 (adapter + migration + use case + repo write) busts the 400-line budget | Med | sdd-tasks MUST re-forecast Cut 2; if over, split use-case+repo from adapter+migration (the exploration PR1/PR2 fault line) rather than shipping oversized |
 | Confidence is visible but non-actionable for one cycle | Accepted | Documented assumption, not oversight: acting on low confidence arrives in SPEC-004 |
 | Reprocess-existing-imports is unstated in the 3-cut shape | Low | sdd-spec confirms whether reprocess ships now or defers (backfill is possible from `raw_text` ordered by `position`, no re-upload) |
@@ -80,10 +80,13 @@ revert child PRs newest-first back to the SPEC-003 tracker branch.
 
 ## Dependencies
 
-**Python 3.12 pin is a hard prerequisite.** `thinc 9.1.1` (spaCy's dependency) publishes wheels for
-**cp312 only** — the narrowest constraint in the chain. The venv currently resolves to 3.14.5, and
+**Python 3.12 pin is a hard prerequisite.** `spacy 3.8.15` publishes wheels for **cp312 and cp313
+only** — no cp314 — making spaCy itself the narrowest constraint in the chain. (`thinc`, spaCy's own
+dependency, is pinned by spaCy to `<8.4.0,>=8.3.12` and resolves to `8.3.13`, which ships cp312,
+cp313 **and** cp314 — thinc is not the constraint.) The venv currently resolves to 3.14.5, and
 `spacy` metadata (`<3.15,>=3.9`) is not a safety net: `uv add spacy` resolves, then attempts a
-fragile C++/Cython source build of thinc. Pin before any adapter work.
+fragile C++/Cython source build against an interpreter with no prebuilt wheel. Pin before any
+adapter work.
 
 ## Success Criteria
 

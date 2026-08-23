@@ -321,7 +321,7 @@ GET /api/v1/imports/{id}/annotation
 
 | File | Action | Description |
 |---|---|---|
-| `apps/api/pyproject.toml`, `apps/api/.python-version` | Modify / Create | `requires-python = ">=3.12,<3.13"`; add `spacy`, `en_core_web_sm` |
+| `apps/api/pyproject.toml`, `apps/api/.python-version` | Modify / Create | `requires-python = ">=3.12,<3.14"`; add `spacy`, `en_core_web_sm` |
 | `.github/workflows/*` | Modify | Pin CI to 3.12 |
 | `domain/annotation.py` | Create | `LinguisticAnnotation`, `UPOS_TAGS`, `resolve_effective`. Stdlib only, no `"pos"` literal |
 | `application/annotation/{ports,errors,use_cases}.py` | Create | `LinguisticAnalyzer`, `AnalyzerIdentity`; 3 new errors; `AnnotateImport` |
@@ -442,6 +442,8 @@ from the use case along the port boundary.
 - [ ] **OQ-2** — `GET …/annotation` returns every occurrence and §7 defers pagination, so a
       150k-token novel produces a very large body. The read model is written streaming-capable so
       pagination is additive later, but the first real novel will expose this. Flag for SPEC-004.
-- [ ] **OQ-3** — Confirm during slice 1 that `uv python pin 3.12` installs `thinc 9.1.1` from a cp312
-      wheel with **zero** source compilation, per `AC-003-01`'s third scenario. Everything downstream
-      depends on it.
+- [x] **OQ-3** — Confirmed during slice 1 that `uv python pin 3.12` installs `spacy 3.8.15` and its
+      resolved `thinc 8.3.13` from cp312 wheels with **zero** source compilation, per `AC-003-01`'s
+      third scenario. `requires-python` is bounded at `<3.14` (spaCy's own wheel ceiling, not
+      thinc's — see spec.md §5 FACT-1); `.python-version` stays pinned to exactly `3.12` as the
+      tested interpreter.
