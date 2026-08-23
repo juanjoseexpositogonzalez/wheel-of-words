@@ -36,6 +36,19 @@ import { describe, expect, it } from "vitest";
 
 const FORBIDDEN_PATTERN = /lemma|lemas|lexeme|lexema/i;
 
+// REQ-003-023 / design §P6 — explicit, enumerated allow-list of exact lemma
+// symbols. Case-sensitive equality, never substring: a rename to any name
+// NOT in this set still fails (AC-003-24 scenario 2, task 1.8). Mirrors the
+// backend `_ALLOWED_LEMMA_SYMBOLS` in
+// `apps/api/tests/unit/test_no_lemma_naming.py`, minus "lemmatizer" (a
+// backend-only spaCy pipe-name literal).
+const ALLOWED_LEMMA_SYMBOLS = new Set([
+  "lemma",
+  "lemma_confidence",
+  "lemma_origin",
+  "automatic_lemma",
+]);
+
 interface Violation {
   readonly file: string;
   readonly line: number;
@@ -84,6 +97,9 @@ export function findViolations(path: string, source: string): Violation[] {
 
   function report(node: ts.Node, kind: string, text: string): void {
     if (!FORBIDDEN_PATTERN.test(text)) {
+      return;
+    }
+    if (ALLOWED_LEMMA_SYMBOLS.has(text)) {
       return;
     }
     const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
@@ -224,10 +240,14 @@ describe("findViolations (remediation — pins the comment exemption directly)",
   });
 
   it("a template literal naming the forbidden concept is reported as one string-literal violation at the right line", () => {
+    // "lexeme", not "lemma": REQ-003-023 (task 1.7) allow-lists the exact
+    // string "lemma" as a genuine lemma symbol, so this pin must use a
+    // forbidden-but-not-allow-listed match to keep testing detection rather
+    // than the (correct, separately pinned) exemption.
     const source = [
       "function label(): string {",
       "  // filler line so the violation is not on line 1",
-      "  const msg = `lemma`;",
+      "  const msg = `lexeme`;",
       "  return msg;",
       "}",
     ].join("\n");
@@ -235,7 +255,7 @@ describe("findViolations (remediation — pins the comment exemption directly)",
     const violations = findViolations("synthetic.ts", source);
 
     expect(violations).toHaveLength(1);
-    expect(violations[0]).toMatchObject({ kind: "string literal", text: "lemma", line: 3 });
+    expect(violations[0]).toMatchObject({ kind: "string literal", text: "lexeme", line: 3 });
   });
 
   it("JSX text naming the forbidden concept is reported as one JSX-text violation at the right line, and requires a .tsx path", () => {
@@ -258,4 +278,43 @@ describe("findViolations (remediation — pins the comment exemption directly)",
     expect(violations).toHaveLength(1);
     expect(violations[0]).toMatchObject({ kind: "JSX text", text: "Lemma", line: 6 });
   });
+});
+
+/**
+ * REQ-003-023 — guard narrowing (tasks 1.6/1.7/1.8, capability
+ * 003-lemmatization-pos). Mirrors the backend allow-list in
+ * `apps/api/tests/unit/test_no_lemma_naming.py::_ALLOWED_LEMMA_SYMBOLS`
+ * (design §P6) — an explicit, enumerated set of exact names, never a path
+ * exclusion or a pattern relaxation. "lemmatizer" is a backend-only spaCy
+ * pipe-name literal, deliberately absent here. RED before task 1.7:
+ * `ALLOWED_LEMMA_SYMBOLS` did not exist (`ReferenceError`) and `report()`
+ * had no exemption mechanism.
+ */
+describe("frontend lemma-naming allow-list (REQ-003-023, tasks 1.6/1.7/1.8)", () => {
+  it("test_the_allow_list_is_a_finite_enumeration_of_exact_lemma_symbols", () => {
+    expect(ALLOWED_LEMMA_SYMBOLS).toEqual(
+      new Set(["lemma", "lemma_confidence", "lemma_origin", "automatic_lemma"]),
+    );
+  });
+
+  it("an allow-listed identifier is exempt from the guard (gap 1)", () => {
+    const source = "const lemma = 1;\n";
+
+    expect(findViolations("synthetic.ts", source)).toEqual([]);
+  });
+
+  it("renaming to a lemma-shaped name not on the allow-list still fails (AC-003-24 scenario 2, task 1.8)", () => {
+    const source = "const lemma_text = 1;\n";
+
+    const violations = findViolations("synthetic.ts", source);
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({ kind: "identifier", text: "lemma_text" });
+    expect(ALLOWED_LEMMA_SYMBOLS.has("lemma_text")).toBe(false);
+  });
+
+  // Real-code mutation check: renamed `normalized_form` to `lemma_form` in
+  // `src/types/imports.ts`, ran this suite, observed
+  // `test_frontend_sources_contain_no_lemma_naming` fail with
+  // "src/types/imports.ts:19 identifier \"lemma_form\"", then reverted.
 });

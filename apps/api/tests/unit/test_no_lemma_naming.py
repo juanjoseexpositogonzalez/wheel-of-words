@@ -135,13 +135,26 @@ _EXPECTED_FILES = frozenset(
     }
 )
 
-# The migration lives outside `_PACKAGE_ROOT` (`apps/api/migrations/`, not
-# `apps/api/src/wheel_vocabulary/`), so the walk above never reaches it. Its
-# `sa.Column("...", ...)` names are string literals, not identifiers — the
-# persisted-column leg below checks both files.
-_MIGRATION_PATH = _PACKAGE_ROOT.parents[1] / "migrations" / "versions" / "0002_book_occurrence.py"
+# The migrations live outside `_PACKAGE_ROOT` (`apps/api/migrations/`, not
+# `apps/api/src/wheel_vocabulary/`), so the walk above never reaches them.
+# Their `sa.Column("...", ...)` names are string literals, not identifiers —
+# the persisted-column leg below checks every migration file, not one.
+_MIGRATIONS_ROOT = _PACKAGE_ROOT.parents[1] / "migrations" / "versions"
 
 _ROW_KEYS = {"normalized_form", "display_form", "frequency"}
+
+# REQ-003-023 / design §P6 — explicit allow-list of exact lemma symbols.
+# Case-sensitive equality, never `in`/`startswith`: a rename to any name NOT
+# in this set still fails (AC-003-24 scenario 2, task 1.8).
+_ALLOWED_LEMMA_SYMBOLS = frozenset(
+    {
+        "lemma",  # Occurrence.lemma; LinguisticAnnotation.lemma; effective wire key
+        "lemma_confidence",  # provenance column, value-object field, wire key
+        "lemma_origin",  # automatic|manual marker (R5)
+        "automatic_lemma",  # retained audit value (R4)
+        "lemmatizer",  # spaCy pipe name, string literal in the adapter
+    }
+)
 
 
 def _python_modules() -> list[Path]:
@@ -150,6 +163,18 @@ def _python_modules() -> list[Path]:
 
 def _relative(path: Path) -> str:
     return path.relative_to(_PACKAGE_ROOT).as_posix()
+
+
+def _migration_modules() -> list[Path]:
+    """Every Alembic revision, not just `0002_book_occurrence.py` (gap 2)."""
+    return sorted(_MIGRATIONS_ROOT.glob("*.py"))
+
+
+def _reflected_column_names() -> list[str]:
+    """Every persisted column on every table, not just `book`/`occurrence` (gap 3)."""
+    from wheel_vocabulary.infrastructure.persistence.base import Base
+
+    return [column.name for table in Base.metadata.tables.values() for column in table.columns]
 
 
 def _docstring_constant_ids(tree: ast.AST) -> frozenset[int]:
@@ -205,7 +230,11 @@ def _declared_names(node: ast.AST) -> list[tuple[str, str]]:
 
 
 def _python_violations(source: str, label: str) -> list[str]:
-    """Report forbidden naming in identifiers and non-docstring string literals."""
+    """Report forbidden naming in identifiers and non-docstring string literals.
+
+    An exact match against `_ALLOWED_LEMMA_SYMBOLS` is exempt (REQ-003-023);
+    everything else that matches `_FORBIDDEN` is still reported.
+    """
     tree = ast.parse(source, filename=label)
     docstrings = _docstring_constant_ids(tree)
     violations: list[str] = []
@@ -215,13 +244,14 @@ def _python_violations(source: str, label: str) -> list[str]:
         violations.extend(
             f"{label}:{line} {kind} {name!r}"
             for kind, name in _declared_names(node)
-            if _FORBIDDEN.search(name)
+            if _FORBIDDEN.search(name) and name not in _ALLOWED_LEMMA_SYMBOLS
         )
         if (
             isinstance(node, ast.Constant)
             and isinstance(node.value, str)
             and id(node) not in docstrings
             and _FORBIDDEN.search(node.value)
+            and node.value not in _ALLOWED_LEMMA_SYMBOLS
         ):
             violations.append(f"{label}:{line} string literal {node.value!r}")
 
@@ -242,10 +272,11 @@ def _json_strings(node: Any, path: str) -> Iterator[tuple[str, str]]:
 
 
 def _json_violations(document: Any) -> list[str]:
+    """An exact match against `_ALLOWED_LEMMA_SYMBOLS` is exempt (REQ-003-023)."""
     return [
         f"{where} -> {text!r}"
         for where, text in _json_strings(document, "$")
-        if _FORBIDDEN.search(text)
+        if _FORBIDDEN.search(text) and text not in _ALLOWED_LEMMA_SYMBOLS
     ]
 
 
@@ -287,42 +318,41 @@ def test_no_backend_identifier_or_literal_names_a_lemma_or_a_lexeme() -> None:
 def test_persisted_columns_contain_no_lemma_naming() -> None:
     """AC-002-10 closing leg (T217): persisted schema, not just source identifiers.
 
-    Two checks, because the migration lives outside `_PACKAGE_ROOT` and so is
-    never reached by `test_no_backend_identifier_or_literal_names_a_lemma_or_a_lexeme`:
+    Two checks, because migrations live outside `_PACKAGE_ROOT`:
 
-    1. The AST walk (identifiers + non-docstring literals) over
-       `infrastructure/persistence/models.py` AND the `0002_book_occurrence`
-       migration, so a `sa.Column("...")` string literal is caught even though
-       it is a literal, not an identifier.
-    2. The ACTUAL mapped column names read back from `Base.metadata`, which
-       catches a rename regardless of how the source spells it (SQLAlchemy
-       infers the DB column name from the attribute unless overridden).
+    1. The AST walk over `infrastructure/persistence/models.py` AND every
+       migration under `migrations/versions/*.py` (task 1.7, gap 2 — was
+       hardcoded to `0002_book_occurrence.py`).
+    2. The ACTUAL mapped column names read back from every table on
+       `Base.metadata` (task 1.7, gap 3 — was hardcoded to `book`/`occurrence`).
 
-    MUTATION CHECK — an absence assertion. Verified by renaming
-    `Occurrence.normalized_text` to `lemma_text` in `persistence/models.py`,
-    confirming an `AssertionError` naming `persistence/models.py` and the
-    matched token `lemma_text`, then reverting.
+    Both legs apply the REQ-003-023 allow-list: an exact match against
+    `_ALLOWED_LEMMA_SYMBOLS` is exempt, everything else still fails.
+
+    MUTATION CHECK: renamed `Occurrence.normalized_text` to `lemma_text` in
+    `persistence/models.py`, confirmed the `AssertionError`, reverted.
     """
-    from wheel_vocabulary.infrastructure.persistence.base import Base
-
     models_path = _PACKAGE_ROOT / "infrastructure" / "persistence" / "models.py"
     violations = [
         *_python_violations(models_path.read_text(encoding="utf-8"), _relative(models_path)),
-        *_python_violations(
-            _MIGRATION_PATH.read_text(encoding="utf-8"),
-            f"migrations/versions/{_MIGRATION_PATH.name}",
-        ),
+        *[
+            violation
+            for migration in _migration_modules()
+            for violation in _python_violations(
+                migration.read_text(encoding="utf-8"),
+                f"migrations/versions/{migration.name}",
+            )
+        ],
     ]
     assert not violations, "lemma naming leaked into the persisted schema source:\n" + "\n".join(
         violations
     )
 
-    column_names = [
-        column.name
-        for table in ("book", "occurrence")
-        for column in Base.metadata.tables[table].columns
+    reflected_violations = [
+        name
+        for name in _reflected_column_names()
+        if _FORBIDDEN.search(name) and name not in _ALLOWED_LEMMA_SYMBOLS
     ]
-    reflected_violations = [name for name in column_names if _FORBIDDEN.search(name)]
     assert not reflected_violations, (
         "lemma naming leaked into a persisted column name: " + ", ".join(reflected_violations)
     )
@@ -437,3 +467,89 @@ def test_inflected_forms_stay_separate_rows(imported_body: dict[str, Any]) -> No
         "corr\u00eda",
         "corro",
     ]
+
+
+# REQ-003-023 — guard narrowing (tasks 1.6/1.7/1.8): an explicit, enumerated
+# allow-list of exact symbol names (design §P6), plus two coverage-gap fixes
+# — migration scan (gap 2) and reflected-column scan (gap 3). Each test
+# documents its own RED failure in its docstring.
+
+
+@pytest.mark.unit
+def test_the_allow_list_is_a_finite_enumeration_of_exact_lemma_symbols() -> None:
+    """REQ-003-023 / design §P6: an explicit enumeration of exact names, not
+    a path/directory exclusion or a pattern relaxation."""
+    expected = {"lemma", "lemma_confidence", "lemma_origin", "automatic_lemma", "lemmatizer"}
+
+    assert frozenset(expected) == _ALLOWED_LEMMA_SYMBOLS
+
+
+@pytest.mark.unit
+def test_an_allow_listed_identifier_is_exempt_from_the_python_leg() -> None:
+    """Gap 1: `_python_violations` had no exemption mechanism before task 1.7."""
+    source = "class LinguisticAnnotation:\n    lemma: str | None\n"
+
+    assert _python_violations(source, "synthetic.py") == []
+
+
+@pytest.mark.unit
+def test_an_allow_listed_key_is_exempt_from_the_json_leg() -> None:
+    """Gap 1, JSON leg: `_json_violations` exempts an allow-listed key or
+    value by exact match, and nothing else — `lemma_form` is not `lemma`."""
+    document = {"lemma": "run", "lemma_form": "leak"}
+
+    violations = _json_violations(document)
+
+    assert violations == ["$.lemma_form (key) -> 'lemma_form'"]
+
+
+@pytest.mark.unit
+def test_migration_scan_covers_every_migration_file_not_only_0002() -> None:
+    """Gap 2: the scan was hardcoded to `0002_book_occurrence.py`, so a later
+    revision's `sa.Column("lemma", ...)` would escape the guard."""
+    names = {module.name for module in _migration_modules()}
+
+    assert "0001_baseline.py" in names
+    assert "0002_book_occurrence.py" in names
+
+
+@pytest.mark.unit
+def test_reflected_column_scan_covers_every_table_not_only_book_and_occurrence() -> None:
+    """Gap 3: the scan iterated only `("book", "occurrence")`, so a future
+    table would escape it. A throwaway probe, attached to and removed from
+    the SAME `Base.metadata` the guard reads, proves the fix."""
+    from sqlalchemy import Column, String, Table
+
+    from wheel_vocabulary.infrastructure.persistence.base import Base
+
+    probe = Table(
+        "_test_probe_reflected_column_scan",
+        Base.metadata,
+        Column("id", String, primary_key=True),
+        Column("lemma_probe_column", String),
+    )
+    try:
+        assert "lemma_probe_column" in _reflected_column_names()
+    finally:
+        Base.metadata.remove(probe)
+
+
+@pytest.mark.unit
+def test_renaming_normalized_form_to_a_lemma_shaped_name_still_fails_despite_the_allow_list() -> (
+    None
+):
+    """AC-003-24 scenario 2 (task 1.8): exact equality, not `in`/`startswith`
+    — a rename to any name outside the five enumerated symbols still fails."""
+    source = '''
+"""Groups by normalized form; it is not a lemma and not a lexeme."""
+
+
+class FormFrequency:
+    lemma_text: str
+'''
+
+    violations = _python_violations(source, "synthetic.py")
+
+    assert violations
+    assert any("lemma_text" in violation for violation in violations)
+    assert "lemma_text" not in _ALLOWED_LEMMA_SYMBOLS
