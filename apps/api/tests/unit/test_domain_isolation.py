@@ -9,6 +9,15 @@ that silently resolves to zero files would make every assertion here trivially
 true.
 
 REQ-002-005 / AC-002-06, Art. VII.1, ADR-0002.
+
+**Task 1.4/1.5 — REQ-003-002.** `_FORBIDDEN_IMPORT_PATTERN` grew to cover
+`thinc` (spaCy's own ML backend) and `stanza` (ADR-0001/0002's alternative
+adapter), so the domain cannot bypass `LinguisticAnalyzer` by importing
+either directly. Mutation check: inserted ``import thinc`` into
+``domain/frequency.py``, observed and reverted::
+
+    AssertionError: domain isolation violated:
+    frequency.py imports 'thinc' (pattern: fastapi|sqlalchemy|pydantic|spacy|thinc|stanza)
 """
 
 from __future__ import annotations
@@ -20,7 +29,7 @@ from pathlib import Path
 import pytest
 
 _DOMAIN_ROOT = Path(__file__).resolve().parents[2] / "src" / "wheel_vocabulary" / "domain"
-_FORBIDDEN_IMPORT_PATTERN = "fastapi|sqlalchemy|pydantic|spacy"
+_FORBIDDEN_IMPORT_PATTERN = "fastapi|sqlalchemy|pydantic|spacy|thinc|stanza"
 _FORBIDDEN_IMPORT = re.compile(rf"^({_FORBIDDEN_IMPORT_PATTERN})$")
 
 # A bare lowercase two- or three-letter literal, optionally with a region
@@ -60,19 +69,39 @@ def test_domain_package_scan_is_not_vacuous() -> None:
 
 
 @pytest.mark.unit
+def test_forbidden_import_pattern_includes_thinc_and_stanza() -> None:
+    """REQ-003-002 gap (task 1.4): the pattern covered `spacy` but not
+    `thinc` (spaCy's own ML backend) or `stanza` (ADR-0001/0002's
+    alternative adapter) — a domain module could import either directly."""
+    forbidden = _FORBIDDEN_IMPORT_PATTERN.split("|")
+
+    assert "thinc" in forbidden
+    assert "stanza" in forbidden
+
+
+@pytest.mark.unit
+def test_a_domain_module_importing_thinc_or_stanza_fails_the_guard() -> None:
+    """Direct mutation check: RED before task 1.5's pattern extension (both
+    matched no branch), GREEN after."""
+    thinc_source = "import thinc\n"
+    stanza_source = "from stanza import Pipeline\n"
+
+    assert _forbidden_import_violations(thinc_source, "synthetic.py")
+    assert _forbidden_import_violations(stanza_source, "synthetic.py")
+
+
+@pytest.mark.unit
 def test_domain_has_no_framework_imports_or_iso639_literals() -> None:
-    """AC-002-06: the domain is standard-library only and language-agnostic."""
+    """AC-002-06 / AC-003-02: the domain is standard-library only and
+    language-agnostic; the forbidden-import check now also covers `thinc`
+    and `stanza` (REQ-003-002)."""
     violations: list[str] = []
 
     for module in _domain_modules():
-        tree = ast.parse(module.read_text(encoding="utf-8"), filename=str(module))
+        source = module.read_text(encoding="utf-8")
+        violations.extend(_forbidden_import_violations(source, _relative(module)))
+        tree = ast.parse(source, filename=str(module))
         for node in ast.walk(tree):
-            for root in _imported_roots(node):
-                if _FORBIDDEN_IMPORT.match(root):
-                    violations.append(
-                        f"{_relative(module)} imports {root!r} "
-                        f"(pattern: {_FORBIDDEN_IMPORT_PATTERN})"
-                    )
             if (
                 isinstance(node, ast.Constant)
                 and isinstance(node.value, str)
@@ -117,3 +146,14 @@ def _imported_roots(node: ast.AST) -> list[str]:
     if isinstance(node, ast.ImportFrom) and node.module is not None and node.level == 0:
         return [node.module.split(".")[0]]
     return []
+
+
+def _forbidden_import_violations(source: str, label: str) -> list[str]:
+    """Report every forbidden-framework/NLP-library import in `source`."""
+    tree = ast.parse(source, filename=label)
+    return [
+        f"{label} imports {root!r} (pattern: {_FORBIDDEN_IMPORT_PATTERN})"
+        for node in ast.walk(tree)
+        for root in _imported_roots(node)
+        if _FORBIDDEN_IMPORT.match(root)
+    ]
