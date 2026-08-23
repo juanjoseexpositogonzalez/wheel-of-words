@@ -196,18 +196,26 @@ mechanism and its first consumer simultaneously — which is exactly the situati
 ### Requirement: REQ-003-001 — The backend runtime is pinned to Python 3.12
 
 The `apps/api` project SHALL pin its resolved interpreter to Python 3.12. `pyproject.toml` MUST
-declare an upper bound that excludes 3.13 and above, and the resolved virtual environment MUST
+declare an upper bound that excludes 3.14 and above, and the resolved virtual environment MUST
 report a 3.12 version. This pin is a **hard prerequisite** and MUST land before any NLP dependency
 is added.
 
-**Why, verified rather than assumed.** `thinc 9.1.1` — spaCy's own dependency — publishes wheels for
-**cp312 only**, the narrowest constraint in the chain (`spacy 3.8.15` publishes cp312 and cp313).
-The repository's `apps/api/.venv` currently resolves to **3.14.5**, and `spacy`'s declared
-`requires_python: <3.15,>=3.9` is **not** a safety net: the resolution succeeds and then attempts a
-fragile C++/Cython source build of `thinc`. A green `uv add` is not evidence of a working install.
+**Why, verified rather than assumed.** `spacy 3.8.15` publishes wheels for **cp312 and cp313
+only** — no cp314 — making spaCy itself the narrowest constraint in the chain. (`spacy 3.8.15`
+declares `thinc<8.4.0,>=8.3.12` and never resolves thinc 9.x; the `thinc 8.3.13` this project
+actually resolves publishes wheels for cp312, cp313 **and** cp314, so thinc is not the constraint —
+see §5 FACT-1 for the full record of this correction.) The repository's `apps/api/.venv` currently
+resolves to **3.14.5**, and `spacy`'s declared `requires_python: <3.15,>=3.9` is **not** a safety
+net: the resolution succeeds and then attempts a fragile C++/Cython source build against an
+interpreter with no prebuilt spaCy wheel. A green `uv add` is not evidence of a working install.
+
+`requires-python` states what is *supported* (bounded by spaCy's wheel matrix). `.python-version`
+states what is *tested*: it stays pinned to exactly `3.12`, the single interpreter this project runs
+its suite against, which matters with a pinned statistical model. The two are allowed to differ, and
+do, on purpose.
 
 Acceptance: **AC-003-01** — Given the `apps/api` project, when the resolved interpreter version is
-read, then it is `3.12.x`; and when `pyproject.toml` is read, then `requires-python` excludes `3.13`
+read, then it is `3.12.x`; and when `pyproject.toml` is read, then `requires-python` excludes `3.14`
 and above; and when `mypy`'s `python_version` is read, then it is `3.12`, matching the runtime.
 
 #### Scenario: The venv resolves to the pinned interpreter
@@ -220,7 +228,7 @@ and above; and when `mypy`'s `python_version` is read, then it is `3.12`, matchi
 
 - GIVEN `pyproject.toml`
 - WHEN `requires-python` is read
-- THEN it excludes `3.13` and above
+- THEN it excludes `3.14` and above
 - AND the declared bound, the resolved runtime, and `mypy`'s `python_version` agree
 
 #### Scenario: The NLP dependency installs from a wheel, not a source build
@@ -972,6 +980,7 @@ Each item below was an ambiguity or a contradiction in the inputs. None was reso
 | **AMB-7** | The proposal listed reprocessing existing imports as possibly deferrable. | **In scope** (`REQ-003-013`). It costs almost nothing once §2.6 decouples the steps, and deferring it would leave every pre-existing corpus permanently unannotatable without re-upload. | **Closed. In scope** |
 | **AMB-8** | Whether annotation data extends `import.v1.json` or gets its own contract was unstated. | Its own contract (`REQ-003-017`). `import.v1.json` sets `additionalProperties: false`, so extending it is a breaking change to a pinned schema, and its per-group shape cannot carry per-occurrence data without violating §2.1 L6. | Accepted |
 | **AMB-9** | `Book.language` exists and is unset; the only installed model is English. It was unclear where the language of a run is recorded. | On the **provenance record** (§2.4), supplied explicitly to the port (`REQ-003-003`). `Book.language` stays unset; detection remains OQ-2. This is what keeps the schema multi-language without hardcoding English. | Accepted |
+| **FACT-1** | **A factual error in the recorded rationale for `REQ-003-001`, propagated into this spec, design.md, tasks.md, proposal.md, the traceability matrix, and the implemented `requires-python` bound.** The original claim was: "`thinc 9.1.1` publishes wheels for cp312 only, and is the narrowest constraint in the dependency chain, therefore the interpreter must be pinned below 3.13." This was false — the inspected `thinc` version was simply the wrong one; nothing in this project's dependency graph ever resolves thinc 9.x. | **Refuted by direct evidence, re-checked against PyPI and the resolved `apps/api/uv.lock`.** `spacy 3.8.15` declares `thinc<8.4.0,>=8.3.12` and never resolves thinc 9.x. `thinc 8.3.13` — the version this project actually resolves — publishes wheels for **cp312, cp313 and cp314** (`requires_python: <3.15,>=3.10`). `spacy 3.8.15` itself publishes wheels for **cp312 and cp313 only** — no cp314. Therefore **spaCy, not thinc, is the narrowest constraint**, and the correct upper bound is `<3.14`, not `<3.13`; Python 3.13 would have worked. `requires-python` is widened to `>=3.12,<3.14` everywhere it was recorded. `.python-version` stays pinned to exactly `3.12` — deliberately narrower than the supported range, because it names the single interpreter this project's suite actually tests against, which matters with a pinned statistical model. `requires-python` states what is *supported*; `.python-version` states what is *tested*. They are allowed to differ, and now do, on purpose. **Method lesson: when reasoning about wheel availability for a transitive dependency, inspect the version the resolver actually selects (`uv.lock`), never the latest release on PyPI.** | **Closed. Corrected in this spec, `design.md`, `tasks.md`, `proposal.md`, `docs/traceability-matrix.md`, `test_python_pin.py`, and `pyproject.toml` in the same work unit — no partial correction left standing** |
 
 ---
 
@@ -1020,7 +1029,7 @@ strategy, transaction boundaries, or task ordering — `sdd-design` and `sdd-tas
 
 | Hook | Check | Verifies |
 |------|-------|----------|
-| H1 | Resolved interpreter reports `3.12.x`; `requires-python` excludes `3.13+`; `mypy` `python_version` agrees; the NLP install compiles no source extension | AC-003-01 |
+| H1 | Resolved interpreter reports `3.12.x`; `requires-python` excludes `3.14+`; `mypy` `python_version` agrees; the NLP install compiles no source extension | AC-003-01 |
 | H2 | Extended AST domain-isolation guard finds zero `spacy\|thinc\|stanza\|sqlalchemy\|fastapi\|pydantic` imports in `domain/`, and no spaCy type outside the adapter package | AC-003-02 |
 | H3 | Structural search for ISO-639 literals and language defaults in the port, value object and schema returns zero matches; `UNSUPPORTED_LANGUAGE` path writes nothing | AC-003-03 |
 | H4 | Every persisted `pos` is a member of the 17-tag UPOS set; a stub emitting `NN` fails the run; `book` has no POS column | AC-003-05 |

@@ -43,8 +43,8 @@ port boundary, per design §Delivery.
 
 Closes: REQ-003-001, REQ-003-002 (isolation extension only), REQ-003-023, `002-text-import` REQ-002-007 delta.
 
-- [x] 1.1 [TEST] `test_python_pin.py`: venv 3.12.x, `requires-python` excludes ≥3.13, mypy matches (REQ-003-001)
-- [x] 1.2 [IMPL] Pin `pyproject.toml` (`>=3.12,<3.13`), `.python-version`, `uv python pin 3.12`, `[tool.mypy] python_version="3.12"`
+- [x] 1.1 [TEST] `test_python_pin.py`: venv 3.12.x, `requires-python` excludes ≥3.14, mypy matches (REQ-003-001)
+- [x] 1.2 [IMPL] Pin `pyproject.toml` (`>=3.12,<3.14`), `.python-version`, `uv python pin 3.12`, `[tool.mypy] python_version="3.12"`
 - [x] 1.3 [IMPL] `uv add spacy`; then add the model as a URL-pinned dependency — `en_core_web_sm` is NOT on PyPI (404), it ships as a GitHub release asset `en_core_web_sm-3.8.0-py3-none-any.whl`. Use `uv add "en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"`, NOT `spacy download` (unpinned, unreproducible, violates ADR-0005). Confirm zero source compilation in the install log (OQ-3, AC-003-01 sc.3)
 - [x] 1.4 [TEST] `test_domain_isolation.py`: mutation-check proving pattern misses `thinc`/`stanza`
 - [x] 1.5 [IMPL] Extend `_FORBIDDEN_IMPORT_PATTERN` to `...|thinc|stanza`
