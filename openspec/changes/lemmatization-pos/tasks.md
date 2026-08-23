@@ -43,16 +43,16 @@ port boundary, per design §Delivery.
 
 Closes: REQ-003-001, REQ-003-002 (isolation extension only), REQ-003-023, `002-text-import` REQ-002-007 delta.
 
-- [ ] 1.1 [TEST] `test_python_pin.py`: venv 3.12.x, `requires-python` excludes ≥3.13, mypy matches (REQ-003-001)
-- [ ] 1.2 [IMPL] Pin `pyproject.toml` (`>=3.12,<3.13`), `.python-version`, `uv python pin 3.12`, `[tool.mypy] python_version="3.12"`
-- [ ] 1.3 [IMPL] `uv add spacy`; then add the model as a URL-pinned dependency — `en_core_web_sm` is NOT on PyPI (404), it ships as a GitHub release asset `en_core_web_sm-3.8.0-py3-none-any.whl`. Use `uv add "en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"`, NOT `spacy download` (unpinned, unreproducible, violates ADR-0005). Confirm zero source compilation in the install log (OQ-3, AC-003-01 sc.3)
-- [ ] 1.4 [TEST] `test_domain_isolation.py`: mutation-check proving pattern misses `thinc`/`stanza`
-- [ ] 1.5 [IMPL] Extend `_FORBIDDEN_IMPORT_PATTERN` to `...|thinc|stanza`
-- [ ] 1.6 [TEST] `test_no_lemma_naming.py` + `no-lemma-naming.test.ts`: mutation-checks proving 3 gaps — no allow-list, hardcoded migration path, book/occurrence-only tables (REQ-003-023)
-- [ ] 1.7 [IMPL] Both legs: exact-match `_ALLOWED_LEMMA_SYMBOLS`/`ALLOWED_LEMMA_SYMBOLS`; glob `migrations/versions/*.py`; iterate all `Base.metadata.tables` (AC-003-24)
-- [ ] 1.8 [TEST] Both legs: `normalized_form` renamed to lemma-shaped name still fails despite allow-list (AC-003-24 sc.2)
-- [ ] 1.9 [SPEC] Land `002-text-import` `REQ-002-007`/`AC-002-10` delta text
-- [ ] 1.10 [DOC] `docs/traceability-matrix.md`: REQ-003-001, 002 (partial), 023; REQ-002-007 (modified)
+- [x] 1.1 [TEST] `test_python_pin.py`: venv 3.12.x, `requires-python` excludes ≥3.13, mypy matches (REQ-003-001)
+- [x] 1.2 [IMPL] Pin `pyproject.toml` (`>=3.12,<3.13`), `.python-version`, `uv python pin 3.12`, `[tool.mypy] python_version="3.12"`
+- [x] 1.3 [IMPL] `uv add spacy`; then add the model as a URL-pinned dependency — `en_core_web_sm` is NOT on PyPI (404), it ships as a GitHub release asset `en_core_web_sm-3.8.0-py3-none-any.whl`. Use `uv add "en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"`, NOT `spacy download` (unpinned, unreproducible, violates ADR-0005). Confirm zero source compilation in the install log (OQ-3, AC-003-01 sc.3)
+- [x] 1.4 [TEST] `test_domain_isolation.py`: mutation-check proving pattern misses `thinc`/`stanza`
+- [x] 1.5 [IMPL] Extend `_FORBIDDEN_IMPORT_PATTERN` to `...|thinc|stanza`
+- [x] 1.6 [TEST] `test_no_lemma_naming.py` + `no-lemma-naming.test.ts`: mutation-checks proving 3 gaps — no allow-list, hardcoded migration path, book/occurrence-only tables (REQ-003-023)
+- [x] 1.7 [IMPL] Both legs: exact-match `_ALLOWED_LEMMA_SYMBOLS`/`ALLOWED_LEMMA_SYMBOLS`; glob `migrations/versions/*.py`; iterate all `Base.metadata.tables` (AC-003-24)
+- [x] 1.8 [TEST] Both legs: `normalized_form` renamed to lemma-shaped name still fails despite allow-list (AC-003-24 sc.2)
+- [x] 1.9 [SPEC] Land `002-text-import` `REQ-002-007`/`AC-002-10` delta text
+- [x] 1.10 [DOC] `docs/traceability-matrix.md`: REQ-003-001, 002 (partial), 023; REQ-002-007 (modified)
 
 ## Phase 2 — Domain + port (`feat/spec-003-02-domain-port`)
 
