@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from sqlalchemy import Engine
+    from sqlalchemy.orm import Session, sessionmaker
 
 
 @pytest.fixture
@@ -70,3 +71,20 @@ def book_repository(
     engine = managed_engine(create_engine_from_url(f"sqlite:///{tmp_path / 'book_repository.db'}"))
     Base.metadata.create_all(engine)
     return SqlAlchemyBookRepository(create_session_factory(engine))
+
+
+@pytest.fixture
+def annotation_session_factory(
+    tmp_path: Path,
+    managed_engine: Callable[[Engine], Engine],
+) -> sessionmaker[Session]:
+    """A schema-ready SQLite session factory shared by the annotation write
+    and read repository integration tests — design §P3, §P5.
+
+    File-backed for the same reason `book_repository` is: a second repository
+    instance (as `test_annotation_read_repository.py` constructs against the
+    same database) must see what a prior write actually committed.
+    """
+    engine = managed_engine(create_engine_from_url(f"sqlite:///{tmp_path / 'annotation.db'}"))
+    Base.metadata.create_all(engine)
+    return create_session_factory(engine)
