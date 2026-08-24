@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel-vocabulary:annotation:v1",
+  "title": "Annotation result — POST/GET /api/v1/imports/{id}/annotation (X-Schema-Version: 1)",
+  "type": "object",
+  "required": ["id", "provenance", "occurrences"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "provenance": {
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/provenance" }]
+    },
+    "occurrences": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/occurrence" }
+    }
+  },
+  "$defs": {
+    "provenance": {
+      "type": "object",
+      "required": ["source", "model_name", "model_version", "language", "processed_at"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string", "minLength": 1 },
+        "model_name": { "type": "string", "minLength": 1 },
+        "model_version": { "type": "string", "minLength": 1 },
+        "language": { "type": "string", "minLength": 1 },
+        "processed_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "occurrence": {
+      "type": "object",
+      "required": [
+        "position",
+        "raw_text",
+        "pos",
+        "pos_origin",
+        "automatic_pos",
+        "pos_confidence",
+        "lemma",
+        "lemma_origin",
+        "automatic_lemma",
+        "lemma_confidence"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "position": { "type": "integer", "minimum": 0 },
+        "raw_text": { "type": "string" },
+        "pos": { "type": ["string", "null"] },
+        "pos_origin": { "type": "string", "enum": ["automatic", "manual"] },
+        "automatic_pos": { "type": ["string", "null"] },
+        "pos_confidence": { "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0 },
+        "lemma": { "type": ["string", "null"] },
+        "lemma_origin": { "type": "string", "enum": ["automatic", "manual"] },
+        "automatic_lemma": { "type": ["string", "null"] },
+        "lemma_confidence": { "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0 }
+      }
+    },
+    "error": {
+      "type": "object",
+      "required": ["error"],
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "IMPORT_NOT_FOUND",
+                "UNSUPPORTED_LANGUAGE",
+                "ANALYZER_UNAVAILABLE",
+                "ANNOTATION_FAILED"
+              ]
+            },
+            "message": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  }
+}
