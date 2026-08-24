@@ -83,6 +83,35 @@ def test_the_write_repository_never_references_manual_correction() -> None:
 
 
 @pytest.mark.unit
+def test_the_write_repository_never_references_the_persisted_table_name_either() -> None:
+    """Remediation (verify-report SUGGESTION 1): the class name `ManualCorrection`
+    is the ORM model; the PERSISTED table is `manual_correction` (snake_case,
+    `Base.metadata`'s `__tablename__`). The check above matches only the exact
+    string `ManualCorrection`, so a raw-SQL literal such as
+    `text("UPDATE manual_correction ...")` would slip past it undetected —
+    no such code exists today, but nothing stopped it. This closes that gap
+    with the same AST criterion, scanning for the snake_case table name.
+
+    MUTATION CHECK: temporarily added a module-level string literal
+    `"manual_correction"` to the write repository, ran this test, and
+    observed::
+
+        AssertionError: the annotation write path references the manual_correction table name:
+        annotation_write_repository.py:47 string literal 'manual_correction'
+
+    then reverted.
+    """
+    source = _WRITE_REPOSITORY_PATH.read_text(encoding="utf-8")
+
+    violations = _references_to(source, "annotation_write_repository.py", "manual_correction")
+
+    assert not violations, (
+        "the annotation write path references the manual_correction table name:\n"
+        + "\n".join(violations)
+    )
+
+
+@pytest.mark.unit
 def test_a_manual_correction_import_would_be_caught() -> None:
     """Direct mutation check, run synthetically so it never has to touch
     production code to prove the detector itself works."""
