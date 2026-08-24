@@ -26,7 +26,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
     from wheel_vocabulary.domain.annotation import LinguisticAnnotation
 
-__all__ = ["AnalyzerIdentity", "LinguisticAnalyzer"]
+__all__ = ["AnalyzerIdentity", "AnalyzerRegistry", "LinguisticAnalyzer"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,5 +67,24 @@ class LinguisticAnalyzer(Protocol):
             UnsupportedLanguageError: no analyzer is installed for
                 ``language``. Raised before any pipeline loads and before
                 any row is written (AC-003-03).
+        """
+        ...
+
+
+@runtime_checkable
+class AnalyzerRegistry(Protocol):
+    """Port `AnnotateImport` depends on to resolve a language to an analyzer.
+
+    Satisfied structurally by `infrastructure/nlp/registry.py::
+    AnalyzerRegistry` (design §P4) — `application` never imports that
+    module, only this shape.
+    """
+
+    def resolve(self, language: str) -> LinguisticAnalyzer:
+        """Return the analyzer for ``language``.
+
+        Raises:
+            UnsupportedLanguageError: no analyzer is configured for
+                ``language``, raised before any pipeline loads (AC-003-03).
         """
         ...
