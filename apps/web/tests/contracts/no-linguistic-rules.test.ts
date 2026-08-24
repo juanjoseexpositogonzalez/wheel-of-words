@@ -3,33 +3,54 @@ import { describe, expect, it } from "vitest";
 
 /**
  * AC-002-19 / design §11 — the frontend duplicates no linguistic rules.
+ * REQ-003-018 / task 5.8 — extended to the annotation view: zero
+ * lemmatize/tag/normalize/precedence-resolution matches there either.
  *
  * A repo-wide search over `apps/web/src/` would false-positive the day someone
  * sorts an unrelated dropdown. This pinned, cut-scoped manifest is the
- * mechanism that keeps the search scoped to import/frequency-table code
- * without abandoning the flat `pages/components/api/types` layout.
+ * mechanism that keeps the search scoped to import/frequency-table and
+ * annotation code without abandoning the flat `pages/components/api/types`
+ * layout.
  *
  * The manifest is cut-scoped: it lists the modules that exist in the current
- * cut. Cut 3 (T309) appends `DeleteImportButton.tsx` here — see design §11's
- * "cut-scoped manifest" reading.
+ * cut. Cut 3 (T309) appended `DeleteImportButton.tsx`; SPEC-003 slice 5
+ * (task 5.8) appends `AnnotationTable.tsx`, `api/annotation.ts`, and
+ * `types/annotation.ts` — see design §11's "cut-scoped manifest" reading.
+ * Renamed from `IMPORT_FEATURE_MODULES` to `FRONTEND_FEATURE_MODULES`
+ * since it now covers two features, not one; the rename is contained to
+ * this file.
  *
  * Uses `import.meta.glob` rather than `node:fs` so this file needs no
  * `@types/node`, matching this project's existing minimal-dependency
  * convention (see the manual `declare const process` in `vitest.config.ts`
  * and `playwright.config.ts`).
  */
-const IMPORT_FEATURE_MODULES = [
+const FRONTEND_FEATURE_MODULES = [
   "src/pages/ImportPage.tsx",
   "src/components/ImportForm.tsx",
   "src/components/FrequencyTable.tsx",
   "src/components/DeleteImportButton.tsx",
+  "src/components/AnnotationTable.tsx",
   "src/api/imports.ts",
+  "src/api/annotation.ts",
   "src/types/imports.ts",
+  "src/types/annotation.ts",
 ] as const;
 
-const FEATURE_NAME_PATTERN = /[Ii]mport|[Ff]requenc/;
+const FEATURE_NAME_PATTERN = /[Ii]mport|[Ff]requenc|[Aa]nnotat/;
 const FORBIDDEN_METHODS = new Set(["localeCompare", "normalize", "reverse", "sort", "toLowerCase", "toSorted"]);
 const FORBIDDEN_NORMALIZATION_FORMS = new Set(["NFC", "NFD", "NFKC", "NFKD"]);
+
+// REQ-003-018 (task 5.8): the annotation-specific linguistic operations no
+// built-in method name covers — lemmatization, tagging, tokenization, and
+// correction-precedence resolution are all bespoke logic, so they can only
+// leak in as an IDENTIFIER (a function/variable name), never a method call
+// on a built-in. Scoped narrowly to avoid false-positiving on ordinary
+// English words: "tag" alone is excluded (too common, e.g. a future `<Tag>`
+// UI element) — REQ-003-022's "no PROPN special case" is covered separately
+// by the structural absence of the literal `PROPN` in this view's sources,
+// not by this pattern.
+const FORBIDDEN_IDENTIFIER_PATTERN = /lemmatiz|tokeniz|resolveEffective|correctionPrecedence/i;
 
 interface LinguisticRuleViolation {
   readonly file: string;
@@ -93,6 +114,11 @@ export function findLinguisticRuleViolations(
       FORBIDDEN_NORMALIZATION_FORMS.has(node.text)
     ) {
       report(node, "normalization form literal", node.text);
+    } else if (
+      (ts.isIdentifier(node) || ts.isPrivateIdentifier(node)) &&
+      FORBIDDEN_IDENTIFIER_PATTERN.test(node.text)
+    ) {
+      report(node, "identifier", node.text);
     }
     ts.forEachChild(node, visit);
   }
@@ -117,11 +143,11 @@ function formatViolations(violations: readonly LinguisticRuleViolation[]): strin
 
 const onDiskManifestPaths = Object.keys(rawSourceModules).map(toManifestPath);
 
-describe("IMPORT_FEATURE_MODULES manifest (design §11)", () => {
+describe("FRONTEND_FEATURE_MODULES manifest (design §11)", () => {
   it("is non-empty and every entry exists on disk", () => {
-    expect(IMPORT_FEATURE_MODULES.length).toBeGreaterThan(0);
+    expect(FRONTEND_FEATURE_MODULES.length).toBeGreaterThan(0);
 
-    const missing = IMPORT_FEATURE_MODULES.filter(
+    const missing = FRONTEND_FEATURE_MODULES.filter(
       (path) => !onDiskManifestPaths.includes(path),
     );
 
@@ -132,7 +158,7 @@ describe("IMPORT_FEATURE_MODULES manifest (design §11)", () => {
     const featureNamed = onDiskManifestPaths.filter((path) => FEATURE_NAME_PATTERN.test(path));
 
     const unlisted = featureNamed.filter(
-      (path) => !(IMPORT_FEATURE_MODULES as readonly string[]).includes(path),
+      (path) => !(FRONTEND_FEATURE_MODULES as readonly string[]).includes(path),
     );
 
     expect(unlisted).toEqual([]);
@@ -140,8 +166,8 @@ describe("IMPORT_FEATURE_MODULES manifest (design §11)", () => {
 });
 
 describe("no client-side linguistic rules", () => {
-  it("test_import_modules_have_no_linguistic_rules", () => {
-    const violations = IMPORT_FEATURE_MODULES.flatMap((manifestPath) => {
+  it("test_import_and_annotation_modules_have_no_linguistic_rules", () => {
+    const violations = FRONTEND_FEATURE_MODULES.flatMap((manifestPath) => {
       const source = sourceForManifestPath(manifestPath);
       if (source === undefined) {
         // Caught separately by the manifest existence assertion above.
@@ -216,5 +242,38 @@ describe("findLinguisticRuleViolations", () => {
       { file: "synthetic.ts", line: 2, kind: "method call", text: "toLowerCase" },
       { file: "synthetic.ts", line: 2, kind: "normalization form literal", text: "NFC" },
     ]);
+  });
+
+  // REQ-003-018 (task 5.8): a bespoke lemmatizer, tokenizer, or
+  // correction-precedence resolver has no built-in method name to catch —
+  // it can only leak in as an identifier.
+  it("reports an identifier naming a bespoke lemmatizer, tokenizer, or precedence resolver", () => {
+    const source = [
+      "export function annotate(tokens: string[]): void {",
+      "  lemmatizeToken(tokens[0]);",
+      "  tokenizeText(tokens[0]);",
+      "  resolveEffective(tokens[0], null);",
+      "  correctionPrecedence(tokens[0]);",
+      "}",
+    ].join("\n");
+
+    const violations = findLinguisticRuleViolations("synthetic.ts", source);
+
+    expect(violations).toEqual([
+      { file: "synthetic.ts", line: 2, kind: "identifier", text: "lemmatizeToken" },
+      { file: "synthetic.ts", line: 3, kind: "identifier", text: "tokenizeText" },
+      { file: "synthetic.ts", line: 4, kind: "identifier", text: "resolveEffective" },
+      { file: "synthetic.ts", line: 5, kind: "identifier", text: "correctionPrecedence" },
+    ]);
+  });
+
+  it("does not flag the ordinary word 'tag' alone, scoped narrowly to avoid false positives", () => {
+    const source = [
+      "export function render(tag: string): string {",
+      "  return tag;",
+      "}",
+    ].join("\n");
+
+    expect(findLinguisticRuleViolations("synthetic.ts", source)).toEqual([]);
   });
 });
