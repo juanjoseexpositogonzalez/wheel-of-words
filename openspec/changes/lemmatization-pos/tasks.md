@@ -58,15 +58,15 @@ Closes: REQ-003-001, REQ-003-002 (isolation extension only), REQ-003-023, `002-t
 
 Closes: REQ-003-002, 003, 005 (shape), 006 (shape), 008 (pure rules), 010 (pure rule), 022 (no `"pos"` literal).
 
-- [ ] 2.1 [TEST] `test_annotation_domain.py`: `LinguisticAnnotation` frozen/stdlib-only, `UPOS_TAGS` 17-member, no `"pos"` literal
-- [ ] 2.2 [IMPL] `domain/annotation.py`: value object + `UPOS_TAGS` + `validate_confidence()`
-- [ ] 2.3 [TEST] `test_domain_isolation.py`: extend `_EXPECTED_MODULES` with `annotation.py`
-- [ ] 2.4 [TEST] `test_annotation_domain.py::resolve_effective`: correction wins, origin marker set, automatic retained (R1/R4/R5)
-- [ ] 2.5 [IMPL] `domain/annotation.py::resolve_effective()`
-- [ ] 2.6 [TEST] Hypothesis: `resolve_effective` output ∈ {automatic, corrected}, never a third value (C3); confidence validator rejects any float outside `[0,1]`
-- [ ] 2.7 [TEST] `test_annotation_ports.py`: fake analyzer satisfies `LinguisticAnalyzer` structurally, no NLP import; port/domain carry zero ISO-639 literals or language defaults (AC-003-03)
-- [ ] 2.8 [IMPL] `application/annotation/ports.py` (`LinguisticAnalyzer`, `AnalyzerIdentity`, required `language` kwarg, no default) + `application/annotation/errors.py` (`UnsupportedLanguageError`, `AnnotationFailedError`, `AnalyzerUnavailableError`)
-- [ ] 2.9 [DOC] `docs/traceability-matrix.md`: REQ-003-002–006, 008, 010 (partial)
+- [x] 2.1 [TEST] `test_annotation_domain.py`: `LinguisticAnnotation` frozen/stdlib-only, `UPOS_TAGS` 17-member, no `"pos"` literal
+- [x] 2.2 [IMPL] `domain/annotation.py`: value object + `UPOS_TAGS` + `validate_confidence()`
+- [x] 2.3 [TEST] `test_domain_isolation.py`: extend `_EXPECTED_MODULES` with `annotation.py`
+- [x] 2.4 [TEST] `test_annotation_domain.py::resolve_effective`: correction wins, origin marker set, automatic retained (R1/R4/R5)
+- [x] 2.5 [IMPL] `domain/annotation.py::resolve_effective()`
+- [x] 2.6 [TEST] Hypothesis: `resolve_effective` output ∈ {automatic, corrected}, never a third value (C3); confidence validator rejects any float outside `[0,1]`
+- [x] 2.7 [TEST] `test_annotation_ports.py`: fake analyzer satisfies `LinguisticAnalyzer` structurally, no NLP import; port/domain carry zero ISO-639 literals or language defaults (AC-003-03)
+- [x] 2.8 [IMPL] `application/annotation/ports.py` (`LinguisticAnalyzer`, `AnalyzerIdentity`, required `language` kwarg, no default) + `application/annotation/errors.py` (`UnsupportedLanguageError`, `AnnotationFailedError`, `AnalyzerUnavailableError`)
+- [x] 2.9 [DOC] `docs/traceability-matrix.md`: REQ-003-002–006, 008, 010 (partial)
 
 ## Phase 3 — Persistence (`feat/spec-003-03-persistence`)
 
