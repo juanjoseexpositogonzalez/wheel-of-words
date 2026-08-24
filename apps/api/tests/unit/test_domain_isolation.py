@@ -18,6 +18,12 @@ either directly. Mutation check: inserted ``import thinc`` into
 
     AssertionError: domain isolation violated:
     frequency.py imports 'thinc' (pattern: fastapi|sqlalchemy|pydantic|spacy|thinc|stanza)
+
+**Task 2.3 — REQ-003-002.** `_EXPECTED_MODULES` grew to name
+`annotation.py` explicitly (cut 2's `LinguisticAnnotation` value object),
+rather than relying on the superset check in
+`test_domain_package_scan_is_not_vacuous` to merely tolerate it as an
+unlisted extra.
 """
 
 from __future__ import annotations
@@ -44,6 +50,7 @@ _EXPECTED_MODULES = frozenset(
         "__init__.py",
         "models.py",
         "frequency.py",
+        "annotation.py",
         "text/__init__.py",
         "text/tokenizer.py",
         "text/normalizer.py",
@@ -66,6 +73,14 @@ def test_domain_package_scan_is_not_vacuous() -> None:
 
     assert modules, f"no domain modules found under {_DOMAIN_ROOT}"
     assert {_relative(path) for path in modules} >= _EXPECTED_MODULES
+
+
+@pytest.mark.unit
+def test_expected_modules_includes_the_annotation_value_object() -> None:
+    """Task 2.3 (REQ-003-002): `domain/annotation.py` shipped in cut 2 and
+    the non-vacuity baseline must name it explicitly, not merely tolerate it
+    as an unlisted extra module the superset check happens to allow."""
+    assert "annotation.py" in _EXPECTED_MODULES
 
 
 @pytest.mark.unit
