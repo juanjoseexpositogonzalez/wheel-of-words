@@ -1,24 +1,33 @@
-"""SQLAlchemy mapped classes for the text-import capability — design §6.1.
+"""SQLAlchemy mapped classes for the text-import and annotation capabilities.
 
-Maps one-to-one onto migration `0002_book_occurrence`. `raw_text` and
-`normalized_text` are separate mapped columns and MUST NOT collapse (Art. V.1,
-REQ-002-010). `pos` is reserved and always `None` for every row this capability
-writes (ADR-0006, REQ-002-010). Neither table carries a `deleted_at`,
-`is_deleted`, or tombstone column — deletion is permanent (REQ-002-011, H8).
+`Book`/`Occurrence` map one-to-one onto migration `0002_book_occurrence`;
+design §6.1. `raw_text` and `normalized_text` are separate mapped columns and
+MUST NOT collapse (Art. V.1, REQ-002-010). Neither table carries a
+`deleted_at`, `is_deleted`, or tombstone column — deletion is permanent
+(REQ-002-011, H8).
 
-REQ-002-008, REQ-002-009, REQ-002-010.
+`AnnotationProvenance`/`ManualCorrection` and `Occurrence.lemma` map onto
+migration `0003_annotation`; design §P5. `pos`/`lemma` are reserved and always
+`None` for every row `002-text-import` writes (ADR-0006, REQ-002-010); this
+capability's write repository is the only path that ever sets them, and it
+never touches `ManualCorrection` (R2/R3, `test_annotation_write_repository_
+isolation.py`). `ManualCorrection` ships with schema only in this capability —
+no code path here inserts, updates, or deletes a row in it (R6).
+
+REQ-002-008, REQ-002-009, REQ-002-010, REQ-003-006, REQ-003-007, REQ-003-011,
+REQ-003-015.
 """
 
 from __future__ import annotations
 
 from datetime import datetime  # noqa: TC003 - SQLAlchemy resolves `Mapped[datetime]` at runtime
 
-from sqlalchemy import ForeignKey, Index
+from sqlalchemy import ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from wheel_vocabulary.infrastructure.persistence.base import Base
 
-__all__ = ["Book", "Occurrence"]
+__all__ = ["AnnotationProvenance", "Book", "ManualCorrection", "Occurrence"]
 
 
 class Book(Base):
@@ -73,5 +82,71 @@ class Occurrence(Base):
     normalized_text: Mapped[str] = mapped_column(nullable=False)
     position: Mapped[int] = mapped_column(nullable=False)
     pos: Mapped[str | None] = mapped_column(default=None)
+    # design §P5, spec §2.1 L1-L6: a third, separately stored value — never
+    # derived from `normalized_text`, never collapsed into `pos`. `Text`
+    # mirrors `raw_text`/`normalized_text`'s migration column type.
+    lemma: Mapped[str | None] = mapped_column(Text(), default=None)
 
     book: Mapped[Book] = relationship(back_populates="occurrences")
+
+
+class AnnotationProvenance(Base):
+    """Recoverable provenance for one automatically annotated occurrence — spec §2.4.
+
+    One row per occurrence (`occurrence_id` UNIQUE): one analyzer pass
+    produces both `pos` and `lemma` under one model identity, so a
+    per-`(occurrence, field)` provenance record would duplicate identical
+    data and invite the two copies to drift (spec §2.4). The write repository
+    deletes and re-inserts this row on every run (R2) — it is never updated
+    in place — so `processed_at` always reflects the most recent run.
+    """
+
+    __tablename__ = "annotation_provenance"
+    __table_args__ = (
+        Index("ix_annotation_provenance_occurrence_id", "occurrence_id", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    occurrence_id: Mapped[int] = mapped_column(
+        ForeignKey("occurrence.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    source: Mapped[str] = mapped_column(String(length=64), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(length=128), nullable=False)
+    model_version: Mapped[str] = mapped_column(String(length=32), nullable=False)
+    # Never a hardcoded default (ADR-0008, REQ-003-003): the language the run
+    # was actually invoked with, recorded per annotation, not assumed at read
+    # time.
+    language: Mapped[str] = mapped_column(String(length=35), nullable=False)
+    processed_at: Mapped[datetime] = mapped_column(nullable=False)
+    # §2.3 C1-C2: independent, each `NULL` or a float in [0.0, 1.0]. Never
+    # fabricated by this layer (C3) — whatever the analyzer reported, verbatim.
+    pos_confidence: Mapped[float | None] = mapped_column(default=None)
+    lemma_confidence: Mapped[float | None] = mapped_column(default=None)
+
+
+class ManualCorrection(Base):
+    """A user's correction for one `(occurrence, field)` pair — spec §2.5.
+
+    Schema only in this capability (R6): nothing in this codebase inserts,
+    updates, or deletes a row here. `annotation_write_repository.py` (task
+    3.6-3.8) is proven, structurally, never to import or reference this class
+    at all — the write path cannot corrupt what it cannot see.
+
+    `field` holds the bare string `"pos"` or `"lemma"` (spec §2.5) — a plain
+    `String` column, not an enum: this table lives in `infrastructure/`, not
+    `domain/`, so the ISO-639-shape guard scoped to `domain/annotation.py`
+    does not reach it (design §P6).
+    """
+
+    __tablename__ = "manual_correction"
+    __table_args__ = (
+        Index("ix_manual_correction_occurrence_field", "occurrence_id", "field", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    occurrence_id: Mapped[int] = mapped_column(
+        ForeignKey("occurrence.id", ondelete="CASCADE"), nullable=False
+    )
+    field: Mapped[str] = mapped_column(String(length=16), nullable=False)
+    corrected_value: Mapped[str] = mapped_column(Text(), nullable=False)
+    corrected_at: Mapped[datetime] = mapped_column(nullable=False)
