@@ -23,7 +23,7 @@ from __future__ import annotations
 from datetime import datetime  # noqa: TC003 – Pydantic resolves this at class-creation time
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 __all__ = [
     "AnnotationOccurrenceResponse",
@@ -69,10 +69,16 @@ class AnnotationOccurrenceResponse(BaseModel):
     pos_origin: Literal["automatic", "manual"]
     automatic_pos: str | None
     pos_confidence: float | None
-    lemma: str | None
-    lemma_origin: Literal["automatic", "manual"]
-    automatic_lemma: str | None
-    lemma_confidence: float | None
+    # Pydantic auto-titles each field by title-casing its name (e.g. "Lemma"
+    # for `lemma`), and FastAPI publishes that title into the served OpenAPI
+    # document — `test_no_lemma_naming.py`'s OpenAPI leg then sees a string
+    # value that fails the guard's EXACT-match allow-list check ("Lemma" !=
+    # "lemma"). An explicit lowercase `title=` keeps every published string
+    # equal to its own allow-listed field name (REQ-003-023, design §P6).
+    lemma: str | None = Field(title="lemma")
+    lemma_origin: Literal["automatic", "manual"] = Field(title="lemma_origin")
+    automatic_lemma: str | None = Field(title="automatic_lemma")
+    lemma_confidence: float | None = Field(title="lemma_confidence")
 
 
 class AnnotationResultResponse(BaseModel):
