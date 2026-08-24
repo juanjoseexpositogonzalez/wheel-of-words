@@ -107,7 +107,18 @@ def test_upgrade_preserves_pre_existing_spec_002_rows(
     with engine.begin() as connection:
         connection.execute(
             book_table,
-            {"content_hash": "0" * 64, "created_at": datetime(2026, 8, 1, tzinfo=UTC)},
+            # Bound as an ISO string, not a raw `datetime`: this is a bare
+            # `text()` insert with no SQLAlchemy column type attached, so the
+            # parameter reaches sqlite3's DBAPI layer as-is. Python 3.12
+            # deprecated sqlite3's own default datetime adapter
+            # (`DeprecationWarning`, caught as an error by this project's
+            # `filterwarnings` gate) — binding a plain string sidesteps that
+            # adapter entirely. `created_at` is never asserted on below; only
+            # `raw_text`/`normalized_text`/`position`/`lemma` are (AC-003-16).
+            {
+                "content_hash": "0" * 64,
+                "created_at": datetime(2026, 8, 1, tzinfo=UTC).isoformat(sep=" "),
+            },
         )
         book_id = connection.execute(text("select id from book")).scalar_one()
         connection.execute(
