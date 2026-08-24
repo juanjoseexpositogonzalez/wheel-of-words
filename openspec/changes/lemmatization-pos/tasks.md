@@ -89,20 +89,20 @@ Closes: REQ-003-006, 007, 010, 011, 014, 015.
 
 Closes: REQ-003-003 (adapter), 004, 005, 006, 007, 009 (backend half), 013, 016, 019, 020, 021.
 
-- [ ] 4.1 [TEST] `test_spacy_analyzer.py`: load-time self-check — score rows sum to 1.0±1e-4, decomposed `pos_` == plain `nlp(doc)` `pos_`; failure raises `ANALYZER_UNAVAILABLE` (`@pytest.mark.integration`)
-- [ ] 4.2 [TEST] Same file: `Doc(vocab, words=tokens)` only, never `nlp(text)`; `run/ran/running` → lemma `run`; `PROPN` unfiltered; `lemma_confidence` always `NULL` for English, never derived from `pos_confidence`
-- [ ] 4.3 [TEST] Same file: `1.4` confidence and `NN` tag fail `ANNOTATION_FAILED`, not clamped/coerced; length mismatch fails, zero rows written; offline run succeeds, zero socket connections
-- [ ] 4.4 [IMPL] `infrastructure/nlp/spacy_analyzer.py::SpacyLinguisticAnalyzer` — exclude `parser`/`ner`/`senter`; flip `softmax_normalize=True`; run self-check at load. **Reordered by the slice-2 task audit**: this `[IMPL]` previously sat at 4.2, ahead of the 4.2/4.3 tests that drive most of its behavior, so the implementation was scoped wider than its driving test
-- [ ] 4.5 [TEST] `test_settings.py`: `annotation_language: str = "en"`, `analyzer_models: dict[str, str]`
-- [ ] 4.6 [IMPL] `infrastructure/settings.py`: the two fields
-- [ ] 4.7 [TEST] `test_analyzer_registry.py`: unsupported language raises `UnsupportedLanguageError` before pipeline load, zero writes (AC-003-03)
-- [ ] 4.8 [IMPL] `infrastructure/nlp/registry.py::resolve(language)` — lazy-load, cache per code
-- [ ] 4.9 [TEST] `test_annotate_import.py`: 6 stub failure modes (short return, `NN`, `1.4`, whitespace lemma, mid-run raise, unsupported language); full validation completes before transaction opens
-- [ ] 4.10 [IMPL] `application/annotation/use_cases.py::AnnotateImport` — read ordered tokens → registry.resolve → analyze whole import as one `Doc` → validate all → write
-- [ ] 4.11 [TEST] Hypothesis: stability under re-run with pinned model — identical `pos`/`lemma` across 2 runs, only `processed_at` differs; note that naive lemma-of-lemma idempotence is deliberately NOT asserted (AC-003-21, §5 AMB-1)
-- [ ] 4.12 [TEST] Hypothesis: batch-size + read-order + cross-import order independence on `position→(pos,lemma)`; note that token-permutation invariance is deliberately NOT asserted (AC-003-22, §5 AMB-3)
-- [ ] 4.13 [TEST] Sentinel token absent from every captured log and error body; failure carries code+id+position only (AC-003-20)
-- [ ] 4.14 [DOC] `docs/traceability-matrix.md`: REQ-003-003, 004, 005, 006, 007, 009 (backend), 013, 016, 019, 020, 021
+- [x] 4.1 [TEST] `test_spacy_analyzer.py`: load-time self-check — score rows sum to 1.0±1e-4, decomposed `pos_` == plain `nlp(doc)` `pos_`; failure raises `ANALYZER_UNAVAILABLE` (`@pytest.mark.integration`)
+- [x] 4.2 [TEST] Same file: `Doc(vocab, words=tokens)` only, never `nlp(text)`; `run/ran/running` → lemma `run`; `PROPN` unfiltered; `lemma_confidence` always `NULL` for English, never derived from `pos_confidence`
+- [x] 4.3 [TEST] Same file: offline run succeeds, zero socket connections. **Scope discovery during apply (recorded per AGENTS.md §9)**: this task's other two clauses — `1.4`/`NN`/length-mismatch failing `ANNOTATION_FAILED` with zero rows written — are untestable against the REAL adapter (it cannot mathematically emit an out-of-range confidence, a non-UPOS tag, or a length mismatch) and are properly exercised in task 4.9's `test_annotate_import.py` against a stub analyzer instead, where `ANNOTATION_FAILED` is actually raised (spec §4: by the caller, never self-raised by the adapter)
+- [x] 4.4 [IMPL] `infrastructure/nlp/spacy_analyzer.py::SpacyLinguisticAnalyzer` — exclude `parser`/`ner`/`senter`; flip `softmax_normalize=True`; run self-check at load. **Reordered by the slice-2 task audit**: this `[IMPL]` previously sat at 4.2, ahead of the 4.2/4.3 tests that drive most of its behavior, so the implementation was scoped wider than its driving test
+- [x] 4.5 [TEST] `test_settings.py`: `annotation_language: str = "en"`, `analyzer_models: dict[str, str]`
+- [x] 4.6 [IMPL] `infrastructure/settings.py`: the two fields
+- [x] 4.7 [TEST] `test_analyzer_registry.py`: unsupported language raises `UnsupportedLanguageError` before pipeline load, zero writes (AC-003-03)
+- [x] 4.8 [IMPL] `infrastructure/nlp/registry.py::resolve(language)` — lazy-load, cache per code
+- [x] 4.9 [TEST] `test_annotate_import.py`: 6 stub failure modes (short return, `NN`, `1.4`, whitespace lemma, mid-run raise, unsupported language); full validation completes before transaction opens
+- [x] 4.10 [IMPL] `application/annotation/use_cases.py::AnnotateImport` — read ordered tokens → registry.resolve → analyze whole import as one `Doc` → validate all → write
+- [x] 4.11 [TEST] Hypothesis: stability under re-run with pinned model — identical `pos`/`lemma` across 2 runs, only `processed_at` differs; note that naive lemma-of-lemma idempotence is deliberately NOT asserted (AC-003-21, §5 AMB-1)
+- [x] 4.12 [TEST] Hypothesis: batch-size + read-order + cross-import order independence on `position→(pos,lemma)`; note that token-permutation invariance is deliberately NOT asserted (AC-003-22, §5 AMB-3)
+- [x] 4.13 [TEST] Sentinel token absent from every captured log and error body; failure carries code+id+position only (AC-003-20)
+- [x] 4.14 [DOC] `docs/traceability-matrix.md`: REQ-003-003, 004, 005, 006, 007, 009 (backend), 013, 016, 019, 020, 021
 
 ## Phase 5 — API + frontend (`feat/spec-003-05-api-frontend`)
 
@@ -125,8 +125,8 @@ Closes: REQ-003-009, 012, 017, 018; tracker merges to `main` after this slice.
 main
  └─ feat/spec-003-annotation-tracker (draft, no-merge)
      └─ 01-pin-guard ✅ → 02a-domain ✅ → 02b-port-errors ✅
-         └─ 03a-migration-models ✅ → 03b-write-repo ✅ → 03c-read-repo 📍
-             └─ 04-adapter-usecase → 05-api-frontend
+         └─ 03a-migration-models ✅ → 03b-write-repo ✅ → 03c-read-repo ✅
+             └─ 04-adapter-usecase ✅ → 05-api-frontend 📍
 ```
 
 ## Estimation note — read before planning slices 4 and 5
