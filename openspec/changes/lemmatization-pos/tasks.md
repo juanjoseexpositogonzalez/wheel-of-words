@@ -108,25 +108,31 @@ Closes: REQ-003-003 (adapter), 004, 005, 006, 007, 009 (backend half), 013, 016,
 
 Closes: REQ-003-009, 012, 017, 018; tracker merges to `main` after this slice.
 
-- [ ] 5.1 [TEST] `test_import_contract.py` + full SPEC-002 suite re-run: `import.v1.json` byte-identical, all green unchanged (AC-003-12, 18)
-- [ ] 5.2 [TEST] `test_annotation_contract.py`: `annotation.v1.json` validates — provenance envelope + per-occurrence effective pos/lemma/confidences/origin
-- [ ] 5.3 [IMPL] `api/schemas/annotation.v1.json`, `api/dtos/annotation.py`
-- [ ] 5.4 [TEST] `test_annotation_route.py`: POST writes+returns; GET returns precedence-resolved occurrences with both confidence keys incl. `null`; `UNSUPPORTED_LANGUAGE` → 422, no partial write; unknown import → 404
-- [ ] 5.5 [IMPL] `api/routes/annotation.py`; wire `api/dependencies.py`, `api/errors.py` (3 codes), `api/main.py`
-- [ ] 5.6 [TEST] `AnnotationTable.test.tsx`: renders lemma/pos/confidence/origin verbatim; unmapped UPOS degrades to raw tag not blank; null vs numeric confidence distinguishable without colour
-- [ ] 5.7 [IMPL] `apps/web/src/types/annotation.ts`, `api/annotation.ts`, `components/AnnotationTable.tsx`
-- [ ] 5.8 [TEST] `no-linguistic-rules.test.ts`: extend module manifest to annotation view, zero lemmatize/tag/normalize/precedence matches
-- [ ] 5.9 [E2E] `apps/web/e2e/annotation.spec.ts`: import → annotate → table shows lemma/pos/confidence
-- [ ] 5.10 [DOC] Final `docs/traceability-matrix.md` sweep: REQ-003-009, 012, 017, 018, 023 (frontend leg); confirm all 23 rows + AC-002-10 delta row; coverage gate check (domain/application ≥90%, global ≥80%)
+- [x] 5.1 [TEST] `test_import_contract.py` + full SPEC-002 suite re-run: `import.v1.json` byte-identical, all green unchanged (AC-003-12, 18)
+- [x] 5.2 [TEST] `test_annotation_contract.py`: `annotation.v1.json` validates — provenance envelope + per-occurrence effective pos/lemma/confidences/origin
+- [x] 5.3 [IMPL] `api/schemas/annotation.v1.json`, `api/dtos/annotation.py`
+- [x] 5.4 [TEST] `test_annotation_route.py`: POST writes+returns; GET returns precedence-resolved occurrences with both confidence keys incl. `null`; `UNSUPPORTED_LANGUAGE` → 422, no partial write; unknown import → 404
+- [x] 5.5 [IMPL] `api/routes/annotation.py`; wire `api/dependencies.py`, `api/errors.py` (3 codes), `api/main.py`
+- [x] 5.6 [TEST] `AnnotationTable.test.tsx`: renders lemma/pos/confidence/origin verbatim; unmapped UPOS degrades to raw tag not blank; null vs numeric confidence distinguishable without colour
+- [x] 5.7 [IMPL] `apps/web/src/types/annotation.ts`, `api/annotation.ts`, `components/AnnotationTable.tsx`
+- [x] 5.8 [TEST] `no-linguistic-rules.test.ts`: extend module manifest to annotation view, zero lemmatize/tag/normalize/precedence matches
+- [x] 5.9 [E2E] `apps/web/e2e/annotation.spec.ts`: import → annotate → table shows lemma/pos/confidence
+- [x] 5.10 [DOC] Final `docs/traceability-matrix.md` sweep: REQ-003-009, 012, 017, 018, 023 (frontend leg); confirm all 23 rows + AC-002-10 delta row; coverage gate check (domain/application ≥90%, global ≥80%)
 
 ## Chain diagram
+
+Stale as of corte 4: the real chain has 11 branches, not 5 — slices 2, 3 and
+4 were each split into sub-slices at existing commit boundaries after
+exceeding their line estimates (see "Estimation note" above).
 
 ```
 main
  └─ feat/spec-003-annotation-tracker (draft, no-merge)
-     └─ 01-pin-guard ✅ → 02a-domain ✅ → 02b-port-errors ✅
-         └─ 03a-migration-models ✅ → 03b-write-repo ✅ → 03c-read-repo ✅
-             └─ 04-adapter-usecase ✅ → 05-api-frontend 📍
+     └─ 01-pin-guard ✅
+         └─ 02a-domain ✅ → 02b-port-errors ✅
+             └─ 03a-migration-models ✅ → 03b-write-repo ✅ → 03c-read-repo ✅
+                 └─ 04a-analyzer ✅ → 04b-registry ✅ → 04c-use-case ✅ → 04d-properties ✅
+                     └─ 05-api-frontend ✅
 ```
 
 ## Estimation note — read before planning slices 4 and 5
