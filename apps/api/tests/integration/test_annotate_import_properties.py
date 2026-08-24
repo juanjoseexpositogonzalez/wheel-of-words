@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING
 import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
+from sqlalchemy import select
 
 from wheel_vocabulary.application.annotation.ports import AnalyzerIdentity
 from wheel_vocabulary.application.annotation.use_cases import AnnotateImport
@@ -144,6 +145,54 @@ def _mapping(
     rows = read_repository.read(book_id)
     assert rows is not None
     return {row.position: (row.effective_pos, row.lemma) for row in rows}
+
+
+def _seed_book_with_distinct_normalized(
+    session_factory: sessionmaker[Session], *, tokens: list[str]
+) -> int:
+    """Like `_seed_book`, but `normalized_text` is deliberately DIFFERENT
+    from `raw_text` for every row (`f"{token}_norm"`), so the property below
+    can prove `normalized_text` specifically survives an annotation run
+    untouched — not merely that it happens to equal `raw_text` and a bug
+    that mixed the two columns up would go unnoticed. `AnnotatedOccurrence`
+    (the read model) never surfaces `normalized_text` at all (design §P3),
+    so the read-back below queries `Occurrence` directly instead of going
+    through `SqlAlchemyAnnotationReadRepository`.
+    """
+    with session_factory() as session:
+        book = Book(
+            content_hash="0" * 64,
+            import_status="succeeded",
+            token_count=len(tokens),
+            created_at=_FIRST_RUN,
+        )
+        session.add(book)
+        session.flush()
+        session.add_all(
+            Occurrence(
+                book_id=book.id,
+                raw_text=token,
+                normalized_text=f"{token}_norm",
+                position=position,
+            )
+            for position, token in enumerate(tokens)
+        )
+        session.commit()
+        return book.id
+
+
+def _occurrence_snapshot(
+    session_factory: sessionmaker[Session], book_id: int
+) -> dict[int, tuple[str, str, int]]:
+    """`(raw_text, normalized_text, position)` per occurrence id — the exact
+    three fields spec hook H10 requires annotation never mutate."""
+    with session_factory() as session:
+        rows = session.execute(
+            select(
+                Occurrence.id, Occurrence.raw_text, Occurrence.normalized_text, Occurrence.position
+            ).where(Occurrence.book_id == book_id)
+        ).all()
+    return {row.id: (row.raw_text, row.normalized_text, row.position) for row in rows}
 
 
 # --------------------------------------------------------------------------
@@ -331,3 +380,59 @@ def test_property_annotating_two_imports_in_either_order_does_not_cross_contamin
 
     assert _mapping(read_repository, book_a) == _mapping(read_repository, book_a2)
     assert _mapping(read_repository, book_b) == _mapping(read_repository, book_b2)
+
+
+# --------------------------------------------------------------------------
+# Remediation — spec hook H10's missing property (verify-report CRITICAL-4).
+#
+# H10 enumerates five Hypothesis properties that must exist; this file
+# shipped only four. This is the fifth: "annotation never mutates
+# raw_text/normalized_text/position". `SqlAlchemyAnnotationWriteRepository.
+# _update_occurrences` sets only `pos`/`lemma` by construction today, so the
+# guarantee held BY ACCIDENT of the current implementation — nothing failed
+# a test if a future edit widened that UPDATE. This property closes that gap
+# directly, at the `AnnotateImport` boundary (AC-003-14 scenario 2).
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@settings(
+    max_examples=15, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture]
+)
+@given(tokens=_token_lists)
+def test_property_annotation_never_mutates_raw_text_normalized_text_or_position(
+    annotation_session_factory: sessionmaker[Session], tokens: list[str]
+) -> None:
+    """AC-003-14 scenario 2 / spec hook H10: for ANY generated token
+    sequence, `raw_text`, `normalized_text` and `position` are byte-identical
+    before and after a real `AnnotateImport.execute()` run. Each example
+    seeds its own book with a `normalized_text` deliberately distinct from
+    `raw_text`, so this proves both columns individually, not just one
+    standing in for the other.
+
+    MUTATION CHECK — this is an absence-style property; it passes on its
+    first run over correct code, which proves nothing on its own. Verified
+    by temporarily adding `raw_text="MUTATION_CHECK"` to `_update_occurrences`'s
+    `UPDATE` values in `annotation_write_repository.py`, running this test,
+    and observing Hypothesis shrink to the minimal failing example::
+
+        AssertionError: assert {383: ('MUTATION_CHECK', 'a_norm', 0)} == {383: ('a', 'a_norm', 0)}
+        Falsifying example: ...(tokens=['a'])
+
+    then reverting and confirming green again.
+    """
+    book_id = _seed_book_with_distinct_normalized(annotation_session_factory, tokens=tokens)
+    before = _occurrence_snapshot(annotation_session_factory, book_id)
+    read_repository = SqlAlchemyAnnotationReadRepository(annotation_session_factory)
+    write_repository = SqlAlchemyAnnotationWriteRepository(annotation_session_factory)
+    registry = _FakeRegistry(_DeterministicAnalyzer())
+
+    AnnotateImport(
+        reader=read_repository,
+        registry=registry,
+        writer=write_repository,
+        clock=_SequentialClock([_FIRST_RUN]),
+    ).execute(book_id, language="en")
+
+    after = _occurrence_snapshot(annotation_session_factory, book_id)
+    assert after == before
