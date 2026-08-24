@@ -121,19 +121,40 @@ Closes: REQ-003-009, 012, 017, 018; tracker merges to `main` after this slice.
 
 ## Chain diagram
 
-Stale as of corte 4: the real chain has 11 branches, not 5 — slices 2, 3 and
-4 were each split into sub-slices at existing commit boundaries after
-exceeding their line estimates (see "Estimation note" above).
+Final shape, after consolidation. During implementation the chain grew to 16
+branches because slices 2–5 were each split at commit boundaries when they
+overran their line estimates. Those sub-slices were **labels on a strictly
+linear history**, never divergent work, so consolidating them back cost no
+rebase: the nine intermediate labels were removed with `git branch -d`, which
+git accepts only for ancestors of `HEAD` and therefore doubled as a linearity
+proof. Every commit is preserved.
 
 ```
 main
- └─ feat/spec-003-annotation-tracker (draft, no-merge)
+ └─ feat/spec-003-annotation-tracker (draft, no-merge — planning artifacts)
      └─ 01-pin-guard ✅
-         └─ 02a-domain ✅ → 02b-port-errors ✅
-             └─ 03a-migration-models ✅ → 03b-write-repo ✅ → 03c-read-repo ✅
-                 └─ 04a-analyzer ✅ → 04b-registry ✅ → 04c-use-case ✅ → 04d-properties ✅
+         └─ 02-domain-port ✅
+             └─ 03-persistence ✅
+                 └─ 04-adapter-usecase ✅
                      └─ 05-api-frontend ✅
+                         └─ 06-remediation ✅
 ```
+
+| PR | Target | Commits | Changed lines (excl. `uv.lock`) |
+|---|---|---|---|
+| tracker | `main` | 1 | 2161 (planning docs only) |
+| 01-pin-guard | tracker | 5 | 457 |
+| 02-domain-port | 01 | 4 | 827 |
+| 03-persistence | 02 | 5 | 1843 |
+| 04-adapter-usecase | 03 | 4 | 1971 |
+| 05-api-frontend | 04 | 5 | 1645 |
+| 06-remediation | 05 | 11 | 1519 |
+
+The 400-line budget was never met by any slice, split or unsplit. Splitting to
+16 branches reduced bulk per PR without reaching the ceiling, and multiplied
+review ceremony instead. Recorded here so the next capability sizes its budget
+against this repository's measured ~2.5:1 test-to-source ratio rather than
+re-deriving the same lesson.
 
 ## Estimation note — read before planning slices 4 and 5
 
