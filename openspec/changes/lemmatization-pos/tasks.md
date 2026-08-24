@@ -124,5 +124,31 @@ Closes: REQ-003-009, 012, 017, 018; tracker merges to `main` after this slice.
 ```
 main
  └─ feat/spec-003-annotation-tracker (draft, no-merge)
-     └─ 01-pin-guard ✅ → 02a-domain ✅ → 02b-port-errors ✅ → 03-persistence 📍 → 04-adapter-usecase → 05-api-frontend
+     └─ 01-pin-guard ✅ → 02a-domain ✅ → 02b-port-errors ✅
+         └─ 03a-migration-models ✅ → 03b-write-repo ✅ → 03c-read-repo 📍
+             └─ 04-adapter-usecase → 05-api-frontend
 ```
+
+## Estimation note — read before planning slices 4 and 5
+
+Slices 2 and 3 were each split at existing commit boundaries after measuring
+**2.6x** and **4.5x** their line estimates.
+
+Cause: the estimates counted *source* lines while the budget counts *total*
+changed lines, and this repository writes roughly **2.5 lines of test per line
+of source** — AST structural guards, mutation-check documentation, Hypothesis
+properties, and a 100% coverage baseline. That ratio is house style, not bloat,
+and trimming tests or documentation to fit a number is explicitly forbidden
+(AGENTS.md §10).
+
+Multiply any source-line estimate by ~3.5 to get the reviewable total, and plan
+commit boundaries so a slice can be split with zero rebase.
+
+## Known debt — deferred, not forgotten
+
+`SqlAlchemyAnnotationWriteRepository._update_occurrences` issues one `UPDATE`
+per occurrence so a mid-run failure can be injected per statement (AC-003-15).
+Over a full novel that is hundreds of thousands of statements in a single
+transaction. Product vision §11 names performance as a risk and batching as its
+mitigation, and roadmap item 10 owns performance. Revisit there, with a failure
+injection mechanism that does not depend on per-row statement granularity.
