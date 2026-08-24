@@ -68,12 +68,20 @@ const rawSourceModules: Record<string, string> = import.meta.glob("../../src/**/
 // `_EXPECTED_FILES`. If the glob walk ever stopped reaching these, the guard
 // below would pass on every run without checking anything — this is the
 // mutation-resistance check for non-vacuity.
+//
+// Remediation (verify-report SUGGESTION 2): the three `lemmatization-pos`
+// annotation modules were never added here, so a glob regression that
+// dropped only the annotation files (while still reaching the pre-existing
+// import files above) would not have tripped this non-vacuity check.
 const FRONTEND_EXPECTED_FILES = [
   "src/pages/ImportPage.tsx",
   "src/components/ImportForm.tsx",
   "src/components/FrequencyTable.tsx",
   "src/api/imports.ts",
   "src/types/imports.ts",
+  "src/components/AnnotationTable.tsx",
+  "src/api/annotation.ts",
+  "src/types/annotation.ts",
 ] as const;
 
 function toRelativePath(globKey: string): string {
