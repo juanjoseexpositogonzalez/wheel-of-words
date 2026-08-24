@@ -72,18 +72,18 @@ Closes: REQ-003-002, 003, 005 (shape), 006 (shape), 008 (pure rules), 010 (pure 
 
 Closes: REQ-003-006, 007, 010, 011, 014, 015.
 
-- [ ] 3.1 [TEST] `test_alembic_0003.py`: upgrade adds `lemma`/provenance/correction; downgrade returns to `0002` baseline; SPEC-002 rows survive (AC-003-16)
-- [ ] 3.2 [MIGRATION] `migrations/versions/0003_annotation.py` — additive, `batch_alter_table`, reversible
-- [ ] 3.3 [TEST] `test_annotation_models.py`: ORM mapping drives the models — `Occurrence.lemma` nullable, `AnnotationProvenance` and `ManualCorrection` mapped with their relationships and constraints. **Added by the slice-2 task audit**: task 3.1 drives the *migration*, not the ORM mapping, so without this the old 3.3 `[IMPL]` had no preceding `[TEST]` (same defect class as `errors.py` in task 2.8)
-- [ ] 3.4 [IMPL] `infrastructure/persistence/models.py`: `Occurrence.lemma`, `AnnotationProvenance`, `ManualCorrection`
-- [ ] 3.5 [TEST] `test_persisted_columns_contain_no_lemma_naming` re-run against real columns — proves slice 1's allow-list mechanism
-- [ ] 3.6 [TEST] `test_annotation_write_repository_isolation.py`: AST-based, write repo never imports/references `ManualCorrection` (R3)
-- [ ] 3.7 [TEST] `test_annotation_write_repository.py`: writes unconditionally regardless of existing correction (R2); mid-batch failure leaves zero rows touched (AC-003-15)
-- [ ] 3.8 [IMPL] `infrastructure/persistence/annotation_write_repository.py` — one transaction: DELETE provenance → UPDATE occurrence → INSERT provenance
-- [ ] 3.9 [TEST] `test_annotation_read_repository.py`: precedence-join resolves effective values + origin markers (AC-003-10); reprocessing leaves correction byte-identical (AC-003-11)
-- [ ] 3.10 [IMPL] `infrastructure/persistence/annotation_repository.py` — `AnnotationReadRepository`, one LEFT JOIN, `resolve_effective` applied in `__post_init__`
-- [ ] 3.11 [TEST] Hypothesis: seeded corrections survive generated re-annotation runs
-- [ ] 3.12 [DOC] `docs/traceability-matrix.md`: REQ-003-006, 007, 010, 011, 014, 015
+- [x] 3.1 [TEST] `test_alembic_0003.py`: upgrade adds `lemma`/provenance/correction; downgrade returns to `0002` baseline; SPEC-002 rows survive (AC-003-16)
+- [x] 3.2 [MIGRATION] `migrations/versions/0003_annotation.py` — additive, `batch_alter_table`, reversible
+- [x] 3.3 [TEST] `test_annotation_models.py`: ORM mapping drives the models — `Occurrence.lemma` nullable, `AnnotationProvenance` and `ManualCorrection` mapped with their relationships and constraints. **Added by the slice-2 task audit**: task 3.1 drives the *migration*, not the ORM mapping, so without this the old 3.3 `[IMPL]` had no preceding `[TEST]` (same defect class as `errors.py` in task 2.8)
+- [x] 3.4 [IMPL] `infrastructure/persistence/models.py`: `Occurrence.lemma`, `AnnotationProvenance`, `ManualCorrection`
+- [x] 3.5 [TEST] `test_persisted_columns_contain_no_lemma_naming` re-run against real columns — proves slice 1's allow-list mechanism
+- [x] 3.6 [TEST] `test_annotation_write_repository_isolation.py`: AST-based, write repo never imports/references `ManualCorrection` (R3)
+- [x] 3.7 [TEST] `test_annotation_write_repository.py`: writes unconditionally regardless of existing correction (R2); mid-batch failure leaves zero rows touched (AC-003-15)
+- [x] 3.8 [IMPL] `infrastructure/persistence/annotation_write_repository.py` — one transaction: DELETE provenance → UPDATE occurrence → INSERT provenance
+- [x] 3.9 [TEST] `test_annotation_read_repository.py`: precedence-join resolves effective values + origin markers (AC-003-10); reprocessing leaves correction byte-identical (AC-003-11)
+- [x] 3.10 [IMPL] `infrastructure/persistence/annotation_repository.py` — `AnnotationReadRepository`, one LEFT JOIN, `resolve_effective` applied in `__post_init__`
+- [x] 3.11 [TEST] Hypothesis: seeded corrections survive generated re-annotation runs
+- [x] 3.12 [DOC] `docs/traceability-matrix.md`: REQ-003-006, 007, 010, 011, 014, 015
 
 ## Phase 4 — Adapter + use case (`feat/spec-003-04-adapter-usecase`)
 
@@ -124,5 +124,5 @@ Closes: REQ-003-009, 012, 017, 018; tracker merges to `main` after this slice.
 ```
 main
  └─ feat/spec-003-annotation-tracker (draft, no-merge)
-     └─ 01-pin-guard ✅ → 02a-domain ✅ → 02b-port-errors 📍 → 03-persistence → 04-adapter-usecase → 05-api-frontend
+     └─ 01-pin-guard ✅ → 02a-domain ✅ → 02b-port-errors ✅ → 03-persistence 📍 → 04-adapter-usecase → 05-api-frontend
 ```
