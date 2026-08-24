@@ -108,7 +108,11 @@ El sistema no se limitará a un libro; el primero será un corpus inicial.
 1. El usuario importa un EPUB.
 2. La aplicación procesa capítulos.
 3. El usuario filtra palabras de frecuencia media.
-4. Excluye nombres propios.
+4. Excluye nombres propios. **[Conocido, no implementado todavía]** SPEC-003
+   (`lemmatization-pos`) persiste y muestra `PROPN` como cualquier otra etiqueta
+   gramatical, sin filtro ni caso especial — aplicar uno ahí habría anticipado
+   el diseño de esta capability con una heurística no revisada. Llega con el
+   ítem 6 del roadmap (§12). Ver `docs/release-notes.md` §`lemmatization-pos`.
 5. Marca las conocidas.
 6. Revisa expresiones multipalabra específicas del idioma.
 7. Exporta las desconocidas a Anki.
