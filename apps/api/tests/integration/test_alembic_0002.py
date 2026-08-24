@@ -1,8 +1,15 @@
 """Alembic integration tests for revision 0002 — Book/Occurrence (T201).
 
-AC-002-11, H3. `alembic upgrade head` must create `book` and `occurrence`;
-`alembic downgrade -1` must remove both and return to the `0001_baseline`
-empty-schema baseline.
+AC-002-11, H3. `alembic upgrade 0002_book_occurrence` must create `book` and
+`occurrence`; `alembic downgrade 0001_baseline` must remove both and return to
+the empty-schema baseline.
+
+Pinned against the named revision, not `head`/`-1`, since `lemmatization-pos`
+slice 3 added `0003_annotation` on top: `head` now legitimately creates
+`annotation_provenance`/`manual_correction` too, and `-1` from `head` lands on
+`0002_book_occurrence` rather than `0001_baseline`. `test_alembic_0003.py`
+covers the newer revision; this file stays scoped to exactly the one it names,
+mirroring `test_alembic.py`'s existing pinning convention.
 
 REQ-002-008.
 """
@@ -25,8 +32,8 @@ def test_upgrade_and_downgrade_book_occurrence(
     alembic_config: Config,
     managed_engine: Callable[[Engine], Engine],
 ) -> None:
-    """AC-002-11: upgrade creates both tables; downgrade -1 removes them cleanly."""
-    command.upgrade(alembic_config, "head")
+    """AC-002-11: upgrade creates both tables; downgrade removes them cleanly."""
+    command.upgrade(alembic_config, "0002_book_occurrence")
 
     engine = managed_engine(
         create_engine(alembic_config.get_main_option("sqlalchemy.url"), future=True)
@@ -35,7 +42,7 @@ def test_upgrade_and_downgrade_book_occurrence(
     assert "book" in inspector.get_table_names()
     assert "occurrence" in inspector.get_table_names()
 
-    command.downgrade(alembic_config, "-1")
+    command.downgrade(alembic_config, "0001_baseline")
 
     inspector = inspect(engine)
     assert "book" not in inspector.get_table_names()
@@ -50,7 +57,7 @@ def test_upgrade_adds_no_display_form_column(
     managed_engine: Callable[[Engine], Engine],
 ) -> None:
     """AC-002-24: no `display_form` column exists on `book` or `occurrence`."""
-    command.upgrade(alembic_config, "head")
+    command.upgrade(alembic_config, "0002_book_occurrence")
 
     engine = managed_engine(
         create_engine(alembic_config.get_main_option("sqlalchemy.url"), future=True)

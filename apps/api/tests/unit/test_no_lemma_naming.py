@@ -535,6 +535,33 @@ def test_reflected_column_scan_covers_every_table_not_only_book_and_occurrence()
 
 
 @pytest.mark.unit
+def test_the_allow_list_is_now_exercised_by_a_genuine_persisted_lemma_column() -> None:
+    """Task 3.5: closes the non-vacuity gap slice 1 could not close on its own.
+
+    Every assertion in `test_persisted_columns_contain_no_lemma_naming` above
+    is an ABSENCE assertion. Before `lemmatization-pos` slice 3
+    (`infrastructure/persistence/models.py::Occurrence.lemma`,
+    `AnnotationProvenance.lemma_confidence`), no column anywhere in
+    `Base.metadata` was lemma-shaped at all, so that test passed regardless
+    of whether the allow-list exemption code path ever actually ran — the
+    same vacuity risk `test_the_scan_reaches_the_shipped_backend_sources`
+    exists to rule out for the file walk. This test proves the allow-list is
+    now genuinely exercised by real production columns, not merely by the
+    synthetic probe table in
+    `test_reflected_column_scan_covers_every_table_not_only_book_and_occurrence`.
+
+    MUTATION CHECK: temporarily renamed `Occurrence.lemma` to `pos_head` and
+    `AnnotationProvenance.lemma_confidence` to `pos_head_confidence`,
+    confirmed this test failed with an `AssertionError` naming the missing
+    columns, then reverted.
+    """
+    reflected = _reflected_column_names()
+
+    assert "lemma" in reflected
+    assert "lemma_confidence" in reflected
+
+
+@pytest.mark.unit
 def test_renaming_normalized_form_to_a_lemma_shaped_name_still_fails_despite_the_allow_list() -> (
     None
 ):

@@ -24,10 +24,16 @@ def test_base_metadata_declares_exactly_the_shipped_capability_tables() -> None:
     """No speculative tables: every table on `Base` maps to a shipped migration.
 
     SPEC-001's baseline shipped no tables (`Base.metadata.tables == []`).
-    SPEC-002 cut 2 (`0002_book_occurrence`) is the first capability to add
-    mapped models, so this now pins the closed set instead of emptiness.
+    SPEC-002 cut 2 (`0002_book_occurrence`) was the first capability to add
+    mapped models; `lemmatization-pos` slice 3 (`0003_annotation`) added
+    `annotation_provenance` and `manual_correction`.
     """
-    assert set(Base.metadata.tables) == {"book", "occurrence"}
+    assert set(Base.metadata.tables) == {
+        "book",
+        "occurrence",
+        "annotation_provenance",
+        "manual_correction",
+    }
 
 
 @pytest.mark.integration
@@ -43,4 +49,9 @@ def test_base_create_all_creates_exactly_the_mapped_tables(
 
     Base.metadata.create_all(engine)
 
-    assert set(inspect(engine).get_table_names()) == {"book", "occurrence"}
+    assert set(inspect(engine).get_table_names()) == {
+        "book",
+        "occurrence",
+        "annotation_provenance",
+        "manual_correction",
+    }
