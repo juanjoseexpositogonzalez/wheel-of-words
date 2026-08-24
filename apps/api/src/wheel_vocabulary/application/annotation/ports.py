@@ -23,10 +23,19 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from collections.abc import Sequence
+    from datetime import datetime
 
     from wheel_vocabulary.domain.annotation import LinguisticAnnotation
 
-__all__ = ["AnalyzerIdentity", "AnalyzerRegistry", "LinguisticAnalyzer"]
+__all__ = [
+    "AnalyzerIdentity",
+    "AnalyzerRegistry",
+    "AnnotatedToken",
+    "AnnotationReader",
+    "AnnotationRecord",
+    "AnnotationWriter",
+    "LinguisticAnalyzer",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,4 +96,93 @@ class AnalyzerRegistry(Protocol):
             UnsupportedLanguageError: no analyzer is configured for
                 ``language``, raised before any pipeline loads (AC-003-03).
         """
+        ...
+
+
+@runtime_checkable
+class AnnotatedToken(Protocol):
+    """The shape `AnnotateImport` needs from one persisted occurrence.
+
+    Structural, deliberately narrower than
+    `infrastructure/persistence/annotation_repository.py::AnnotatedOccurrence`
+    (design §P3's read model): `application` never imports that
+    `infrastructure` type (Art. VII.2-3), it only declares the two attributes
+    it actually reads. `AnnotatedOccurrence` happens to expose both, so it
+    satisfies this protocol without either module knowing about the other.
+
+    Declared with read-only ``@property`` members, not plain attribute
+    annotations: `AnnotatedOccurrence` and `AnnotateImport`'s own
+    ``_ValidatedAnnotation`` are both frozen dataclasses, and a plain
+    attribute annotation on a `Protocol` requires a *settable* attribute —
+    mypy rejects a frozen dataclass against that shape even though the
+    values are structurally identical.
+    """
+
+    @property
+    def occurrence_id(self) -> int: ...
+    @property
+    def raw_text(self) -> str: ...
+
+
+@runtime_checkable
+class AnnotationReader(Protocol):
+    """Port for reading the ordered token stream `AnnotateImport` annotates.
+
+    Reuses the SAME read path the future `GET` endpoint uses (design's data
+    flow diagram names `AnnotationReadRepository` for both) — the caller
+    only reads `occurrence_id`/`raw_text` off each returned item and ignores
+    the rest.
+    """
+
+    def read(self, book_id: int) -> Sequence[AnnotatedToken] | None:
+        """Return every occurrence of `book_id`, ordered by `position`.
+
+        `None` means `book_id` is unknown (REQ-003-013's "no book found"
+        case) — mirroring `BookRepository.frequency_pairs`'s established
+        None-vs-empty-list distinction, never conflated.
+        """
+        ...
+
+
+@runtime_checkable
+class AnnotationRecord(Protocol):
+    """The shape `AnnotateImport` hands to `AnnotationWriter.write()`.
+
+    Matches `infrastructure/persistence/annotation_write_repository.py::
+    OccurrenceAnnotation`'s five fields exactly, without importing that
+    `infrastructure` type — any object with these five attributes conforms.
+    Read-only ``@property`` members for the same reason as `AnnotatedToken`:
+    both the real `OccurrenceAnnotation` and `AnnotateImport`'s own
+    ``_ValidatedAnnotation`` are frozen dataclasses.
+    """
+
+    @property
+    def occurrence_id(self) -> int: ...
+    @property
+    def pos(self) -> str | None: ...
+    @property
+    def lemma(self) -> str | None: ...
+    @property
+    def pos_confidence(self) -> float | None: ...
+    @property
+    def lemma_confidence(self) -> float | None: ...
+
+
+@runtime_checkable
+class AnnotationWriter(Protocol):
+    """Port for the unconditional, atomic annotation write — spec §2.5 R2/R3.
+
+    Satisfied structurally by `infrastructure/persistence/
+    annotation_write_repository.py::SqlAlchemyAnnotationWriteRepository`.
+    """
+
+    def write(
+        self,
+        *,
+        annotations: Sequence[AnnotationRecord],
+        identity: AnalyzerIdentity,
+        language: str,
+        processed_at: datetime,
+    ) -> None:
+        """Persist every annotation in one transaction (REQ-003-014)."""
         ...
