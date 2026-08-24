@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     # for 10 MiB. Overridable with MAX_IMPORT_SIZE_BYTES.
     max_import_size_bytes: int = 4_194_304
 
+    # REQ-003-003, design §P4: the default annotation language is
+    # configuration, never a hardcode inside the port, the domain value
+    # object, or the persisted schema — this field is the ONE place a
+    # default lives. `analyzer_models` maps a language code to the pipeline
+    # package name `infrastructure/nlp/registry.py` loads; adding a second
+    # language is a config + adapter change, no migration.
+    annotation_language: str = "en"
+    analyzer_models: dict[str, str] = {"en": "en_core_web_sm"}
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
