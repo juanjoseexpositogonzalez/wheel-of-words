@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
     from sqlalchemy.orm import Session, sessionmaker
 
-    from wheel_vocabulary.application.annotation.ports import AnalyzerIdentity
+    from wheel_vocabulary.application.annotation.ports import AnalyzerIdentity, AnnotationRecord
 
 __all__ = ["OccurrenceAnnotation", "SqlAlchemyAnnotationWriteRepository"]
 
@@ -71,7 +71,7 @@ class SqlAlchemyAnnotationWriteRepository:
     def write(
         self,
         *,
-        annotations: Sequence[OccurrenceAnnotation],
+        annotations: Sequence[AnnotationRecord],
         identity: AnalyzerIdentity,
         language: str,
         processed_at: datetime,
@@ -82,6 +82,14 @@ class SqlAlchemyAnnotationWriteRepository:
         occurrence's `pos`/`lemma`, INSERT the new provenance rows, in that
         order, all inside one `Session` transaction. An empty `annotations`
         sequence is a no-op — no transaction is opened.
+
+        Typed against the `AnnotationRecord` PORT (`application/annotation/
+        ports.py`), not the concrete `OccurrenceAnnotation` below — this is
+        what lets `api/dependencies.py` assemble `AnnotateImport` with this
+        repository typed as `AnnotationWriter` (SPEC-003 task 5.5):
+        `OccurrenceAnnotation` instances (still constructed throughout the
+        Phase 3/4 test suite) satisfy `AnnotationRecord` structurally, so
+        every existing call site keeps working unchanged.
         """
         if not annotations:
             return
@@ -104,7 +112,7 @@ class SqlAlchemyAnnotationWriteRepository:
             session.commit()
 
     def _update_occurrences(
-        self, session: Session, annotations: Sequence[OccurrenceAnnotation]
+        self, session: Session, annotations: Sequence[AnnotationRecord]
     ) -> None:
         """One `UPDATE` per occurrence, all inside the caller's transaction.
 
@@ -125,7 +133,7 @@ class SqlAlchemyAnnotationWriteRepository:
         self,
         session: Session,
         *,
-        annotations: Sequence[OccurrenceAnnotation],
+        annotations: Sequence[AnnotationRecord],
         identity: AnalyzerIdentity,
         language: str,
         processed_at: datetime,
