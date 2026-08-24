@@ -218,6 +218,29 @@ def test_the_normalization_check_is_a_no_op_for_an_empty_score_array() -> None:
 
 
 @pytest.mark.integration
+def test_the_same_surface_form_takes_different_tags_in_different_contexts() -> None:
+    """AC-003-05 scenario 2 / ADR-0006, design §2.1 L6, §2.2 P5: this is the
+    scenario that actually proves POS is per-occurrence and contextual,
+    driven through the REAL adapter — not a hand-seeded storage fixture like
+    the `saw` rows in `test_annotation_read_repository.py`, which only prove
+    the storage/precedence layer honours whatever `pos` it is given, never
+    that the analyzer itself is contextual.
+
+    `saw` is the exact word design §2.1 L6/REQ-003-020's own docstring names
+    as the canonical example: the past tense of "see" (VERB) in one context,
+    a cutting tool (NOUN) in another. Both sentences fit inside the tagger's
+    own ±4-token receptive field (design §P2), so no sentence-boundary
+    recovery is needed for either tag to be assigned correctly."""
+    analyzer = SpacyLinguisticAnalyzer(_MODEL_NAME)
+
+    verb_result = analyzer.analyze(["I", "saw", "him", "yesterday"], language="en")
+    noun_result = analyzer.analyze(["I", "cut", "wood", "with", "a", "saw"], language="en")
+
+    assert verb_result[1].pos == "VERB"
+    assert noun_result[5].pos == "NOUN"
+
+
+@pytest.mark.integration
 def test_every_pos_confidence_is_within_the_closed_unit_interval() -> None:
     """§2.3 C1: bounded by construction, never a raw logit."""
     analyzer = SpacyLinguisticAnalyzer(_MODEL_NAME)
