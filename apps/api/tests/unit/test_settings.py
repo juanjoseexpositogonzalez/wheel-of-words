@@ -101,3 +101,41 @@ def test_max_import_size_bytes_env_override(monkeypatch: pytest.MonkeyPatch) -> 
     s = _settings_without_env_file()
 
     assert s.max_import_size_bytes == 64
+
+
+@pytest.mark.unit
+def test_annotation_language_defaults_to_english() -> None:
+    """REQ-003-003: the default language is configuration, not a hardcode
+    reachable from the port/domain/schema (design §P4) — it lives here."""
+    s = _settings_without_env_file()
+
+    assert s.annotation_language == "en"
+
+
+@pytest.mark.unit
+def test_annotation_language_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ANNOTATION_LANGUAGE", "fr")
+
+    s = _settings_without_env_file()
+
+    assert s.annotation_language == "fr"
+
+
+@pytest.mark.unit
+def test_analyzer_models_defaults_to_the_installed_english_pipeline() -> None:
+    """design §P4: adding a second language is config + adapter, no
+    migration — this dict is the one place a language code maps to a
+    concrete pipeline name."""
+    s = _settings_without_env_file()
+
+    assert s.analyzer_models == {"en": "en_core_web_sm"}
+
+
+@pytest.mark.unit
+def test_analyzer_models_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`pydantic-settings` parses a dict field from a JSON env value."""
+    monkeypatch.setenv("ANALYZER_MODELS", '{"en": "en_core_web_sm", "fr": "fr_core_news_sm"}')
+
+    s = _settings_without_env_file()
+
+    assert s.analyzer_models == {"en": "en_core_web_sm", "fr": "fr_core_news_sm"}
