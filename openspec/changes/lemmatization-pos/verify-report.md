@@ -1,27 +1,29 @@
 ```yaml
 schema: gentle-ai.verify-result/v1
-evidence_revision: sha256:8e4643cfc7d15eaa9bc98f46ab040bfa3b709c216138882bbebb67368ec6fcfd
-verdict: fail
-blockers: 1
-critical_findings: 4
-requirements: 17/24
-scenarios: 57/64
+evidence_revision: sha256:9e18297837bb4c07e23aff1aee21967234cdf0e1ee035356509ceec188869124
+verdict: pass_with_warnings
+blockers: 0
+critical_findings: 0
+requirements: 24/24
+scenarios: 64/64
 test_command: cd apps/api && uv run pytest -q
 test_exit_code: 0
-test_output_hash: sha256:fceefccd78fedffe1f8194fc0be0f3bddbce31941f4a2a8734d3c470407529aa
+test_output_hash: sha256:10fb90b73dcc6322b4b764ca78acd9172e67971793af57d770857fcacee1ccfc
 build_command: cd apps/api && uv run mypy src/wheel_vocabulary
 build_exit_code: 0
 build_output_hash: sha256:b8d3eac4c0777f9e6b0550d4404e94e833d4e7dd5bb8ea2dd258b827c4ba33f1
 ```
 
-## Verification Report
+## Verification Report — RE-VERIFICATION
 
-**Change**: `lemmatization-pos` (capability `003-lemmatization-pos`, SPEC-003, all 5 slices)
-**Branch**: `feat/spec-003-05d-e2e-docs` @ `bc34620` (clean tree, nothing pushed, no PR)
-**Version**: SPEC-003, governing constitution v2.0.0
+**Change**: `lemmatization-pos` (capability `003-lemmatization-pos`, SPEC-003, 5 slices + remediation)
+**Branch**: `feat/spec-003-06-remediation` @ `e581891` (working tree clean, nothing pushed, no PR)
+**Prior verdict**: `FAIL` — 1 blocker, 4 CRITICAL, 8 WARNING, 5 SUGGESTION
+**This verdict**: `PASS WITH WARNINGS` — 0 blockers, 0 CRITICAL, 1 WARNING, 3 SUGGESTION
 **Mode**: Strict TDD
+**Posture**: adversarial. Every claim below was re-executed or re-read against the repository. No self-report was accepted on trust.
 
-### Contract counts (counted by this verification, not inherited)
+### Contract counts (recounted by this verification)
 
 | Source | Requirements | Acceptance criteria | Scenarios |
 |--------|--------------|---------------------|-----------|
@@ -29,32 +31,32 @@ build_output_hash: sha256:b8d3eac4c0777f9e6b0550d4404e94e833d4e7dd5bb8ea2dd258b8
 | `specs/002-text-import/spec.md` (MODIFIED delta) | 1 (`REQ-002-007`) | 1 (`AC-002-10`) | 6 |
 | **Total** | **24** | **24** | **64** |
 
-> The launch brief stated "23 requirements, 24 ACs, 61 scenarios". Requirements and ACs
-> reconcile (23 SPEC-003 requirements + the `REQ-002-007` delta; 23 SPEC-003 ACs + `AC-002-10`).
-> **The scenario total does not**: the specs contain **64** `#### Scenario:` headings
-> (58 + 6), not 61. Counts in this envelope are the counted values.
+**Scenario count — the agent's claim is confirmed.** `58 + 6 = 64`, identical to my prior recount. The figure `61` appears exactly once in the entire repository, at `verify-report.md:32` — inside *my own prior report*, quoting the launch brief. It has never existed in any spec, task, or planning artifact. The agent's assertion is accurate.
 
 ### Completeness
 
 | Metric | Value |
 |--------|-------|
-| Tasks total | 51 (10 + 9 + 12 + 14 + 10, five phases) |
-| Tasks complete (`[x]`) | 51 |
-| Tasks incomplete | 0 |
-| Traceability rows for `REQ-003-*` | 23 / 23 present, each exactly once |
+| Tasks total | 55 (51 original + 4 remediation) |
+| Tasks complete (`[x]`) | 55 |
+| Tasks incomplete (`[ ]`) | 0 |
+| Traceability rows for `REQ-003-*` | 23 / 23 unique, each exactly once |
 | `AC-002-10` delta row present | Yes (`docs/traceability-matrix.md:76`) |
-| Traceability rows **not** `Cumplido` | **1 — `REQ-003-002` is `En progreso`** |
+| Rows marked `En progreso` | **0** |
+| Rows marked `Pendiente` / `Bloqueado` | **0** |
 
-### Build & Tests Execution
+> Status-scan note: a naive `grep` for `Pendiente` returns three hits — all false positives. Two are the legend (`:22`) and the process description (`:115`, `:118`); the third (`:93`) is the word appearing *inside prose* on a `Cumplido` row, quoting the stale note that WARNING-8 asked to be corrected. No row carries a non-`Cumplido` status.
 
-**Backend tests**: ✅ 452 passed, 1 warning, exit `0`
+### Build & Tests Execution — all re-run by this verification
+
+**Backend tests**: ✅ **470 passed**, **0 warnings**, exit `0` (was 452 + 1 `DeprecationWarning`)
 
 ```text
 $ cd apps/api && uv run pytest -q
-452 passed, 1 warning in 16.93s
+470 passed in 17.63s
 ```
 
-**Backend coverage**: ✅ 100% (928/928 statements, 90/90 branches, 0 missed)
+**Backend coverage**: ✅ **100%** — 928/928 statements, 90/90 branches, 0 missed, every module 100%
 
 ```text
 $ cd apps/api && uv run pytest --cov=wheel_vocabulary --cov-report=term-missing
@@ -63,177 +65,207 @@ TOTAL   928   0   90   0   100%
 
 **Type check**: ✅ `mypy src/wheel_vocabulary` — Success: no issues found in 47 source files, exit `0`
 **Lint**: ✅ `ruff check .` — All checks passed, exit `0`
-**Format**: ✅ `ruff format --check .` — 102 files already formatted, exit `0`
+**Format**: ✅ `ruff format --check .` — 105 files already formatted, exit `0`
 
-**Migrations**: ✅ round-trip verified against a fresh temp database
+**Migrations**: ✅ full round-trip re-executed
 
 ```text
-$ uv run alembic upgrade head      -> 0003_annotation (head)
-$ uv run alembic downgrade -1      -> 0002_book_occurrence
-$ uv run alembic upgrade head      -> 0003_annotation
+$ uv run alembic upgrade head    -> 0003_annotation (head)
+$ uv run alembic downgrade -1    -> 0002_book_occurrence
+$ uv run alembic upgrade head    -> 0003_annotation
 ```
 
-**Frontend tests**: ✅ 56 passed / 14 files, exit `0`
-**Frontend coverage**: 100% statements, 100% lines, 84.61% branch, 88% functions
+**Frontend tests**: ✅ 66 passed / 15 files, exit `0` (was 56 / 14)
+**Frontend coverage**: 100% statements, 100% lines, **100% functions**, **81.81% branch**
 **Frontend lint**: ✅ `eslint --max-warnings 0`, exit `0`
 **Frontend typecheck**: ✅ `tsc --noEmit`, exit `0`
 **E2E**: ✅ 4 passed (`playwright test`, real backend + real `en_core_web_sm`), exit `0`
 
-**Coverage gates (Constitution Art. II)**: ✅ met
-`domain/` 100%, `application/` 100% (≥90% required); global backend 100%, frontend 100% statements / 84.61% branch (≥80% required).
+**Pinned schema**: ✅ unchanged
+`shasum -a 256 apps/api/src/wheel_vocabulary/api/schemas/import.v1.json` → `def94cb6361531b21f382c862120914419b867b6601aa58d763d49d65a554258`, **1852 bytes** — byte-identical to the pinned value.
+
+**Working tree**: ✅ `git status` → clean. No leftover mutation from any mutation check.
+
+**Coverage gates (Constitution Art. II)**: ✅ met with margin
+`domain/` 100%, `application/` 100% (≥90% required); backend global 100%, frontend 100% statements / 81.81% branch (≥80% required).
 
 ---
 
-### Claims Audit — each independently re-executed or re-read
+## Regression risk — frontend branch coverage drop
 
-| # | Claim | Verdict | Evidence |
-|---|-------|---------|----------|
-| 1 | 452 backend, 56 frontend, 4 E2E, 100% backend coverage | ✅ **Confirmed** | All four re-run above; coverage `928/928` statements, `90/90` branches |
-| 2 | `import.v1.json` byte-identical to `main`; SPEC-002 suite passes unchanged | ✅ **Confirmed** | Blob SHA identical on both refs: `git rev-parse HEAD:…/import.v1.json` == `git rev-parse main:…` == `6726750…`. File SHA-256 `def94cb6…554258`, 1852 bytes — exactly the value the matrix pins. `git diff --stat main..HEAD` shows the schema directory gained only `annotation.v1.json` |
-| 3 | Naming guard narrowed, never weakened, both legs | ✅ **Confirmed** | See dedicated section below |
-| 4 | `domain/` stdlib only; spaCy in exactly one file | ✅ **Confirmed (fact)** / ⚠️ **unguarded** | `domain/` imports only `unicodedata`, `collections`, `dataclasses`, `typing` + intra-domain. `grep -rn "^\s*(import\|from) (spacy\|thinc\|stanza)"` over `src/` returns only `infrastructure/nlp/spacy_analyzer.py:52-54,63-64`. **But no test enforces the "outside the adapter" half — see CRITICAL-1** |
-| 5 | Confidence honest; `lemma_confidence` NULL, never derived | ✅ **Confirmed** | `softmax_normalize = True` flip at `spacy_analyzer.py:129`; `_run_self_check()` called at `:133`; both legs raise `AnalyzerUnavailableError` (`:88`, `:97`). `lemma_confidence=None` is a **literal** at `:154`, not a computation. `test_a_broken_softmax_normalization_fails_construction` multiplies scores ×10 and asserts the error — the self-check is genuinely wired. `test_lemma_confidence_is_always_null_never_derived_from_pos_confidence` asserts *all* `lemma_confidence is None` **and** *some* `pos_confidence is not None` — that second clause is what rules out mirroring. `test_every_pos_confidence_is_within_the_closed_unit_interval` runs the real model |
-| 6 | Re-tokenization: `Doc(vocab, words=…)`, never `nlp(text)` | ✅ **Confirmed** | `_build_doc` at `:174`. `test_analyze_builds_the_doc_directly_and_never_calls_the_pipeline_as_text` monkeypatches `type(nlp).__call__` to raise — runtime proof, not inspection |
-| 7 | Write repo never imports/references `ManualCorrection`; correction survives byte-identical | ✅ **Confirmed** | Imports only `AnnotationProvenance`, `Occurrence` (`:35`). AST guard `test_annotation_write_repository_isolation.py` checks `ast.Name`/`Attribute`/`alias`/`ImportFrom`/`Constant`, with two synthetic detector proofs. The string `ManualCorrection` appears only inside the module **docstring** (`:4`, `:8`) — exempt under the same AST criterion the project applies everywhere. Survival proven by `test_reprocessing_leaves_the_correction_byte_identical` + a Hypothesis property |
-| 8 | Atomicity: mid-batch failure leaves zero rows touched | ✅ **Confirmed** | `test_a_failure_mid_transaction_leaves_zero_rows_touched` installs a `before_cursor_execute` listener that raises on the **second** `UPDATE occurrence`, then asserts the **first** occurrence's already-issued update did not survive and `provenance_count == 0`. Genuine DB-level injection |
-| 9 | Offline: zero socket connections | ✅ **Confirmed** | `block_outbound_sockets` monkeypatches `socket.socket.connect` **and** `connect_ex` to raise; `test_construction_and_analysis_succeed_with_outbound_network_disabled` covers both model load and analysis |
-| 10 | Privacy: no raw text in logs or error bodies | ✅ **Confirmed** | `test_annotate_import_logging.py` — sentinel `zzqxsentinel` across the success path and 4 failure paths; asserts code + import id + position only, and no traceback. Documented mutation check (raw-token log added, failure observed, reverted) |
-| 11 | Hypothesis properties assert the **rejections** | ✅ **Confirmed** | `test_annotate_import_properties.py:14-25` — numbered docstring block naming both non-assertions and citing §5 AMB-1 / AMB-3, `REQ-003-020`, `REQ-003-021`. No token-permutation assertion exists anywhere in the annotation suite (`grep -rn "permut"` returns only SPEC-002's `test_frequency.py`, which is context-free and legitimate) |
-| 12 | All 23 REQ-003 rows + AC-002-10 delta, accurate, none stale | ❌ **Refuted** | 23 rows + delta row all present. **`REQ-003-002` is still `En progreso`** — and its own note is *accurate*, not stale: the pending item genuinely remains untested. `REQ-003-009` **is** correctly `Cumplido`. Two lesser inaccuracies noted in WARNINGs |
+**Verdict: benign, confirmed, and above the floor — but the reported number is slightly wrong.**
 
----
-
-### The naming guard (claim 3) — examined in detail, both legs
-
-| Check | Python leg (`test_no_lemma_naming.py`) | TypeScript leg (`no-lemma-naming.test.ts`) |
-|-------|----------------------------------------|--------------------------------------------|
-| Still AST-based? | ✅ `ast.parse` + `ast.walk` | ✅ `ts.createSourceFile` + `forEachChild` |
-| Pattern unchanged? | ✅ `lemma\|lemas\|lexeme\|lexema`, `re.IGNORECASE` | ✅ `/lemma\|lemas\|lexeme\|lexema/i` |
-| Any file/directory excluded? | ✅ None — `_PACKAGE_ROOT.rglob("*.py")`, plus `migrations/versions/*.py` and **all** `Base.metadata.tables` | ✅ None — `import.meta.glob("../../src/**/*.{ts,tsx}")` |
-| Allow-list = exact enumeration? | ✅ 5 names, `frozenset`, matched by `name not in …` (equality, never substring) | ✅ 4 names, `Set.has(text)` |
-| Allow-list drifted since slice 1? | ✅ **No.** `git log -S'_ALLOWED_LEMMA_SYMBOLS'` returns exactly one commit: `e065730` (slice 1). `git diff e065730..HEAD` on the file shows **only an additive test** (`test_the_allow_list_is_now_exercised_by_a_genuine_persisted_lemma_column`, task 3.5) | ✅ **No.** `git diff e065730..HEAD` on the file is **empty** |
-| Coverage widened, not narrowed | ✅ slice 1 fixed 3 gaps: no allow-list → allow-list; hardcoded `0002` migration → glob all; `("book","occurrence")` → all tables | ✅ same allow-list mechanism |
-
-Allow-list contents, verified identical to slice 1's enumeration and pinned by an equality test in each leg:
-
-- Python (5): `lemma`, `lemma_confidence`, `lemma_origin`, `automatic_lemma`, `lemmatizer`
-- TypeScript (4): the same minus `lemmatizer` (a backend-only spaCy pipe-name literal) — correctly omitted
-
-**The strongest evidence the guard was not weakened is behavioural, not textual.** Slices 3–5 each hit the guard and each time bent *their own code*, never the guard:
-
-- Slice 4 named the adapter attribute `self.lemmatizer`, not `self._lemmatizer`, because the guard matches by exact equality (`spacy_analyzer.py:120-124`, with the reason in a comment).
-- Slice 5 discovered Pydantic auto-titles `lemma` → `"Lemma"` and publishes it into `components.schemas.*`, where the OpenAPI leg exempts nothing. The fix was explicit `Field(title="lemma")` overrides — **the served document was changed to satisfy the guard, not the allow-list extended to admit `"Lemma"`.**
-- Slice 5's UI header is Spanish `Lema` (single `m`), which the pattern does not match, so no allow-list entry was needed.
-
-This is exactly the direction `REQ-003-023` and `AC-002-10`'s rationale demand.
-
----
-
-### Spec Compliance Matrix — non-compliant scenarios only
-
-57 of 64 scenarios are ✅ COMPLIANT with a covering test that passed in this run. The 7 that are not:
-
-| Requirement | Scenario | Covering test | Result |
-|-------------|----------|---------------|--------|
-| REQ-003-001 | sc.3 — "The NLP dependency installs from a wheel, not a source build" | (none — `test_python_pin.py` has 3 tests covering sc.1 and sc.2 only) | ❌ UNTESTED |
-| REQ-003-002 | sc.2 — "No spaCy type escapes the adapter" | (none — `test_domain_isolation.py` walks `domain/` only; `test_annotation_ports.py` inspects `ports.py`/`domain/annotation.py` only) | ❌ UNTESTED |
-| REQ-003-004 | sc.3 — "SPEC-002 token boundaries survive annotation" (`state-of-the-art`, `don't`) | (none — those fixtures appear only in SPEC-002's `test_tokenizer.py`/`test_normalizer.py`, never through the annotation path) | ❌ UNTESTED |
-| REQ-003-005 | sc.2 — "The same form takes different tags in different contexts" | (none — the `saw` rows in `test_annotation_read_repository.py` are hand-seeded storage fixtures, not analyzer output) | ❌ UNTESTED |
-| REQ-003-009 | sc.3 — "Nothing acts on confidence in this capability" | (partial — `no-linguistic-rules.test.ts` forbids `sort`/`reverse` in the annotation modules; no filtering/threshold search, and no backend leg. `grep -rn "threshold"` over both suites: zero hits) | ⚠️ PARTIAL |
-| REQ-003-013 | sc.2 — "Reprocessing changes no tokenization output" (`raw_text`/`normalized_text`/`position` byte-identical after a run) | (none — the only such assertion is in `test_alembic_0003.py`, which covers the **migration**, `AC-003-16`, not an annotation run) | ❌ UNTESTED |
-| REQ-003-022 | sc.2 — "No proper-noun special case exists anywhere" | (partial — positive scenario covered on both legs; the structural zero-match search does not exist) | ⚠️ PARTIAL |
-
-**Compliance summary**: 57/64 scenarios compliant; 5 UNTESTED, 2 PARTIAL.
-
-Requirements fully satisfied (every scenario covered): **17/24**. Not fully satisfied:
-`REQ-003-001`, `REQ-003-002`, `REQ-003-004`, `REQ-003-005`, `REQ-003-009`, `REQ-003-013`, `REQ-003-022`.
-
-### Verification hook H10 — partially unimplemented
-
-Spec §8 hook H10 enumerates the Hypothesis properties that must exist. Present and passing:
-confidence-within-range, re-run stability, batch/read/write-order independence, seeded corrections
-surviving reprocessing. **Missing**: *"annotation never mutates `raw_text`/`normalized_text`/`position`"*.
-`test_annotate_import_properties.py` contains exactly four properties and none of them is this one.
-
-Mitigating structural fact: `_update_occurrences` issues
-`update(Occurrence).values(pos=…, lemma=…)` and nothing else, so the three columns are
-unreachable by the write path. The guarantee holds today by construction; it is simply unguarded
-against a future edit — which is precisely what `AC-003-04`/`AC-003-14` and H10 exist to prevent.
-
----
-
-### Registered deviations — judged
-
-| # | Deviation | Judgment |
-|---|-----------|----------|
-| 1 | `AnnotatedOccurrence.lemma` rather than `effective_lemma` | ⚠️ **Acceptable but not ideal.** Within the class it is unambiguous — `lemma` (effective), `automatic_lemma` (retained audit, R4), `lemma_origin` (R5), and the docstring explains the asymmetry. **However** the same identifier `lemma` means the *automatic* value on `Occurrence` (persistence model) and the *effective* value on `AnnotatedOccurrence` — two meanings, one name, same package, while POS keeps the unambiguous `effective_pos`/`automatic_pos`. The claimed constraint is soft: `REQ-003-023` permits any allow-list entry that "denotes a genuine lemma", and `effective_lemma` qualifies, so extending the enumeration by one reviewed name was available and legitimate. Not a spec breach; a readability debt |
-| 2 | One `UPDATE` per occurrence in `_update_occurrences` | ✅ **Deferring is defensible.** No SPEC-003 requirement constrains write throughput; `product-vision §11` names performance as a risk and roadmap item 10 owns it. The granularity is load-bearing for `AC-003-15`'s injectable mid-run failure, which is a real requirement it *does* serve. One caveat: the debt is recorded in `tasks.md` §Known debt — a change artifact that moves on archive. It should be promoted to a durable backlog entry before this change is archived, or it will be forgotten exactly as the section title warns |
-| 3 | Spanish UI copy (`Lema`) | ✅ **Correct.** Verified against the shipped convention: `FrequencyTable.tsx`, `ImportForm.tsx`, `DeleteImportButton.tsx`, `StatusPage` and `App.tsx` are all Spanish. Design §P6 anticipated it. `Lema` (single `m`) matches neither `lemma` nor `lemas`, so the guard needed no new entry — the code bent, not the guard |
-| 4 | Explicit `Field(title=…)` overrides on the annotation DTOs | ✅ **Correct and necessary.** Pydantic auto-titles `lemma` → `"Lemma"`, FastAPI publishes it into `components.schemas.*`, and the OpenAPI leg exempts nothing. Fixing the published document rather than admitting `"Lemma"` to the allow-list is the honest resolution and strengthens the guard's non-vacuity |
-| 5 | Task 4.3's two other clauses moved to task 4.9 | ✅ **Verified true; nothing dropped.** All three assertions exist in `tests/unit/test_annotate_import.py`: `test_a_short_return_fails_annotation_failed_and_writes_nothing` (length mismatch), `test_a_non_upos_tag_fails_annotation_failed_and_writes_nothing` (stub emits `NN`, `:270`), `test_an_out_of_range_confidence_fails_annotation_failed_and_writes_nothing` (stub emits `1.4`, `:282`, asserting no clamp). The stated rationale is also sound — the real adapter cannot emit a non-UPOS tag (`attribute_ruler`), an out-of-range confidence (softmax-normalised), or a length mismatch (`zip` by construction), and spec §4 assigns `ANNOTATION_FAILED` to the caller, never to the adapter |
-| 6 | Slice 2's strict-TDD violation; "no further violations in 3–5" | ⚠️ **Partially refuted.** The **plans** for phases 3, 4 and 5 are clean — every `[IMPL]`/`[MIGRATION]` is preceded by a driving `[TEST]`, and the audit's two fixes (task 3.3, task 4.4 reorder) are visible in `tasks.md`. **But two slice-5 items contradict the claim**: (a) `apps/web/src/api/annotation.ts` was implemented before its test — self-caught and corrected by removing the implementation, re-observing a genuine RED (module not found), then restoring; disclosed in the apply-progress artifact, and the remediation is the right one; (b) `apps/web/src/pages/ImportPage.tsx` was modified to add the annotate trigger without appearing in **any** task and without a component test — see WARNING-4 |
-
-### Known accepted product consequences — are they durably documented?
-
-| Consequence | Documented? | Where |
+| Claim | Observed | Judgment |
 |---|---|---|
-| Confidence visible but **not actionable** until SPEC-004; UI must not imply otherwise | ✅ Behaviour correct, ⚠️ record incomplete | `AnnotationTable.tsx` has no filter, sort, threshold or action control — only `<td>` text; verified by reading the component and by `no-linguistic-rules.test.ts`'s `FORBIDDEN_METHODS`. Recorded in spec §5 AMB-2, §6 PV-2 and the `REQ-003-009` matrix row. **But AMB-2's explicit instruction — "Record it as such in the release notes" — is unsatisfied: no release-notes or changelog file exists anywhere in the repository** (`docs/` contains only `adr/`, `architecture/`, `assets/`, `constitution.md`, `decisions-log.md`, `definition-of-done.md`, `glossary.md`, `product-vision.md`, `traceability-matrix.md`) |
-| No proper-noun filter; `product-vision §10` step 4 stays incomplete | ⚠️ Partially | Recorded in spec §6 PV-4 and §7 (both survive archive into `openspec/specs/`). **`docs/product-vision.md` itself carries no marker** — line 111 still reads "Excluye nombres propios" with nothing indicating it is knowingly unimplemented, and `git diff main..HEAD -- docs/` shows only `traceability-matrix.md` was touched. A reader of the product vision cannot tell |
-| Punctuation-free stream ⇒ tagger scores below the model card's `0.973` | ✅ **Yes, durably and well** | `design.md` §P2 lines 108-125: names the cause (SPEC-002 T6 `_contains_letter`), states the effect ("accuracy on this stream will be measurably lower, concentrated at sentence junctions"), and records a three-option decision table with "Accept the degraded signal — **Chosen**". This is a genuine durable record. It is **not** in release notes (none exist), so it is engineering-facing only |
+| Drop from 84.61% | 84.61% (prior report) | ✅ correct baseline |
+| Now 82.6% | **81.81%** | ⚠️ self-report off by 0.79 pt |
+| Above ≥80% floor | 81.81% ≥ 80% | ✅ **yes**, 1.81 pt margin |
+| Cause = one defensive unreachable guard in `ImportPage.tsx` | Confirmed | ✅ |
+
+`apps/web` exposes exactly one coverage invocation (`vitest run --coverage`); there is no second configuration that yields 82.6%. The true current figure is **81.81%**.
+
+The cause is confirmed genuine. `ImportPage.tsx:35`:
+
+```tsx
+function handleAnnotate(): void {
+  if (result === null) {
+    return;
+  }
+```
+
+`handleAnnotate` is bound to a button rendered **inside** `{result && ( … )}` (`:55`), so `result` cannot be `null` at call time. The guard is unreachable by construction — a defensive early return, not lost coverage. **No coverage was lost anywhere else**: statements, lines and functions are all 100%, and every other file's branch percentage is unchanged from the prior run (`AnnotationTable.tsx` 75%, `ImportForm.tsx` 57.14%, `ExportButton` 85.71% are all pre-existing).
 
 ---
 
-### TDD Compliance
+## Findings claimed closed — independently audited
+
+| # | Finding | Verdict | Evidence |
+|---|---------|---------|----------|
+| 1 | **BLOCKER / CRITICAL-1** — whole-package NLP isolation guard | ✅ **Genuinely closed, and strong** | See dedicated section below |
+| 2 | **CRITICAL-2** — `AC-003-04` sc.3 token boundaries | ✅ **Closed** | `tests/integration/test_annotate_import_token_boundaries.py`. Runs the **real** `ImportText` → **real** `SqlAlchemyBookRepository` → **real** `AnnotateImport` → **real** read/write annotation repositories over the same DB. Only the analyzer is a deterministic stdlib fake, and the docstring justifies exactly that ("token-boundary preservation across the SPEC-002/SPEC-003 boundary, not the real model's linguistic output"). Fixtures are SPEC-002's own hardest cases: `state-of-the-art` and `don't` |
+| 3 | **CRITICAL-3** — `AC-003-05` sc.2 contextual POS via the real model | ✅ **Closed — real adapter confirmed** | `test_spacy_analyzer.py:220-240`. Constructs `SpacyLinguisticAnalyzer(_MODEL_NAME)` — the **real** adapter loading the **real** `en_core_web_sm` — then calls `analyzer.analyze(["I","saw","him","yesterday"])` → asserts `[1].pos == "VERB"`, and `analyzer.analyze(["I","cut","wood","with","a","saw"])` → asserts `[5].pos == "NOUN"`. **Not** hand-seeded; the docstring explicitly contrasts itself against the seeded `saw` rows in `test_annotation_read_repository.py`. This genuinely proves ADR-0006's per-occurrence POS |
+| 4 | **CRITICAL-4** — H10 property, no mutation of token fields | ✅ **Closed** | `test_annotate_import_properties.py:403` `test_property_annotation_never_mutates_raw_text_normalized_text_or_position`. Property count is now **5** (was 4), matching spec §8 hook H10's enumeration. Documented mutation check reproduces the claimed shrink |
+| 5 | **CRITICAL** — `docs/release-notes.md` | ✅ **Closed — all four recorded and accurate** | 5694 bytes. (a) sub-`0.973` accuracy from the punctuation-free stream, naming SPEC-002 rule T6 as cause and stating the effect concentrates at sentence junctions (`:27-40`); (b) confidence visible but **not actionable** until SPEC-004, naming `AnnotationTable.tsx` and recording the rejected alternative (`:43-60`); (c) no proper-noun filter, tying the gap to `product-vision.md` §10 step 4 and roadmap item 6 (`:62-76`); (d) `lemma_confidence` always `NULL` for English, by design not omission, with the user-facing consequence (`:76-84`) |
+| 6 | **WARNING-4** — `ImportPage.tsx` component test | ✅ **Closed** | `apps/web/tests/pages/ImportPage.test.tsx`, **7 behavioral tests**: absence of trigger before import; trigger present after import with no table; in-flight state with disabled trigger; table rendered on success; error rendered perceptibly with table never rendered; state reset on re-import; full clear on delete. 27 behavioral queries, zero smoke-only renders. Function coverage `0% → 100%` confirmed in the coverage run |
+| 7 | **Scenario count** — 58+6=64, "61" never in repo | ✅ **Confirmed** | See contract counts above |
+| 8 | **WARNING-2** — `product-vision.md` proper-noun marker | ✅ **Closed** | `docs/product-vision.md:111` now reads `4. Excluye nombres propios. **[Conocido, no implementado todavía]** SPEC-003` |
+| 9 | **WARNING-3** — structural zero-match searches | ✅ **Closed, including the wrong rationale** | New `tests/unit/test_no_confidence_action_or_propn_filter.py` adds package-wide backend legs for both `AC-003-09` sc.3 and `AC-003-23` sc.2. Separately, the factually-wrong comment in `no-linguistic-rules.test.ts` is now corrected in place (`:52-62`), explicitly stating the prior claim "was FACTUALLY WRONG" and pointing at the real structural proof. Honest correction, not a quiet edit |
+| 10 | **WARNING-5** — `AC-003-01` sc.3 (wheel, not source build) | ✅ **Closed via an honest proxy** | `test_python_pin.py::test_the_locked_resolution_carries_a_cp312_wheel_not_only_an_sdist` parses `uv.lock` and asserts `spacy`/`thinc` carry a `cp312` wheel rather than only an `sdist`. The docstring is explicit that this is a proxy ("cannot be observed from inside the test process"). Sound: a lock entry with a matching wheel is precisely what prevents `uv sync` attempting a source build |
+| 11 | **WARNING-6** — `DeprecationWarning` under a zero-warning gate | ✅ **Closed** | `470 passed` with **no** warning line (was `452 passed, 1 warning`). Fixed at source in `aa3883c` by not binding a raw `datetime` through sqlite3's deprecated adapter — the gate was not loosened |
+| 12 | **WARNING-8** — matrix inaccuracies | ⚠️ **Partially closed — see WARNING-1** | The stale "Pendiente para el corte 4" notes on `REQ-003-011`/`REQ-003-014` are now corrected in place with explicit `**Corrección (verify-report WARNING-8):**` markers naming the test that closed each. The test-count correction, however, reintroduced a stale number |
+| 13 | **SUGGESTION-1** — snake_case `manual_correction` | ✅ **Closed** | Write-repo guard now scans for the snake_case table name; mutation-checked |
+| 14 | **SUGGESTION-2** — `FRONTEND_EXPECTED_FILES` non-vacuity | ✅ **Closed** | Extended with `AnnotationTable.tsx`, `api/annotation.ts`, `types/annotation.ts`, with the reason recorded inline |
+| 15 | **SUGGESTION-4** — promote `_update_occurrences` debt | ✅ **Closed durably** | `docs/decisions-log.md:50` — full row with rationale, roadmap item 10 as owner, and an explicit note that it was promoted so the debt survives archive |
+
+---
+
+## CRITICAL-1 (the blocker) — examined in depth
+
+`tests/unit/test_nlp_isolation.py` (154 lines, 5 tests). **This is not vacuous.** Audited against all four criteria:
+
+| Criterion | Finding |
+|---|---|
+| Whole-package scan | ✅ `_PACKAGE_ROOT.rglob("*.py")` over `src/wheel_vocabulary` — every layer, no directory excluded |
+| Non-vacuity test present | ✅ `test_the_scan_reaches_the_whole_package_across_every_layer` asserts `scanned >= _EXPECTED_FILES`, a 9-file set deliberately spanning `domain/`, `application/`, `infrastructure/nlp/`, `infrastructure/persistence/` and `api/` — so a walk that collapsed to `domain/` alone (the pre-existing guard's scope) still fails |
+| Allow-list correctly scoped | ✅ Exempted by **string equality** on one exact path (`label == _ALLOWED_FILE`), never a prefix. Proven by a dedicated test — `test_the_allow_list_exemption_is_applied_by_exact_path_not_a_directory_prefix` — which confirms `registry.py`, a *sibling in the same directory*, is still scanned. Plus `test_the_adapter_file_itself_does_import_spacy` guards against a stale/mistyped allow-list path silently exempting the wrong file |
+| Mutation-checked | ✅ Two ways. Documented real mutation in the module docstring (`:27-35`) with the verbatim observed `AssertionError`, **and** `test_an_nlp_import_outside_the_adapter_would_be_caught`, which feeds the detector synthetic `spacy`/`thinc`/`stanza` sources so the detector's own liveness is asserted on every run, not just once by hand |
+
+The AST criterion is correct: `ast.Import` and `ast.ImportFrom` with `level == 0`, root-package extraction via `.split(".")[0]`. Relative imports are correctly ignored (they cannot reach `spacy`).
+
+**Is flipping `REQ-003-002` to `Cumplido` now genuinely accurate?** ✅ **Yes.** The row's second clause (spec hook H2, "no spaCy type outside the adapter") is now enforced by an executing test, not merely true by accident. I independently confirmed the underlying fact as well:
+
+```text
+$ grep -rnE '^[[:space:]]*(import|from)[[:space:]]+(spacy|thinc|stanza)\b' src/
+src/wheel_vocabulary/infrastructure/nlp/spacy_analyzer.py:53,54,63,64
+```
+
+Exactly one file. `registry.py` matches a naive `grep spacy` only because it imports *our own* `SpacyLinguisticAnalyzer` class — not the library.
+
+---
+
+## Mutation-check audit — all five claims verified
+
+The repository convention is that every absence assertion carries its RED evidence in the test docstring. **12 documented `MUTATION CHECK` blocks** exist across the suite. All five specifically claimed were found with output matching the claim verbatim:
+
+| Claimed mutation | Location | Observed output in docstring | Match |
+|---|---|---|---|
+| `import spacy` in `use_cases.py` | `test_nlp_isolation.py:27` | `application/annotation/use_cases.py imports 'spacy' (only infrastructure/nlp/spacy_analyzer.py may)` | ✅ |
+| `raw_text="MUTATION_CHECK"` in `_update_occurrences` | `test_annotate_import_properties.py:413` | `assert {383: ('MUTATION_CHECK','a_norm',0)} == {383: ('a','a_norm',0)}` — consistent with the claimed shrink to a single token | ✅ |
+| `occurrence.pos === "PROPN"` in `AnnotationTable.tsx` | `no-linguistic-rules.test.ts:233` | violation at **line 72** | ✅ |
+| `filter_by_confidence` stub in `annotation_repository.py` | `test_no_confidence_action_or_propn_filter.py:125` | `annotation_repository.py:51 identifier 'filter_by_confidence'` | ✅ |
+| `"manual_correction"` literal in write repo | `test_annotation_write_repository_isolation.py:95` | `annotation_write_repository.py:47 string literal 'manual_correction'` | ✅ |
+
+Each block records the revert. **`git status` is clean** — no mutation was left behind.
+
+---
+
+## Deferrals — judged individually
+
+| Deferral | Judgment | Reasoning |
+|---|---|---|
+| **WARNING-7** — `AnnotatedOccurrence.lemma` vs `Occurrence.lemma` collision | ✅ **Accept on substance** / ⚠️ **record is not durable** | Substantively correct to defer: it is a readability debt, not a spec breach. `REQ-003-023` permits any allow-list entry denoting a genuine lemma, so renaming was *available* but never *required*, and no scenario fails because of it. **However** the deferral is recorded nowhere durable — `effective_lemma` appears in exactly one file in the repo: this verify-report, which lives under `openspec/changes/lemmatization-pos/` and moves on archive. `tasks.md §Known debt` contains only the `_update_occurrences` entry. This is the same disappearing-record failure mode as SUGGESTION-4, which the agent *did* fix correctly — the pattern simply was not applied here. Not hiding a gap; carried forward as SUGGESTION-1 below |
+| **SUGGESTION-3** — confidence float precision | ✅ **Accept on substance** / ⚠️ **record is not durable** | The reasoning is right. `confidenceLabel` returns `String(value)` (`AnnotationTable.tsx:64-69`), and verbatim rendering **is** the safe `AC-003-19` reading — `REQ-003-018` forbids the frontend from duplicating linguistic rules, and an unreviewed rounding decision would be exactly the kind of presentational logic the spec pushes back to the API. Deferring to a SPEC-004 spec note is correct. But no such note exists yet in any durable artifact; the claim describes an intention, not a record. Carried forward as SUGGESTION-2 |
+| **SUGGESTION-5** — `pos_confidence` > 1.0 edge | ✅ **Accept fully** | Verified the fail-safe claim directly. `domain/annotation.py:83-99`: `if not 0.0 <= value <= 1.0: raise ValueError`. It **raises**, never clamps — which is what `REQ-003-008` demands. Worst case for a degenerate softmax row is a spurious `ANNOTATION_FAILED`, never silent corruption. Not observed, and the failure direction is safe. Honest deferral |
+| **`_update_occurrences`** one-UPDATE-per-occurrence | ✅ **Accept — and the record exists** | Confirmed at `docs/decisions-log.md:50`. The row names the file, the rationale (per-statement granularity is load-bearing for `AC-003-15`'s injectable mid-run failure), the risk over a full novel, and roadmap item 10 as owner — plus an explicit note that it was promoted out of `tasks.md` so it survives archive. This is exactly the handling SUGGESTION-4 asked for |
+
+**None of the four deferrals hides a real gap.** Two of them, though, are recorded only in an artifact that will not survive archive.
+
+---
+
+## Nothing regressed — explicitly re-checked
+
+| Check | Result |
+|---|---|
+| Naming guard not weakened (either leg) | ✅ **Confirmed, and it was strengthened** |
+| `domain/` imports stdlib only | ✅ Only `dataclasses`, `unicodedata`, `collections`, `typing`, `__future__` + intra-domain |
+| spaCy imported in exactly one file | ✅ `infrastructure/nlp/spacy_analyzer.py` only — and now *enforced* |
+| `import.v1.json` unchanged | ✅ `def94cb6…554258`, 1852 bytes |
+| All 23 REQ-003 rows + `AC-002-10` delta | ✅ Present, each exactly once |
+| No row `En progreso` that is complete | ✅ Zero rows carry that status |
+| No row `Cumplido` that is not | ✅ All 24 verified against passing tests |
+
+**On the naming guard, a note about the pickaxe command.** Run unrestricted, `git log -S'_ALLOWED_LEMMA_SYMBOLS'` now returns **7** commits, not one — which looks alarming and is not. Five of the seven merely *mention* the symbol in prose (a code comment in `spacy_analyzer.py`, a docstring in `annotation_repository.py`, and three doc files); `-S` counts occurrences anywhere in the diff, including documentation. Scoped to the test tree, `git log -S'_ALLOWED_LEMMA_SYMBOLS' -- apps/api/tests/` returns **2**: `e065730` (slice 1, the original) and `57ad111`, which introduced a *separate* allow-list for the new `annotation.v1.json` contract test — additive, not a relaxation.
+
+The decisive evidence is the diff, not the log:
+
+- `git diff e065730 HEAD -- tests/unit/test_no_lemma_naming.py` contains **only an added test** (`test_the_allow_list_is_now_exercised_by_a_genuine_persisted_lemma_column`). The `_ALLOWED_LEMMA_SYMBOLS` frozenset itself is untouched — still the same 5 exact names.
+- The frontend leg was **strengthened**: `FRONTEND_EXPECTED_FILES` gained the three annotation modules (SUGGESTION-2's fix), widening the non-vacuity check.
+
+The guard ends this change stricter than it started.
+
+---
+
+## Spec Compliance Matrix
+
+**64 / 64 scenarios ✅ COMPLIANT**, each with a covering test that passed at runtime in this verification.
+
+The seven previously non-compliant scenarios, re-checked individually:
+
+| Requirement | Scenario | Covering test (all passing) | Prior → Now |
+|---|---|---|---|
+| REQ-003-001 | sc.3 — wheel, not source build | `test_python_pin.py::test_the_locked_resolution_carries_a_cp312_wheel_not_only_an_sdist` | UNTESTED → ✅ |
+| REQ-003-002 | sc.2 — no spaCy type escapes the adapter | `test_nlp_isolation.py::test_no_nlp_library_import_escapes_the_adapter_package` | UNTESTED → ✅ |
+| REQ-003-004 | sc.3 — SPEC-002 token boundaries survive | `test_annotate_import_token_boundaries.py` | UNTESTED → ✅ |
+| REQ-003-005 | sc.2 — same form, different tags | `test_spacy_analyzer.py::test_the_same_surface_form_takes_different_tags_in_different_contexts` | UNTESTED → ✅ |
+| REQ-003-009 | sc.3 — nothing acts on confidence | `test_no_confidence_action_or_propn_filter.py::test_nothing_acts_on_confidence_anywhere_in_the_package` | PARTIAL → ✅ |
+| REQ-003-013 | sc.2 — reprocessing changes no tokenization output | `test_annotate_import_properties.py::test_property_annotation_never_mutates_raw_text_normalized_text_or_position` | UNTESTED → ✅ |
+| REQ-003-022 | sc.2 — no proper-noun special case | `test_no_confidence_action_or_propn_filter.py::test_propn_appears_nowhere_outside_the_upos_tags_membership_set` | PARTIAL → ✅ |
+
+**Requirements fully satisfied: 24 / 24.**
+**Spec §8 verification hooks: H10 complete** — the fifth Hypothesis property now exists; the enumerated set is whole.
+
+---
+
+## TDD Compliance
 
 | Check | Result | Details |
 |-------|--------|---------|
-| TDD Evidence reported | ⚠️ | No `TDD Cycle Evidence` table in the apply-progress artifact. Evidence is present but in prose + per-test docstrings |
-| All tasks have tests | ✅ | Every `[IMPL]` in phases 1–5 has a preceding `[TEST]` in `tasks.md` |
-| RED confirmed (test files exist) | ✅ | Every test file named in `tasks.md` exists on disk; verified by path |
-| GREEN confirmed (tests pass) | ✅ | 452 + 56 + 4 re-executed by this verification, all green |
-| Triangulation adequate | ✅ | e.g. `test_annotate_import.py` triangulates 6 distinct stub failure modes; the guard suites pin both positive and negative directions |
-| Safety net for modified files | ✅ | `test_alembic_0002.py`, `test_import_contract.py`, `test_domain_isolation.py`, both guard suites were re-pinned rather than replaced |
-| Mutation checks documented | ✅ **Unusually strong** | Absence assertions carry recorded RED evidence in-repo: `test_no_lemma_naming.py` documents 4 distinct mutations with their exact `AssertionError` output; the write-repo isolation guard, the reflected-column guard, and the frontend guard each document theirs |
+| TDD Evidence reported | ⚠️ | Still no `TDD Cycle Evidence` table in apply-progress; evidence is prose + per-test docstrings |
+| All tasks have tests | ✅ | Every `[IMPL]` preceded by a driving `[TEST]`; the 4 remediation tasks are all `[TEST]`/`[DOC]` |
+| RED confirmed (test files exist) | ✅ | 55/55; every file named in `tasks.md` exists on disk |
+| GREEN confirmed (tests pass) | ✅ | 470 + 66 + 4 re-executed by this verification, all green |
+| Triangulation adequate | ✅ | `test_nlp_isolation.py` triangulates 3 forbidden roots × 2 import forms; `ImportPage.test.tsx` covers 7 distinct states |
+| Safety net for modified files | ✅ | Both guard suites, `test_python_pin.py` and `test_annotate_import_properties.py` were extended, never replaced |
+| Mutation checks documented | ✅ **Exceptional** | 12 documented mutations with verbatim `AssertionError` output; several detectors additionally self-test synthetically on every run |
 
-**TDD compliance**: 6/7 checks passed. The strict-TDD module's default for a missing evidence table is CRITICAL; I am recording it as **WARNING** and stating that explicitly so the orchestrator can overrule me. Reasoning: the concern the rule protects against is "apply did not follow the protocol", and here the protocol demonstrably *was* followed — per-test mutation/RED evidence is committed in the repository (a more durable location than a report table), the one ordering slip was self-caught and remediated with genuine re-established RED, and I re-ran every test myself. What is missing is the reporting artifact, not the discipline.
+**TDD compliance: 6/7.** As in my prior report, I record the missing evidence *table* as **WARNING**, not CRITICAL, and state so explicitly for the orchestrator to overrule. The discipline the rule protects is demonstrably present — in a more durable location than a report table — and I re-executed every test myself.
 
 ### Test Layer Distribution
 
 | Layer | Tests | Files | Tools |
 |-------|-------|-------|-------|
-| Unit (backend) | — | 18 `tests/unit/` | pytest, Hypothesis |
-| Integration (backend) | — | 12 `tests/integration/` | pytest + SQLite + real spaCy |
-| API (backend) | — | `tests/api/` | FastAPI `TestClient` |
-| **Backend total** | **452** | | |
-| Frontend unit + component | 56 | 14 | Vitest + Testing Library + `typescript` compiler API |
+| Unit + integration + API (backend) | 470 | 33 | pytest, Hypothesis, SQLite, real spaCy |
+| Frontend unit + component | 66 | 15 | Vitest, Testing Library, TypeScript compiler API |
 | E2E | 4 | 4 | Playwright (real backend, real model) |
-| **Total** | **512** | | |
-
-### Changed File Coverage
-
-Backend: every file changed by this capability is at **100%** line and branch coverage — `domain/annotation.py`, `application/annotation/{ports,errors,use_cases}.py`, `infrastructure/nlp/{registry,spacy_analyzer}.py`, `infrastructure/persistence/annotation{_write,}_repository.py`, `api/routes/annotation.py`, `api/dtos/annotation.py`, `api/dependencies.py`, `infrastructure/settings.py`.
-
-Frontend changed files:
-
-| File | Stmts | Branch | Funcs | Rating |
-|------|-------|--------|-------|--------|
-| `src/types/annotation.ts` | 100% | 100% | 100% | ✅ |
-| `src/api/annotation.ts` | 100% | 100% | 100% | ✅ |
-| `src/components/AnnotationTable.tsx` | 100% | 75% | 100% | ⚠️ Acceptable |
-| `src/pages/ImportPage.tsx` | 100% | 100% | **0%** | ⚠️ See WARNING-4 |
+| **Total** | **540** | **52** | |
 
 ### Assertion Quality
 
-Audited every test file added by this change for tautologies, orphan empty-collection assertions,
-type-only assertions, ghost loops, smoke-only renders, implementation-detail coupling and
-mock-heavy ratios.
+Audited every test file added or modified by the remediation for tautologies, orphan empty-collection assertions, type-only assertions, ghost loops, smoke-only renders, implementation-detail coupling and mock-heavy ratios.
 
-**Assertion quality**: ✅ 0 CRITICAL, 0 WARNING. Assertions verify real behaviour throughout.
-Absence assertions — the class most prone to vacuity — are explicitly paired with non-vacuity
-tests (`test_the_scan_reaches_the_shipped_backend_sources`,
-`test_the_scan_reaches_the_shipped_frontend_sources`, `test_the_write_repository_file_exists`,
-`test_domain_package_scan_is_not_vacuous`) and with documented mutation checks. This is materially
-better than typical.
+**Assertion quality: ✅ 0 CRITICAL, 0 WARNING.**
+
+Zero tautologies. Every new absence assertion is paired with both a non-vacuity test and a documented mutation check — `test_nlp_isolation.py` goes further and asserts its own detector's liveness synthetically on every run, so the guard cannot silently rot. `ImportPage.test.tsx` is behavioral throughout (27 behavioral queries across 7 states, including negative assertions that the table is *never* rendered on error) with no smoke-only render.
 
 ### Quality Metrics
 
@@ -243,139 +275,43 @@ better than typical.
 
 ---
 
-### Issues Found
+## Issues Found
 
-#### CRITICAL
+### CRITICAL
 
-**CRITICAL-1 — `REQ-003-002` is not satisfied and the project's own traceability says so.**
-`AC-003-02` has two clauses; only the first is guarded. `tests/unit/test_domain_isolation.py`
-walks `_DOMAIN_ROOT.rglob("*.py")` — `domain/` only. `tests/unit/test_annotation_ports.py`
-inspects exactly two files (`application/annotation/ports.py`,
-`domain/annotation.py`). **Nothing scans the whole source tree for spaCy references outside
-the adapter package**, which is the second clause and spec §8 hook H2.
-`docs/traceability-matrix.md:84` correctly records `En progreso` and names the reason
-("Pendiente para el corte 4 …"). Slice 4 shipped the adapter; the guard and the row were never
-revisited. Spec §9 makes an accurate, complete matrix a precondition for done, and `AGENTS.md` §10
-repeats it. *The underlying fact is true* — I verified spaCy is imported only in
-`infrastructure/nlp/spacy_analyzer.py` — but it is unenforced, which is the whole point of H2.
-**This is the blocker.**
+**None.** All four prior CRITICAL findings and the blocker are genuinely closed, each with an executing test rather than an assertion of fact.
 
-**CRITICAL-2 — `AC-003-04` scenario 3 is untested.** "SPEC-002 token boundaries survive
-annotation": the AC names `state-of-the-art` and `don't` explicitly and requires that after
-annotation each remains one occurrence with its original `raw_text` and `position`. Those fixtures
-appear only in `tests/unit/test_tokenizer.py` and `test_normalizer.py` — SPEC-002's own suite,
-never through `AnnotateImport`.
+### WARNING
 
-**CRITICAL-3 — `AC-003-05` scenario 2 is untested.** "The same form takes different tags in
-different contexts" is the scenario that demonstrates POS is genuinely per-occurrence and
-contextual — the premise of ADR-0006, §2.1 L6 and §2.2 P5. No test feeds the real adapter one
-textual form in two grammatical roles. The `saw` rows in
-`tests/integration/test_annotation_read_repository.py:143,183,278,375` are hand-seeded
-`OccurrenceAnnotation` values proving the storage/precedence layer; they assert nothing about the
-analyzer's contextual behaviour.
+**WARNING-1 — the WARNING-8 test-count fix reintroduced a stale number in the same row.**
+`docs/traceability-matrix.md:103` (`REQ-003-012`) now reads:
 
-**CRITICAL-4 — `AC-003-14` scenario 2 is untested, and spec hook H10 is incomplete.** No test
-asserts that `raw_text`, `normalized_text` and `position` are byte-identical after an annotation
-run, and the H10 property *"annotation never mutates `raw_text`/`normalized_text`/`position`"*
-does not exist — `test_annotate_import_properties.py` contains four properties and this is not one.
-Mitigated by construction (`_update_occurrences` sets only `pos` and `lemma`), so today's risk is
-low; the regression risk it was specified to prevent is unguarded.
+> `452 pruebas backend en total al cierre del corte de remediación; 424 preexistentes sin cambio`
 
-#### WARNING
+The actual count **at the close of the remediation slice** is **470**, not 452. The correction replaced the old `449` with `452` — the count as of slice 5 — and then labelled it "at the close of the remediation slice", but the remediation itself added 18 backend tests after that number was taken. The row is off by 18 and its own qualifier makes the claim falsifiable.
 
-**WARNING-1 — AMB-2's release-note obligation is unmet.** Spec §5 AMB-2 closes with "**Record it
-as such in the release notes**". No release-notes or changelog artifact exists in the repository.
-The same gap affects the punctuation-free/`0.973` consequence, which is well recorded in
-`design.md` §P2 but nowhere product-facing.
+Severity is WARNING, not CRITICAL, deliberately: `REQ-003-012`'s substantive claim is independently verified (the import route is unmodified, `import.v1.json` is byte-pinned, the full SPEC-002 suite passes), so no `Cumplido` status is made false. But `AGENTS.md` §10 and spec §9 make matrix accuracy a precondition for done, and this is the second time this specific figure has gone stale — a hardcoded test count in a document updated by hand will keep drifting. Recommend either correcting it to 470 or, better, removing the absolute count and citing only the invariant that matters ("424 preexisting SPEC-002 tests unchanged").
 
-**WARNING-2 — `docs/product-vision.md` §10 step 4 carries no "knowingly unimplemented" marker.**
-`REQ-003-022` says it "MUST be recorded as such". It is recorded in the spec (§6 PV-4, §7) but
-`git diff main..HEAD -- docs/` touches only `traceability-matrix.md`; line 111 still reads
-"Excluye nombres propios" as if delivered.
+### SUGGESTION
 
-**WARNING-3 — `AC-003-09` sc.3 and `AC-003-23` sc.2 have no structural zero-match search.**
-Both ACs specify a search over *backend and frontend* sources — for confidence
-filtering/sorting/thresholding, and for a proper-noun filter/exclusion/special case. Neither exists;
-`grep -rn "threshold"` over both suites returns zero. I verified both facts by reading
-`AnnotationTable.tsx` and the backend annotation modules. Additionally, the comment at
-`no-linguistic-rules.test.ts:50-52` justifies omitting a `PROPN` pattern by claiming coverage from
-"the structural absence of the literal `PROPN` in this view's sources" — **that rationale is
-factually wrong**: `AnnotationTable.tsx:49` contains the literal `PROPN` in `UPOS_LABELS`. The
-*substance* is fine (a total 17-tag map is mandated by `REQ-003-018`, and a map entry is not a
-special case), but the stated justification does not hold.
-
-**WARNING-4 — `ImportPage.tsx` annotate wiring: unplanned and unit-untested.** The slice-5 trigger
-(`handleAnnotate`, the `annotating`/`error`/`done` states, the `role="alert"` branch) lives in
-`src/pages/ImportPage.tsx`, which appears in **no** task in `tasks.md` (task 5.7 lists only
-`types/annotation.ts`, `api/annotation.ts`, `AnnotationTable.tsx`). There is no `ImportPage` test
-file, and v8 reports **0% function coverage** for it. Only the Playwright happy path
-(`e2e/annotation.spec.ts`, passing) exercises it; the error branch appears unexercised. The
-apply-progress artifact does disclose the file as an out-of-design scope decision.
-
-**WARNING-5 — `AC-003-01` scenario 3 is untested.** "installs from a wheel, not a source build" has
-no automated check; `test_python_pin.py` covers scenarios 1 and 2 only. The manual observation is
-recorded in the matrix. Reasonable to leave manual, but it is not a passing covering test.
-
-**WARNING-6 — A new `DeprecationWarning` was introduced under a spec that claims a
-"zero-warning `filterwarnings` gate" (§1 metadata).** `uv run pytest` emits one warning, from
-`tests/integration/test_alembic_0003.py::test_upgrade_preserves_pre_existing_spec_002_rows` —
-a SPEC-003 test — via sqlite3's deprecated default datetime adapter. **The gate itself was not
-weakened**: `git log -S'filterwarnings'` on `pyproject.toml` returns no SPEC-003 commit, and the
-three `error::` entries are intact. The gate is deliberately scoped to three classes and does not
-error on `DeprecationWarning`, so the suite is green — but the suite is no longer warning-free.
-
-**WARNING-7 — `AnnotatedOccurrence.lemma` collides semantically with `Occurrence.lemma`.**
-See deviation 1. Same identifier, "effective" in the read model and "automatic" in the persistence
-model, in the same package, while POS uses the unambiguous `effective_pos`/`automatic_pos`.
-
-**WARNING-8 — Two small inaccuracies in `docs/traceability-matrix.md`.** The `REQ-003-012` row
-states "449 pruebas backend en total, 424 preexistentes"; the suite is **452**. The `REQ-003-011`
-and `REQ-003-014` rows are marked `Cumplido` but still carry "Pendiente para el corte 4 …" notes
-that slice 4 has since closed.
-
-#### SUGGESTION
-
-1. The write-repo isolation guard matches the exact string `ManualCorrection`. A raw-SQL literal
-   such as `text("UPDATE manual_correction …")` would slip past. No such code exists; adding the
-   snake_case table name to the guard would close it cheaply.
-2. `FRONTEND_EXPECTED_FILES` in `no-lemma-naming.test.ts` was not extended with the three new
-   annotation modules, so a glob regression that dropped only annotation files would not trip the
-   non-vacuity check.
-3. `confidenceLabel` renders `String(value)`, producing a full-precision float
-   (e.g. `0.9998773336410522`). Verbatim is the safe reading of AC-003-19, but it is poor UX;
-   worth an explicit spec note in SPEC-004 rather than an unreviewed rounding decision later.
-4. Promote the `_update_occurrences` performance debt out of `tasks.md` (a change artifact) into a
-   durable backlog entry before archiving.
-5. `pos_confidence` is `float(scores[index].max())` on a row validated to sum to `1.0 ± 1e-4`; a
-   degenerate row could in principle exceed `1.0` by ~1e-7 and be rejected as out of range.
-   Not observed; cheap to pin with a property test.
+1. **Promote the WARNING-7 lemma-collision deferral to `docs/decisions-log.md`.** It currently lives only in this verify-report, which archives with the change — the same failure mode SUGGESTION-4 identified and that the `_update_occurrences` debt was correctly promoted to escape. One row, mirroring line 50.
+2. **Record the SUGGESTION-3 confidence-precision decision as a real SPEC-004 spec note.** The reasoning is sound and the deferral is right, but "belongs in a SPEC-004 spec note" is presently an intention with no artifact behind it. It will not survive archive either.
+3. **`test_nlp_isolation.py` catches static imports only.** `importlib.import_module("spacy")` or `__import__("spacy")` would evade the AST criterion. This does **not** weaken the guard for the clause it claims — the docstring's argument is correct that a spaCy *type* cannot appear without a name import — but a one-line check for `import_module`/`__import__` string arguments would close the dynamic path cheaply and make the guard total rather than sufficient.
 
 ---
 
-### Verdict
+## Verdict
 
-**FAIL**
+**PASS WITH WARNINGS** — and the chain is ready for delivery.
 
-One blocker and four CRITICAL findings. `REQ-003-002` is not satisfied — its second acceptance
-clause (no spaCy type outside the adapter, spec hook H2) has no guard, and the project's own
-traceability matrix still marks the row `En progreso`, so by spec §9 and `AGENTS.md` §10 the
-capability is not done. Three further acceptance scenarios (`AC-003-04` sc.3, `AC-003-05` sc.2,
-`AC-003-14` sc.2) have no covering test, and spec hook H10's "annotation never mutates
-`raw_text`/`normalized_text`/`position`" property was never written.
+Every finding the remediation claimed to close is genuinely closed, and I confirmed each one against the repository by running the commands myself rather than reading the self-report. The blocker is closed properly: `REQ-003-002` moved to `Cumplido` because a real, non-vacuous, mutation-checked, whole-package guard now enforces spec hook H2 — not because someone edited a status cell. The three remaining CRITICALs are closed with tests that exercise the real thing: real `ImportText` + real `AnnotateImport` over a real database for token boundaries; the **real** spaCy adapter and real model for contextual `saw` VERB/NOUN, which is the scenario ADR-0006 rests on; and the fifth Hypothesis property that completes hook H10.
 
-**This is a documentation-and-coverage failure, not an implementation failure.** Every executable
-gate is green — 452 + 56 + 4 tests, 100% backend coverage, clean mypy/ruff/eslint/tsc, reversible
-migration — and every one of the twelve substantive claims about the *implementation* held up under
-independent re-execution, including the four highest-risk ones (the softmax/`lemma_confidence`
-honesty check, the `Doc(vocab, words=…)` proof, the correction-isolation AST guard, and the
-cursor-level atomicity injection). The naming guard was not weakened in either leg; the allow-list
-is byte-identical to slice 1's, and slices 3–5 renamed their own code rather than touch it. The
-gaps are missing *guards* for facts that are currently true, plus records that were specified and
-not written.
+All 24 requirements and all 64 scenarios are compliant with covering tests that passed at runtime in this run. Every executable gate is green — 470 backend (now warning-free, up from 452 + 1 `DeprecationWarning`), 66 frontend, 4 E2E, 100% backend line *and* branch coverage, clean mypy/ruff/eslint/tsc, reversible migration, byte-identical pinned schema, clean working tree. Both coverage gates hold with margin.
 
-The remediation is small and additive — roughly five tests, one traceability status flip, and two
-documentation records. None of it requires reworking shipped code.
+The naming guard survived scrutiny and ended **stricter** than it started — the allow-list frozenset is untouched since slice 1, and the frontend non-vacuity list was widened. The alarming-looking 7-commit pickaxe result is prose mentions, not drift.
 
-**Do not open the 14 PRs on this state.** Close CRITICAL-1 through CRITICAL-4 and flip
-`REQ-003-002` to `Cumplido` first; the WARNINGs can be triaged into the chain or deferred with an
-explicit decision.
+All four deferrals are honest. None hides a real gap; `pos_confidence` fails safe by raising rather than clamping, exactly as `REQ-003-008` requires.
+
+What remains is one documentation nit and three record-keeping suggestions — zero code changes. The single WARNING is a hardcoded test count that went stale *again* inside the very row that was correcting it; it makes no status claim false. Worth fixing before archive, since two of the three SUGGESTIONs concern records that will vanish when this change archives, and archive is the moment to catch them.
+
+**Open the PRs.** Nothing here should block delivery.
