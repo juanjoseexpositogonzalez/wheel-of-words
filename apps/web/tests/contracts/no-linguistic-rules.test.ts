@@ -47,10 +47,26 @@ const FORBIDDEN_NORMALIZATION_FORMS = new Set(["NFC", "NFD", "NFKC", "NFKD"]);
 // leak in as an IDENTIFIER (a function/variable name), never a method call
 // on a built-in. Scoped narrowly to avoid false-positiving on ordinary
 // English words: "tag" alone is excluded (too common, e.g. a future `<Tag>`
-// UI element) — REQ-003-022's "no PROPN special case" is covered separately
-// by the structural absence of the literal `PROPN` in this view's sources,
-// not by this pattern.
-const FORBIDDEN_IDENTIFIER_PATTERN = /lemmatiz|tokeniz|resolveEffective|correctionPrecedence/i;
+// UI element).
+//
+// Remediation correction (verify-report WARNING-3): a prior version of this
+// comment claimed REQ-003-022's "no PROPN special case" was covered by "the
+// structural absence of the literal PROPN in this view's sources" — that
+// claim was FACTUALLY WRONG. `AnnotationTable.tsx` DOES contain the literal
+// `PROPN`, as the `UPOS_LABELS` map's key (a totally-mapped, 17-entry
+// presentational lookup, mandated by REQ-003-018 — not a special case). The
+// substance was always fine; the stated justification was not. The genuine
+// structural proof lives below, in `findPropnSpecialCaseViolations`: it
+// asserts every `PROPN` reference in the shipped sources is an object-literal
+// property key, and flags any use in a conditional, comparison, or filter as
+// a special case.
+// Remediation (verify-report WARNING-3, AC-003-09 scenario 3): extended with
+// confidence-action identifiers. No built-in method name covers "act on a
+// confidence value" either, so a threshold/filter/sort helper can only leak
+// in as an identifier, the same reasoning that already applies to the
+// lemmatize/tokenize/precedence names above.
+const FORBIDDEN_IDENTIFIER_PATTERN =
+  /lemmatiz|tokeniz|resolveEffective|correctionPrecedence|confidenceThreshold|filterByConfidence|minConfidence|sortByConfidence/i;
 
 interface LinguisticRuleViolation {
   readonly file: string;
@@ -127,6 +143,52 @@ export function findLinguisticRuleViolations(
   return violations;
 }
 
+// REQ-003-022 / AC-003-23 scenario 2 (verify-report WARNING-3 remediation):
+// a genuine structural zero-match search over the annotation view's own
+// sources. "No PROPN special case" means: the only place `"PROPN"` may
+// appear is as a key in a total presentational label map (REQ-003-018)
+// — never in a conditional, a comparison, a filter predicate, or any other
+// context that would treat it differently from the other 16 UPOS tags.
+function findPropnSpecialCaseViolations(
+  path: string,
+  source: string,
+): LinguisticRuleViolation[] {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    /* setParentNodes */ true,
+    scriptKindFor(path),
+  );
+  const violations: LinguisticRuleViolation[] = [];
+
+  function isObjectLiteralPropertyKey(node: ts.Node): boolean {
+    return (
+      node.parent !== undefined &&
+      ts.isPropertyAssignment(node.parent) &&
+      node.parent.name === node
+    );
+  }
+
+  function visit(node: ts.Node): void {
+    const isPropnIdentifier = ts.isIdentifier(node) && node.text === "PROPN";
+    const isPropnStringLiteral = ts.isStringLiteral(node) && node.text === "PROPN";
+    if ((isPropnIdentifier || isPropnStringLiteral) && !isObjectLiteralPropertyKey(node)) {
+      const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+      violations.push({
+        file: path,
+        line: line + 1,
+        kind: "PROPN reference outside the label-map key",
+        text: node.getText(sourceFile),
+      });
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return violations;
+}
+
 function sourceForManifestPath(manifestPath: string): string | undefined {
   const entry = Object.entries(rawSourceModules).find(
     ([globKey]) => toManifestPath(globKey) === manifestPath,
@@ -162,6 +224,53 @@ describe("FRONTEND_FEATURE_MODULES manifest (design §11)", () => {
     );
 
     expect(unlisted).toEqual([]);
+  });
+});
+
+describe("no PROPN special case (REQ-003-022 / AC-003-23 scenario 2)", () => {
+  it("test_the_only_PROPN_reference_in_shipped_sources_is_a_label_map_key", () => {
+    /**
+     * MUTATION CHECK — absence assertion. Verified by temporarily adding
+     * `if (occurrence.pos === "PROPN") { ... }` to `AnnotationTable.tsx`'s
+     * row renderer, running this suite, and observing::
+     *
+     *   AssertionError: expected [ { file: "src/components/AnnotationTable.tsx",
+     *     kind: "PROPN reference outside the label-map key", line: 72,
+     *     text: '"PROPN"' } ] to deeply equal []
+     *
+     * then reverting and confirming green again.
+     */
+    const violations = FRONTEND_FEATURE_MODULES.flatMap((manifestPath) => {
+      const source = sourceForManifestPath(manifestPath);
+      if (source === undefined) {
+        return [];
+      }
+      return findPropnSpecialCaseViolations(manifestPath, source);
+    });
+
+    expect(violations).toEqual([]);
+  });
+
+  it("findPropnSpecialCaseViolations flags a PROPN comparison used as a filter", () => {
+    const source = [
+      'export function label(pos: string): string {',
+      '  if (pos === "PROPN") {',
+      '    return "";',
+      "  }",
+      "  return pos;",
+      "}",
+    ].join("\n");
+
+    const violations = findPropnSpecialCaseViolations("synthetic.ts", source);
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({ text: '"PROPN"', line: 2 });
+  });
+
+  it("findPropnSpecialCaseViolations allows PROPN as an object-literal label-map key", () => {
+    const source = ['const LABELS = {', "  PROPN: \"Nombre propio\",", "};"].join("\n");
+
+    expect(findPropnSpecialCaseViolations("synthetic.ts", source)).toEqual([]);
   });
 });
 
