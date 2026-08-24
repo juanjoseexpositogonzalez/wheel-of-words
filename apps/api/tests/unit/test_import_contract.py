@@ -13,12 +13,23 @@ Three things are pinned here, all of them decisions rather than details:
    would give the capability two different 422 shapes (spec §4).
 3. No error body carries imported text, a byte offset, a path, or a stack trace.
 
+**AC-003-12 / AC-003-18 (SPEC-003 slice 5, task 5.1).** `import.v1.json` MUST
+stay byte-identical while `003-lemmatization-pos` ships its own, separate
+`annotation.v1.json` contract. `test_the_schema_stays_byte_identical_to_the_
+pre_annotation_baseline` pins the file's SHA-256 digest and byte length
+computed BEFORE any SPEC-003 slice-5 code was written, so any accidental
+schema drift — even a single reordered key or trailing newline — fails this
+test rather than passing silently. This is an approval test: it PASSES
+immediately (baseline == baseline), not a RED-then-GREEN test — its job is to
+stay green across every following change in this slice (safety net).
+
 REQ-002-001, REQ-002-006, REQ-002-008, REQ-002-012, REQ-002-018, spec §4,
-design §9.2-9.3.
+design §9.2-9.3, REQ-003-012, REQ-003-017 (AC-003-12, AC-003-18).
 """
 
 from __future__ import annotations
 
+import hashlib
 import importlib.resources
 import json
 from typing import Any
@@ -238,3 +249,29 @@ def test_error_dto_round_trips_through_the_schema() -> None:
     ).model_dump()
 
     jsonschema.validate(dumped, _schema()["$defs"]["error"])
+
+
+# --------------------------------------------------------------------------
+# SPEC-003 slice 5 (task 5.1) — AC-003-12, AC-003-18: the SPEC-002 contract
+# is untouched by the annotation capability.
+# --------------------------------------------------------------------------
+
+_PRE_ANNOTATION_SHA256 = "def94cb6361531b21f382c862120914419b867b6601aa58d763d49d65a554258"
+_PRE_ANNOTATION_BYTE_LENGTH = 1852
+
+
+@pytest.mark.unit
+def test_the_schema_stays_byte_identical_to_the_pre_annotation_baseline() -> None:
+    """AC-003-18: `import.v1.json` MUST NOT gain a property or otherwise change.
+
+    The digest and length were computed from `import.v1.json` on the
+    `lemmatization-pos` tracker branch, immediately before slice 5 (API +
+    frontend) touched any file — the last commit to modify this schema was
+    cut 2 of `002-text-import` (T212). Approval test: passes on this first
+    run and must keep passing through every following change in this slice.
+    """
+    path = importlib.resources.files("wheel_vocabulary.api.schemas").joinpath("import.v1.json")
+    raw = path.read_bytes()
+
+    assert len(raw) == _PRE_ANNOTATION_BYTE_LENGTH
+    assert hashlib.sha256(raw).hexdigest() == _PRE_ANNOTATION_SHA256
