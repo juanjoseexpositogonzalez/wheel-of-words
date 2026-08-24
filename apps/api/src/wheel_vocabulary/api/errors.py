@@ -11,7 +11,17 @@ duplicating it in a parallel table that could drift.
 never reaches a client of this capability. That native body echoes the rejected
 input, which on this route is the user's own upload metadata (Art. X.2).
 
-REQ-002-002, REQ-002-003, REQ-002-004, REQ-002-013, spec §4, design §9.2-9.3.
+**SPEC-003 task 5.5.** `AnnotationError` (`application/annotation/errors.py`)
+is a SEPARATE base from `TextImportError` — `AnnotateImport` also raises
+`ImportNotFoundError` (a `TextImportError`) for an unknown `book_id`, so that
+case reuses `text_import_error_handler` unchanged; the three annotation-only
+codes (`UNSUPPORTED_LANGUAGE`, `ANALYZER_UNAVAILABLE`, `ANNOTATION_FAILED`)
+get their own handler, sharing the same `_envelope` helper and the same
+`ImportErrorBody`/`ImportErrorResponse` shape — the envelope itself is
+unchanged across both contracts (spec §4, design "API contract").
+
+REQ-002-002, REQ-002-003, REQ-002-004, REQ-002-013, spec §4, design §9.2-9.3,
+REQ-003-003, REQ-003-019.
 """
 
 from __future__ import annotations
@@ -23,12 +33,14 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from wheel_vocabulary.api.dtos.imports import ImportErrorBody, ImportErrorResponse
+from wheel_vocabulary.application.annotation.errors import AnnotationError
 from wheel_vocabulary.application.imports.errors import TextImportError
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from fastapi import FastAPI, Request
 
 __all__ = [
+    "annotation_error_handler",
     "register_error_handlers",
     "request_validation_error_handler",
     "text_import_error_handler",
@@ -77,9 +89,21 @@ def request_validation_error_handler(
     return _envelope(code=INVALID_REQUEST_CODE, message=_INVALID_REQUEST_MESSAGE, status_code=422)
 
 
+def annotation_error_handler(_request: Request, exc: AnnotationError) -> JSONResponse:
+    """Render an annotation failure using the code and status carried by its type.
+
+    `import_id` is not read off `exc` here: none of the three subclasses
+    (`UnsupportedLanguageError`, `AnalyzerUnavailableError`,
+    `AnnotationFailedError`) carry one — `AnnotateImport` already logs the
+    import id itself, content-free, at the point of failure (REQ-003-019).
+    """
+    return _envelope(code=exc.code, message=exc.message, status_code=exc.http_status)
+
+
 def register_error_handlers(app: FastAPI) -> None:
-    """Wire both handlers onto the application, mirroring router inclusion."""
+    """Wire every handler onto the application, mirroring router inclusion."""
     app.add_exception_handler(TextImportError, text_import_error_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(AnnotationError, annotation_error_handler)  # type: ignore[arg-type]
     app.add_exception_handler(
         RequestValidationError,
         request_validation_error_handler,  # type: ignore[arg-type]

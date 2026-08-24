@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from wheel_vocabulary.api.dependencies import get_clock
 from wheel_vocabulary.api.errors import register_error_handlers
+from wheel_vocabulary.api.routes import annotation as annotation_router_module
 from wheel_vocabulary.api.routes import health as health_router_module
 from wheel_vocabulary.api.routes import imports as imports_router_module
 from wheel_vocabulary.infrastructure.version import get_package_version
@@ -50,4 +51,5 @@ def create_app() -> FastAPI:
     register_error_handlers(app)
     app.include_router(health_router_module.router)
     app.include_router(imports_router_module.router)
+    app.include_router(annotation_router_module.router)
     return app
