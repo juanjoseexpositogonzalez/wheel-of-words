@@ -73,7 +73,7 @@ class _TaggingAnalyzer:
         del language
         return [
             LinguisticAnnotation(
-                pos="NOUN", lemma=token, pos_confidence=None, lemma_confidence=None
+                raw_text=token, pos="NOUN", lemma=token, pos_confidence=None, lemma_confidence=None
             )
             for token in tokens
         ]

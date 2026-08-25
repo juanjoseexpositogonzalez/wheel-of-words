@@ -71,6 +71,7 @@ class _StubAnalyzer:
         del language
         return [
             LinguisticAnnotation(
+                raw_text=token,
                 pos="VERB",
                 lemma=token.lower(),
                 pos_confidence=0.9,
