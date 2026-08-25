@@ -82,13 +82,13 @@ Closes: REQ-003H-001 B6 clause.
 
 Closes: REQ-003H-002 (E1–E4), AC-003H-02.
 
-- [ ] 3.1 [TEST] `test_annotation_write_repository_isolation.py`: a synthetic module whose module docstring is `DELETE FROM manual_correction WHERE 1=1` is caught even though it's a module docstring. RED against `_DOCSTRING_OWNERS = (ast.Module,)`.
-- [ ] 3.2 [IMPL] Replace `_DOCSTRING_OWNERS` with `_EXEMPT_MODULE_DOCSTRINGS: dict[str, str]` — `{module path: pinned exact docstring text}` for the one legitimate module; every other module's docstring stays in scope.
-- [ ] 3.3 [TEST] E4 content pinning — RED: replace the exempted module's docstring with non-reviewed text, assert a violation.
-- [ ] 3.4 [DOC] Record the E2(b-ii) justification (specific instance + no re-catch leg) as a comment adjacent to the exemption.
-- [ ] 3.5 [TEST] Boundary control (M3): identical SQL in a function docstring, a class docstring, and a plain string literal each still produce violations — the already-closed legs stay closed.
-- [ ] 3.6 [TEST] M2 non-vacuity: a module walk reaching zero modules or missing `annotation_write_repository.py` fails closed.
-- [ ] 3.7 [DOC] Traceability stub row for `REQ-003H-002`.
+- [x] 3.1 [TEST] `test_annotation_write_repository_isolation.py`: a synthetic module whose module docstring is `DELETE FROM manual_correction WHERE 1=1` is caught even though it's a module docstring. RED against `_DOCSTRING_OWNERS = (ast.Module,)`.
+- [x] 3.2 [IMPL] Replace `_DOCSTRING_OWNERS` with `_EXEMPT_MODULE_DOCSTRINGS: dict[str, str]` — `{module path: pinned exact docstring text}` for the one legitimate module; every other module's docstring stays in scope.
+- [x] 3.3 [TEST] E4 content pinning — RED: replace the exempted module's docstring with non-reviewed text, assert a violation.
+- [x] 3.4 [DOC] Record the E2(b-ii) justification (specific instance + no re-catch leg) as a comment adjacent to the exemption.
+- [x] 3.5 [TEST] Boundary control (M3): identical SQL in a function docstring, a class docstring, and a plain string literal each still produce violations — the already-closed legs stay closed.
+- [x] 3.6 [TEST] M2 non-vacuity: a module walk reaching zero modules or missing `annotation_write_repository.py` fails closed.
+- [x] 3.7 [DOC] Traceability stub row for `REQ-003H-002`.
 
 ## Phase 4 — Model-claim enumeration + document guard (`08d-model-claim-enumeration`)
 
