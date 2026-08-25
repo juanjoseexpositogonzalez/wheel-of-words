@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from wheel_vocabulary.application.annotation.errors import (
+    AnalyzerUnavailableError,
     AnnotationFailedError,
     UnsupportedLanguageError,
 )
@@ -86,7 +87,13 @@ class AnnotateImport:
         Raises:
             ImportNotFoundError: `book_id` is unknown.
             UnsupportedLanguageError: no analyzer is configured for
-                `language`; no pipeline loads, nothing is written.
+                `language`; no pipeline loads, nothing is written. Also
+                raised if the resolved analyzer's own `analyze()` rejects
+                `language` internally (ADR-0008) — never downgraded.
+            AnalyzerUnavailableError: the configured model failed to load
+                (C5) — missing files, a malformed pipeline, or any other
+                load-time defect. The raw exception never escapes: it may
+                carry a model name or a filesystem path (REQ-003-019).
             AnnotationFailedError: the analyzer's result is malformed in any
                 way (§4) — nothing is written.
         """
@@ -100,12 +107,29 @@ class AnnotateImport:
         except UnsupportedLanguageError:
             self._log_failure(UnsupportedLanguageError.code, book_id)
             raise
+        except Exception:
+            # C5: a configured model that fails to load — missing files, a
+            # malformed pipeline (e.g. a missing pipe raising KeyError), any
+            # load-time defect — is a processing/availability problem (503),
+            # never a user input problem, and the raw exception (which may
+            # carry a model name or a filesystem path, REQ-003-019) must
+            # never escape as-is.
+            self._log_failure(AnalyzerUnavailableError.code, book_id)
+            raise AnalyzerUnavailableError() from None
 
         raw_texts = [token.raw_text for token in tokens]
         try:
             annotations = analyzer.analyze(raw_texts, language=language)
         except AnnotationFailedError:
             self._log_failure(AnnotationFailedError.code, book_id)
+            raise
+        except UnsupportedLanguageError:
+            # ports.py::LinguisticAnalyzer.analyze documents this as a
+            # legitimate raise from inside analyze() itself (a
+            # multi-language adapter dispatching internally, ADR-0008) — it
+            # is a real 422, and must propagate as one, never be caught by
+            # the blanket branch below and downgraded to a 500.
+            self._log_failure(UnsupportedLanguageError.code, book_id)
             raise
         except Exception:
             # spec §4: every ANNOTATION_FAILED trigger is an adapter or
