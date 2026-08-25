@@ -12,10 +12,16 @@ _PRIMARY_DOCUMENTS = (
     _REPOSITORY_ROOT / "openspec/changes/lemmatization-pos/design.md",
     _REPOSITORY_ROOT / "docs/traceability-matrix.md",
 )
-_BOUNDARY_DOCUMENTS = (
-    _REPOSITORY_ROOT / "docs/constitution.md",
-    _REPOSITORY_ROOT / "openspec/changes/spec-003-harden-guards-and-claims/tasks.md",
+_DOCS_DIRECTORY = _REPOSITORY_ROOT / "docs"
+_GOVERNED_DOCUMENTS = (
+    *_PRIMARY_DOCUMENTS,
     _REPOSITORY_ROOT / "openspec/changes/spec-003-harden-guards-and-claims/design.md",
+    _REPOSITORY_ROOT / "openspec/changes/spec-003-harden-guards-and-claims/proposal.md",
+    _REPOSITORY_ROOT / "openspec/changes/spec-003-harden-guards-and-claims/tasks.md",
+    _REPOSITORY_ROOT
+    / "openspec/changes/spec-003-harden-guards-and-claims/specs/002-text-import/spec.md",
+    _REPOSITORY_ROOT
+    / "openspec/changes/spec-003-harden-guards-and-claims/specs/003-lemmatization-pos/spec.md",
 )
 
 _SIGNATURE_FAMILIES = {
@@ -23,7 +29,8 @@ _SIGNATURE_FAMILIES = {
         r"(?<![\w.])(?:\d+(?:\.\d+)?[eE][+-]?\d+|\d+\.\d{3,})(?![\w%]|\.\d)"
     ),
     "posterior": re.compile(
-        r"\b(?:posterior|probabilidad posterior)\b|\bP\((?!\s*\.\.\.\s*\))[^)\n]+\)\s*=",
+        r"\b(?:posterior\s*(?:=|:)|probabilidad posterior\s*(?:=|:))|"
+        r"\bP\((?!\s*\.\.\.\s*\))[^)\n]+\)\s*=",
         re.IGNORECASE,
     ),
     "rule_count": re.compile(
@@ -31,8 +38,8 @@ _SIGNATURE_FAMILIES = {
         re.IGNORECASE,
     ),
     "tag_to_upos": re.compile(
-        r"\b[A-Z]{2,5}\s*(?:→|->|=>)\s*[A-Z]{2,6}\b|\bmapea(?:n)?\s+a\b",
-        re.IGNORECASE,
+        r"\b(?!(?:RED|GREEN)\s*(?:→|->|=>)\s*(?:RED|GREEN)\b)"
+        r"[A-Z]{2,5}\s*(?:→|->|=>)\s*[A-Z]{2,6}\b|\bmapea(?:n)?\s+a\b"
     ),
 }
 
@@ -52,6 +59,10 @@ def _matches(text: str) -> dict[str, tuple[str, ...]]:
     }
 
 
+def _governed_documents() -> tuple[Path, ...]:
+    return _GOVERNED_DOCUMENTS
+
+
 @pytest.mark.unit
 def test_primary_governed_documents_contain_no_model_internal_claim_signatures() -> None:
     """M1 RED output records the original matching prose before its removal."""
@@ -69,7 +80,7 @@ def test_primary_governed_documents_contain_no_model_internal_claim_signatures()
     ("family", "fixture"),
     [
         ("high_precision_or_scientific_decimal", "The measurement is 0.123."),
-        ("posterior", "posterior"),
+        ("posterior", "posterior = 1"),
         ("rule_count", "12 rules"),
         ("tag_to_upos", "TAG -> UPOS"),
     ],
@@ -80,27 +91,40 @@ def test_each_signature_family_reports_its_synthetic_fixture(family: str, fixtur
 
 
 @pytest.mark.unit
-def test_boundary_content_does_not_match_model_internal_claim_signatures() -> None:
-    """M3: ordinary documentation syntax remains outside the four signatures."""
-    boundary_text = "\n".join(
-        document.read_text(encoding="utf-8") for document in _BOUNDARY_DOCUMENTS
+def test_governed_document_set_excludes_legitimate_documentation_syntax() -> None:
+    """M3: the full docs tree and this change's artifacts remain false-positive free."""
+    documents = _governed_documents()
+    matches = {
+        document.relative_to(_REPOSITORY_ROOT): _find_matches(document)
+        for document in documents
+    }
+    documentation_text = "\n".join(
+        document.read_text(encoding="utf-8")
+        for document in (*_DOCS_DIRECTORY.rglob("*.md"), *documents)
     )
     legitimate_literals = (
-        "test:code ≈2.5:1",
+        "503 backend",
         "100%",
+        "90%",
+        "80%",
+        "test:code ≈2.5:1",
         "§2.1",
-        "sha256:83e3b47ef0173b50a8f07dac41ba26a3e61734d83481995a25a97c3e5e3e79de",
+        "SHA-256",
         "2.0.0",
         "2026-08-25",
         "[A-Z]{2,5}",
         "(→|->|=>)",
     )
 
-    assert all(document.is_file() for document in _BOUNDARY_DOCUMENTS)
-    assert "[A-Z]{2,5}" in boundary_text
-    assert "(→|->|=>)" in boundary_text
+    assert all(document.is_file() for document in documents)
+    assert all(literal in documentation_text for literal in legitimate_literals)
     assert not any(
         match_values
         for literal in legitimate_literals
         for match_values in _matches(literal).values()
     )
+    assert not any(
+        match_values
+        for document_matches in matches.values()
+        for match_values in document_matches.values()
+    ), matches
