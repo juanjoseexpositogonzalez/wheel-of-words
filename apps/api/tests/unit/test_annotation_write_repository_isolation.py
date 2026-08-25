@@ -37,45 +37,61 @@ _WRITE_REPOSITORY_PATH = (
     / "annotation_write_repository.py"
 )
 
-# Nodes that own a docstring: the docstring is body[0], never any other
-# Constant. C4 remediation: switching the string-literal check below from
-# exact equality to a substring search (needed to catch a raw-SQL string
-# that EMBEDS the forbidden name) means the guarded module's own docstring
-# (`annotation_write_repository.py`'s module docstring legitimately explains
-# "never reading, importing, or otherwise referencing ManualCorrection" in
-# prose — the confirmed source of the false positive, verified by scanning
-# that file's `ast.Constant` nodes for the forbidden text) would otherwise
-# trip the guard on itself.
-#
-# R3 (Judgment Day round 2): the FIRST version of this fix mirrored
-# `test_no_lemma_naming.py::_docstring_constant_ids` exactly, which exempts
-# EVERY docstring owner — module, class, AND function. That is too wide for
-# THIS guard specifically: a docstring is an ordinary runtime-reachable
-# string (`fn.__doc__` is a plain attribute access), so a function whose
-# docstring IS the raw forbidden SQL, later passed to
-# `sqlalchemy.text(fn.__doc__)`, reached `manual_correction` with zero
-# violations reported — an evasion route the exemption itself created. The
-# genuine false positive this exemption exists to fix is a MODULE-level
-# docstring only (verified: the module scan above found exactly one
-# `ManualCorrection`-containing string constant, and it is the module
-# docstring); no function or class docstring in the guarded production
-# module needs — or gets — this exemption.
-_DOCSTRING_OWNERS = (ast.Module,)
+# E2(b-ii): this is the one reviewed false positive, and this guard has no
+# downstream leg that re-catches module docstrings. Keep this exact instance
+# pinned: a module docstring remains runtime reachable through ``__doc__``.
+_EXEMPT_MODULE_DOCSTRINGS: dict[str, str] = {
+    "annotation_write_repository.py": """The annotation write path — design §P3/P5, spec §2.5 R2/R3.
+
+Writes automatic `pos`/`lemma` values and provenance **unconditionally**,
+without ever reading, importing, or otherwise referencing `ManualCorrection`
+(R2/R3). Splitting read from write into two separate modules is what makes
+that guarantee checkable by a static, structural guard rather than only a
+runtime assertion that could pass by chance:
+`test_annotation_write_repository_isolation.py` asserts, via AST inspection,
+that this module's source never names `ManualCorrection` — not in an import,
+not as a bare name, not as an attribute, not as an exact or substring string
+literal, and not as a `+`-concatenated chain of split literals. The write
+path cannot corrupt a correction through any of THOSE construction patterns,
+because it cannot see the correction table through them at all.
+
+**Not an exhaustive proof (R3, Judgment Day round 2).** The guard above is
+bounded to the string-construction patterns it explicitly recognises. An
+f-string interpolation, `str.join`, or `%`-formatted string that assembled
+`"manual_correction"` at runtime would currently evade it — "structurally
+provable" overstated what a finite AST pattern-matcher can guarantee against
+arbitrary string construction. Closing every such route is future work, not
+a claim this module makes today.
+
+**Atomicity (REQ-003-014, AC-003-15).** `write()` is one transaction: DELETE
+the occurrences' existing provenance, UPDATE each occurrence's `pos`/`lemma`,
+INSERT the new provenance rows, COMMIT. A failure at any point — including
+after some `UPDATE` statements have already been issued but not yet committed
+— leaves every row exactly as it was before the call: the session context
+manager closes without committing, which rolls back the whole transaction.
+Validation of the annotations themselves (length, order, UPOS membership,
+confidence range) is the caller's responsibility (`AnnotateImport`, Phase 4)
+and happens entirely before this method is ever called — this repository
+trusts its input and only guarantees that a *write* either lands completely
+or not at all.
+
+REQ-003-011, REQ-003-014, AC-003-15.
+""",
+}
 
 
-def _docstring_constant_ids(tree: ast.AST) -> frozenset[int]:
-    """Identify the Constant nodes that are docstrings, by identity."""
+def _docstring_constant_ids(tree: ast.AST, label: str) -> frozenset[int]:
+    """Identify the one reviewed module docstring, by identity and content."""
     identifiers: set[int] = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, _DOCSTRING_OWNERS):
-            continue
-        first = node.body[0] if node.body else None
-        if (
-            isinstance(first, ast.Expr)
-            and isinstance(first.value, ast.Constant)
-            and isinstance(first.value.value, str)
-        ):
-            identifiers.add(id(first.value))
+    expected = _EXEMPT_MODULE_DOCSTRINGS.get(label)
+    first = tree.body[0] if isinstance(tree, ast.Module) and tree.body else None
+    if (
+        expected is not None
+        and isinstance(first, ast.Expr)
+        and isinstance(first.value, ast.Constant)
+        and first.value.value == expected
+    ):
+        identifiers.add(id(first.value))
     return frozenset(identifiers)
 
 
@@ -121,7 +137,7 @@ def _references_to(source: str, label: str, forbidden_name: str) -> list[str]:
     be used to smuggle the forbidden name past this check undetected.
     """
     tree = ast.parse(source, filename=label)
-    docstrings = _docstring_constant_ids(tree)
+    docstrings = _docstring_constant_ids(tree, label)
     violations: list[str] = []
 
     for node in ast.walk(tree):
@@ -146,10 +162,22 @@ def _references_to(source: str, label: str, forbidden_name: str) -> list[str]:
     return violations
 
 
+def _write_repository_modules(directory: Path) -> tuple[Path, ...]:
+    """Walk the repository package and fail closed if its target disappears."""
+    modules = tuple(directory.glob("*.py"))
+    assert modules, "annotation write repository module walk reached zero modules"
+    assert any(path.name == "annotation_write_repository.py" for path in modules), (
+        "annotation write repository module walk is missing annotation_write_repository.py"
+    )
+    return modules
+
+
 @pytest.mark.unit
 def test_the_write_repository_file_exists() -> None:
     """Non-vacuity: the walk below must reach a real file, or it proves nothing."""
-    assert _WRITE_REPOSITORY_PATH.is_file()
+    modules = _write_repository_modules(_WRITE_REPOSITORY_PATH.parent)
+
+    assert _WRITE_REPOSITORY_PATH in modules
 
 
 @pytest.mark.unit
@@ -235,6 +263,21 @@ def test_a_raw_sql_string_embedding_the_table_name_would_be_caught() -> None:
     returned `[]` for this exact source.
     """
     source = 'from sqlalchemy import text\ntext("DELETE FROM manual_correction WHERE 1=1")\n'
+
+    violations = _references_to(source, "synthetic.py", "manual_correction")
+
+    assert violations
+    assert any("manual_correction" in violation for violation in violations)
+
+
+@pytest.mark.unit
+def test_a_module_docstring_holding_the_raw_forbidden_sql_would_be_caught() -> None:
+    """REQ-003H-002 / AC-003H-02 M1: a module docstring is runtime reachable.
+
+    RED before E1/E4 hardening: ``_references_to`` returned ``[]`` because
+    ``_DOCSTRING_OWNERS = (ast.Module,)`` exempted every module docstring.
+    """
+    source = '"""DELETE FROM manual_correction WHERE 1=1"""\n'
 
     violations = _references_to(source, "synthetic.py", "manual_correction")
 
@@ -362,19 +405,50 @@ def test_a_class_docstring_holding_the_raw_forbidden_sql_would_also_be_caught() 
 
 
 @pytest.mark.unit
-def test_a_module_docstring_naming_the_forbidden_concept_stays_exempt() -> None:
-    """The substring check above must not trip on legitimate PROSE
-    explaining what this guard forbids — exactly the situation this
-    module's own docstring is in ("without ever reading, importing, or
-    otherwise referencing `ManualCorrection`"). Non-vacuity for this
-    exemption: the production file's own docstring already exercises it
-    (see `test_the_write_repository_never_references_manual_correction`
-    passing despite mentioning the name), this test pins the mechanism
-    directly against a synthetic source."""
-    source = '"""This module never references ManualCorrection or manual_correction."""\n\nx = 1\n'
+def test_only_the_reviewed_module_docstring_stays_exempt() -> None:
+    """The exemption is an exact reviewed instance, not module prose generally."""
+    source = '"""' + _EXEMPT_MODULE_DOCSTRINGS["annotation_write_repository.py"] + '"""\n'
 
-    assert _references_to(source, "synthetic.py", "ManualCorrection") == []
-    assert _references_to(source, "synthetic.py", "manual_correction") == []
+    assert _references_to(source, "annotation_write_repository.py", "ManualCorrection") == []
+    assert _references_to(source, "annotation_write_repository.py", "manual_correction") == []
+
+
+@pytest.mark.unit
+def test_a_changed_reviewed_module_docstring_would_be_caught() -> None:
+    """REQ-003H-002 / AC-003H-02 E4: the exemption pins reviewed content."""
+    source = '"""Non-reviewed text naming manual_correction."""\n'
+
+    violations = _references_to(source, "annotation_write_repository.py", "manual_correction")
+
+    assert violations
+    assert any("manual_correction" in violation for violation in violations)
+
+
+@pytest.mark.unit
+def test_sql_in_function_class_docstrings_and_plain_literals_remains_in_scope() -> None:
+    """REQ-003H-002 / AC-003H-02 M3: only the pinned module instance is exempt."""
+    sources = (
+        'def query():\n    """DELETE FROM manual_correction WHERE 1=1"""\n',
+        'class Query:\n    """DELETE FROM manual_correction WHERE 1=1"""\n',
+        'query = "DELETE FROM manual_correction WHERE 1=1"\n',
+    )
+
+    for source in sources:
+        violations = _references_to(source, "synthetic.py", "manual_correction")
+        assert violations
+        assert any("manual_correction" in violation for violation in violations)
+
+
+@pytest.mark.unit
+def test_write_repository_module_walk_fails_closed_when_empty_or_incomplete(tmp_path: Path) -> None:
+    """REQ-003H-002 / AC-003H-02 M2: the guard requires its target module."""
+    with pytest.raises(AssertionError, match="reached zero modules"):
+        _write_repository_modules(tmp_path)
+
+    (tmp_path / "another_module.py").write_text("x = 1\n", encoding="utf-8")
+
+    with pytest.raises(AssertionError, match="annotation_write_repository.py"):
+        _write_repository_modules(tmp_path)
 
 
 @pytest.mark.unit
