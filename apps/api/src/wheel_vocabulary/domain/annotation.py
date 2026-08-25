@@ -66,6 +66,16 @@ class LinguisticAnnotation:
     and ``lemma_confidence`` are independent of one another (§2.3 C2) — each
     MAY be ``None`` while the other carries a value.
 
+    ``raw_text`` is the exact input token this annotation was computed for
+    (REQ-003-004, C6 remediation). `LinguisticAnalyzer.analyze` is a bulk
+    call over a `Sequence[str]`, matched back to occurrences purely by list
+    position — a same-length but internally reordered result would
+    otherwise be silently written to the wrong occurrence, undetectably.
+    Carrying the source token back on each annotation is what lets the
+    caller (`AnnotateImport._validate_and_assemble`) verify the pairing by
+    identity — comparing the token it actually asked about against the one
+    the analyzer says it answered for — rather than trusting bare position.
+
     This object performs no validation itself: a caller assembling one from
     an analyzer result MUST validate a POS against ``UPOS_TAGS`` and each
     confidence against ``validate_confidence`` before construction, and MUST
@@ -74,6 +84,7 @@ class LinguisticAnnotation:
     module a plain data carrier with no branch of its own to get wrong.
     """
 
+    raw_text: str
     pos: str | None
     lemma: str | None
     pos_confidence: float | None
