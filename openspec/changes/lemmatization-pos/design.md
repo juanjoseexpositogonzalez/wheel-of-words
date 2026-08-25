@@ -344,11 +344,25 @@ GET /api/v1/imports/{id}/annotation
 # domain/annotation.py — frozen, stdlib only (REQ-003-002)
 @dataclass(frozen=True, slots=True)
 class LinguisticAnnotation:
+    raw_text: str  # C6 remediation — the token this annotation was computed for
     pos: str | None
     lemma: str | None
     pos_confidence: float | None
     lemma_confidence: float | None
 ```
+
+**C6 remediation (post-implementation correction).** The original shape above
+omitted `raw_text`, so `AnnotateImport._validate_and_assemble` paired tokens to
+annotations with `zip(tokens, annotations, strict=True)` — verified only by
+list position and length, never by content. A same-length analyzer result
+that violated its own "same order" contract (`ports.py::LinguisticAnalyzer.
+analyze`) would be silently written to the wrong occurrence, with no error and
+no log entry — a real-corpus-breaking defect REQ-003-004's "ordering
+mismatch… MUST fail the run with `ANNOTATION_FAILED`" clause already required
+to be caught but nothing implemented. `raw_text` lets the caller compare the
+token it asked about against the one the analyzer says it answered for, at
+each position, and fail loudly on a mismatch instead of trusting position
+alone.
 
 `GET /api/v1/imports/{id}/annotation` (`X-Schema-Version: 1`, `annotation.v1.json`):
 
