@@ -72,6 +72,13 @@ class LinguisticAnalyzer(Protocol):
         one import — never raw document text (§2.6 S4). ``language`` MUST be
         supplied explicitly; it has no default here or anywhere upstream.
 
+        Each returned ``LinguisticAnnotation.raw_text`` MUST equal the input
+        token it was computed for, at the same list position (REQ-003-004,
+        C6). The caller verifies this identity, not bare position, before
+        pairing an annotation with an occurrence — a conforming
+        implementation costs nothing extra here since the token text is
+        already in hand while producing each annotation.
+
         Raises:
             UnsupportedLanguageError: no analyzer is installed for
                 ``language``. Raised before any pipeline loads and before

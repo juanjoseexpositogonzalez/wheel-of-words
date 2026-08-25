@@ -124,7 +124,9 @@ def test_a_successful_run_logs_no_sentinel_token(caplog: pytest.LogCaptureFixtur
     caplog.set_level(logging.DEBUG)
     analyzer = _StubAnalyzer(
         produce=lambda tokens: [
-            LinguisticAnnotation(pos="NOUN", lemma=t, pos_confidence=None, lemma_confidence=None)
+            LinguisticAnnotation(
+                raw_text=t, pos="NOUN", lemma=t, pos_confidence=None, lemma_confidence=None
+            )
             for t in tokens
         ]
     )
@@ -176,10 +178,14 @@ def test_a_non_upos_tag_failure_logs_the_code_the_import_id_and_the_position(
     analyzer = _StubAnalyzer(
         produce=lambda tokens: [
             LinguisticAnnotation(
-                pos="NOUN", lemma="ok", pos_confidence=None, lemma_confidence=None
+                raw_text="ok", pos="NOUN", lemma="ok", pos_confidence=None, lemma_confidence=None
             ),
             LinguisticAnnotation(
-                pos="NN", lemma=_SENTINEL, pos_confidence=None, lemma_confidence=None
+                raw_text=_SENTINEL,
+                pos="NN",
+                lemma=_SENTINEL,
+                pos_confidence=None,
+                lemma_confidence=None,
             ),
         ]
     )
