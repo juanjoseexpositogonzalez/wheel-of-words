@@ -27,6 +27,7 @@ the full requirement landscape without opening every spec directory.
 
 | REQ ID | Statement (short) | Acceptance criterion ref | Test file(s) | Task(s) | Status |
 |--------|--------------------|--------------------------|--------------|---------|--------|
+| REQ-003H-001 | Las exenciones de los guards de nombres se vinculan al nombre y a su sitio propietario; el helper es único | `openspec/changes/spec-003-harden-guards-and-claims/specs/003-lemmatization-pos/spec.md` — AC-003H-01 | `apps/api/tests/unit/test__guard_binding.py`, `apps/api/tests/unit/test_no_lemma_naming.py`, `apps/api/tests/unit/test_annotation_contract.py` | 1.1–1.10 (`08a-guard-binding-helper`) | En progreso — borrador; Phase 6 completa la fila final |
 | REQ-001-001 | Backend FastAPI arrancable mediante un comando documentado | `specs/001-project-foundation/acceptance.md#AC-001` | `apps/api/tests/api/test_health.py` | TA10, TB110–TB111 | Cumplido |
 | REQ-001-002 | `GET /api/v1/health` devuelve el contrato documentado | `specs/001-project-foundation/acceptance.md#AC-001` | `apps/api/tests/api/test_health.py` | TB107–TB111 | Cumplido |
 | REQ-001-003 | Frontend React + TypeScript arrancable mediante un comando documentado | `specs/001-project-foundation/acceptance.md#AC-002` | `apps/web/e2e/status.spec.ts` | TA06–TA10, TC11 | Cumplido |

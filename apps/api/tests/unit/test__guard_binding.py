@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import importlib.resources
 import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -104,3 +105,17 @@ def test_manifest_pinning_catches_sibling_property_renamed_into_owning_definitio
 
     assert _positional_only_is_exempt(match, owner) is True
     assert is_exempt(match, document, [owner]) is False
+
+
+@pytest.mark.unit
+def test_the_binding_helper_exists_once() -> None:
+    """AC-003H-01 M2: both JSON guards import the one shared helper module."""
+    tests_dir = Path(__file__).parent
+    helper_modules = list(tests_dir.glob("_guard_binding.py"))
+    guard_sources = {
+        guard: (tests_dir / guard).read_text(encoding="utf-8")
+        for guard in ("test_no_lemma_naming.py", "test_annotation_contract.py")
+    }
+
+    assert helper_modules == [tests_dir / "_guard_binding.py"]
+    assert all("from _guard_binding import" in source for source in guard_sources.values())
