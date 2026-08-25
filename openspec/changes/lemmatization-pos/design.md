@@ -19,99 +19,31 @@ time** because the read model has no unresolved field to forget to check.
 
 ## P1 (RESOLVED) — Where confidence actually comes from
 
-This was the highest-risk open question. The orchestrator's framing is correct: `token.prob` is
-useless here (`en_core_web_sm-3.8.0` ships `"vectors": {"width": 0, "vectors": 0, "keys": 0}`, so
-`prob` is `0.0` for every token). Below is what the pipeline *does* expose, verified against source.
-
-### `pos_confidence` — a real model posterior, obtainable
-
-Verified facts:
-
-| Fact | Evidence |
-|---|---|
-| `spacy.Tagger.v2` = `chain(tok2vec, Softmax_v2)`, with `model.set_ref("softmax", output_layer)` | `spacy/ml/models/tagger.py` |
-| The tagger is trained with `SequenceCategoricalCrossentropy` — it *is* a softmax classifier | `spacy/pipeline/tagger.pyx::get_loss` |
-| **`build_tagger_model(..., normalize=False)` by default**, and thinc's forward is `normalize = attrs["softmax_normalize"] or is_train` | `thinc/layers/softmax.py::forward` |
-| ⇒ **at inference the tagger emits raw affine logits, NOT probabilities** | same — `is_train=False`, attr `False` |
-| `Tagger.predict()` argmaxes and discards the scores | `tagger.pyx::_scores2guesses` |
-
-So the naive "take the softmax max of `tagger.model.predict()`" is **wrong as written** — it would
-read logits as if they were probabilities and could emit values outside `[0.0, 1.0]`, tripping
-`REQ-003-008`'s own range check.
-
-**Decision.** At adapter load, flip the tagger's own output layer back to its trained, normalized
-form and read the posterior from the same forward pass that assigns the tag:
+`token.prob` is not the confidence channel for this adapter. The adapter uses the tagger's trained
+output layer, with normalization enabled at load, and takes the largest normalized score from the same
+forward pass that assigns the fine-grained tag. The score is recorded as `pos_confidence`; it describes
+the assigned fine-grained tag and is not presented as a direct measure for the persisted UPOS category.
 
 ```python
 tagger = nlp.get_pipe("tagger")
-tagger.model.get_ref("softmax").attrs["softmax_normalize"] = True   # emit the trained distribution
-
-# One tok2vec pass feeds BOTH the scores and the assignment — they cannot diverge.
-nlp.get_pipe("tok2vec")(doc)                     # populates the tagger's listener for this batch
-scores = tagger.model.predict([doc])[0]          # (n_tokens, n_labels), rows sum to 1.0
+tagger.model.get_ref("softmax").attrs["softmax_normalize"] = True
+nlp.get_pipe("tok2vec")(doc)
+scores = tagger.model.predict([doc])[0]
 tag_ids = scores.argmax(axis=1)
-tagger.set_annotations([doc], [tag_ids])         # public API, mirrors Tagger.__call__
-nlp.get_pipe("attribute_ruler")(doc)             # tag_ -> pos_ (UPOS)
-nlp.get_pipe("lemmatizer")(doc)                  # rule-based, consumes pos_
+tagger.set_annotations([doc], [tag_ids])
+nlp.get_pipe("attribute_ruler")(doc)
+nlp.get_pipe("lemmatizer")(doc)
 pos_confidence = float(scores[i].max())
 ```
 
-**Precise semantics — this is what the number means, and it is testable.**
-`pos_confidence` is the tagger's posterior probability for the **fine-grained (Penn Treebank) tag it
-assigned**, in `[0.0, 1.0]` by construction. `en_core_web_sm` tags 50 fine labels (`NN`, `VBD`, …)
-and `attribute_ruler` maps the assigned fine tag to the UPOS we persist. Because ≥1 fine tag maps to
-each UPOS, this value is a **lower bound on P(UPOS | context), not necessarily a strict one** — it
-never overstates confidence, and where more than one fine tag maps to the same UPOS it systematically
-*understates* it (`NN` vs `NNS`, `VBD` vs `VBN` both mean `NOUN`/`VERB`). **The bound is not strict
-for every UPOS category, though.**
-
-**Correction (R4, Judgment Day round 2).** An earlier revision of this section claimed `MD → AUX`,
-`UH → INTJ`, `CD → NUM` and `WRB → SCONJ` each had "exactly one POS-setting rule" and were therefore
-all exact. That reasoning checked the wrong direction: showing that `MD` maps *only* to `AUX` says
-nothing about whether `AUX` is reachable from *other* fine tags too — exactness requires the reverse,
-that `AUX` (the target) is reachable from *only* `MD` (the source), globally, across the whole rule
-table. Enumerating `en_core_web_sm`'s pinned `attribute_ruler.patterns` directly (179 rules total)
-settles it:
-
-| Target UPOS | Rules | Distinct fine tags feeding it | Exact? |
-|---|---|---|---|
-| `AUX` | 20 | `MD`, `VB`, `VBP`, `VBN`, `VBG`, `VBZ`, `VBD` (7 tags) | **No** |
-| `SCONJ` | 3 | `WRB`, `IN` (2 tags) | **No** |
-| `INTJ` | 1 | `UH` (1 tag) | **Yes** |
-| `NUM` | 1 | `CD` (1 tag) | **Yes** |
-
-Only `UH → INTJ` and `CD → NUM` are genuine singletons — for those two, and only those two,
-`pos_confidence` **equals** `P(UPOS | context)` exactly. `MD → AUX` and `WRB → SCONJ` are two of
-several tags feeding a shared target, so `pos_confidence` still *understates* `P(AUX | context)` and
-`P(SCONJ | context)` respectively, exactly like the general `NN`/`NNS` case above — verified through
-the real adapter (`SpacyLinguisticAnalyzer._annotate`), summing the softmax row over every fine-tag
-column that `attribute_ruler` would resolve to the same target UPOS for the actual word encountered:
-`"is"` → `AUX`, tag `VBZ`, `pos_confidence=0.999807` vs measured `P(AUX)=0.999810` (diff `3e-6`, from
-residual `MD` probability mass); `"since"` → `SCONJ`, tag `IN`, `pos_confidence=0.987158` vs measured
-`P(SCONJ)=0.988532` (diff `1.4e-3`, from residual `WRB` mass) — while `"Wow"` → `INTJ` and a bare `"3"`
-→ `NUM` both measured `diff=0.0` exactly, confirming the two genuine singletons.
-
-`CC → CCONJ` remains a separate, ALSO-exact case, by a different mechanism than "only one rule
-targets it": it has one narrow lexical exception — `LOWER: "but", DEP: "advmod"` → `ADV` — but that
-rule can never fire in THIS adapter's actual runtime, since `parser` is excluded and `DEP` is
-therefore always unset (§P2 above); `CC` is effectively exact here too, though its exactness comes
-from an unreachable exception rather than the rule table simply having no exception at all.
-
-That understatement — where it exists (`AUX`, `SCONJ`, and every other non-singleton UPOS) — is a
-known property, not a defect, and MUST be stated in the release notes and reflected in the UI label.
-Reporting the exact UPOS posterior would require marginalising over a `tag → UPOS` table for every
-category, not only the two genuine singletons; deferred (OQ-1) because it buys accuracy in a place
-that does not change which tag is shown.
-
-**Nothing is fabricated.** Setting `softmax_normalize = True` does not invent a number: it asks the
-model to complete its own trained forward pass. `normalize_outputs=False` is purely an inference
-shortcut (argmax is invariant under softmax). Satisfies `C1`, `C3`.
+The runtime-only enumeration is the authoritative source for model-specific rule-table details:
+`apps/api/tests/integration/test_attribute_ruler_enumeration.py::test_runtime_enumeration_has_only_computed_shape_and_partition_predicates`.
 
 **Mandatory load-time self-check.** `softmax_normalize` is a thinc attribute name, not a spaCy API
-guarantee. The adapter MUST probe one synthetic doc at load and assert every score row sums to
-`1.0 ± 1e-4` **and** that the decomposed path assigns the same `pos_` as a plain `nlp(doc)` run on
-the same tokens. Failure raises `ANALYZER_UNAVAILABLE` (503). This converts a silent semantic
-corruption — logits published as probabilities — into a loud, testable failure.
+guarantee. The adapter MUST probe a synthetic doc at load, verify normalized score rows within the
+configured tolerance, and verify that the decomposed path assigns the same `pos_` as a plain `nlp(doc)`
+run on the same tokens. Failure raises `ANALYZER_UNAVAILABLE` (503). This converts a silent semantic
+corruption into a loud, testable failure.
 
 ### `lemma_confidence` — honestly `NULL`, and I am not inventing one
 
@@ -124,7 +56,7 @@ This is exactly the case `C2` (independence), `C3` (never fabricate) and `C4` (`
 written for. Deriving it from `pos_confidence` — tempting, since the rule lemmatizer consumes
 `pos_` — would be fabrication under `C3` and is forbidden. If a pipeline carrying
 `trainable_lemmatizer` (an `EditTreeLemmatizer`, a softmax classifier) is ever installed, the adapter
-reports its posterior the same way. **That is an adapter capability, not a schema change.**
+reports its score through the same capability. **That is an adapter capability, not a schema change.**
 
 Product consequence, stated plainly: for one cycle every row shows a real POS confidence and an
 explicit "not reported" lemma marker. `REQ-003-009`'s AC-003-09 scenario ("one row with both
@@ -149,7 +81,7 @@ excluded (`spacy.load(..., exclude=["parser", "ner", "senter"])`). The rule lemm
 **The real tradeoff is different, worse, and irreversible — and I accept it explicitly.**
 SPEC-002's tokenizer discards every token without an `L*` character (`tokenizer.py::_contains_letter`,
 rule T6). **The persisted stream contains no punctuation at all.** The tagger therefore sees prose
-with no sentence-final period, no comma, no quote. The model card's `tag_acc: 0.973` was measured on
+with no sentence-final period, no comma, no quote. The model card's published accuracy was measured on
 OntoNotes *with* punctuation; accuracy on this stream will be measurably lower, concentrated at
 sentence junctions where a clause-final verb abuts a following capitalised subject.
 
@@ -492,8 +424,8 @@ from the use case along the port boundary.
 
 ## Open Questions
 
-- [ ] **OQ-1** — Should `pos_confidence` marginalise over the `tag → UPOS` map to report the exact
-      UPOS posterior instead of the fine-tag lower bound? Deferred: it needs an `attribute_ruler`
+- [ ] **OQ-1** — Should `pos_confidence` marginalise over the fine-tag-to-UPOS relation to report a
+      category-level score instead of the fine-tag lower bound? Deferred: it needs an `attribute_ruler`
       probe table, some of whose patterns are context-dependent, and it never changes the tag shown.
       Revisit if users report the value reads as implausibly low.
 - [ ] **OQ-2** — `GET …/annotation` returns every occurrence and §7 defers pagination, so a
