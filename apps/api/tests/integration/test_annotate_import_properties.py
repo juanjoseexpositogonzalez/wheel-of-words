@@ -67,15 +67,17 @@ _token_lists = st.lists(
 )
 
 
-def _deterministic_annotation(token: str) -> LinguisticAnnotation:
+def _deterministic_annotation(token: str, source_index: int) -> LinguisticAnnotation:
     """A pure function of the token TEXT alone — never its position or its
-    neighbours. This is what makes the properties below meaningful: any
-    difference in the recorded mapping can only come from `AnnotateImport`
-    or the repositories mis-handling order/batching, never from the
-    analyzer being contextual."""
+    neighbours — for `pos`/`lemma`. `source_index` echoes the caller-supplied
+    input position separately (R1, Judgment Day round 2): this is what makes
+    the properties below meaningful: any difference in the recorded mapping
+    can only come from `AnnotateImport` or the repositories mis-handling
+    order/batching, never from the analyzer being contextual."""
     index = sum(ord(character) for character in token) % len(_UPOS_LIST)
     return LinguisticAnnotation(
         raw_text=token,
+        source_index=source_index,
         pos=_UPOS_LIST[index],
         lemma=token,
         pos_confidence=None,
@@ -88,17 +90,22 @@ class _DeterministicAnalyzer:
 
     def analyze(self, tokens: Sequence[str], *, language: str) -> Sequence[LinguisticAnnotation]:
         del language
-        return [_deterministic_annotation(token) for token in tokens]
+        return [_deterministic_annotation(token, index) for index, token in enumerate(tokens)]
 
 
 class _RotatingScramblingAnalyzer:
-    """A deliberately non-conforming analyzer — C6 regression fixture.
+    """A deliberately non-conforming analyzer — C6/R1 regression fixture.
 
     Computes the exact same correct `LinguisticAnnotation` per token as
-    `_DeterministicAnalyzer`, then returns them ROTATED by one position
-    relative to the input it received: index 0 of the result is what index 1
-    of the input asked for, and so on. Same length as the input, so the
-    length check alone cannot catch it — this simulates precisely the C6
+    `_DeterministicAnalyzer` — each one correctly echoing the input position
+    it was actually computed for via `source_index` — then returns the LIST
+    itself ROTATED by one position relative to the input it received: index 0
+    of the result is what index 1 of the input asked for, and so on. Same
+    length as the input, so the length check alone cannot catch it, and
+    since each annotation still carries ITS OWN correct `source_index`
+    (unaffected by the rotation moving list slots around), the identity
+    check catches the mismatch even when every token in the batch shares the
+    same text (R1's homograph gap) — this simulates precisely the C6/R1
     defect class: an analyzer violating its own "same order" port contract
     (`ports.py::LinguisticAnalyzer.analyze`).
     """
@@ -107,7 +114,7 @@ class _RotatingScramblingAnalyzer:
 
     def analyze(self, tokens: Sequence[str], *, language: str) -> Sequence[LinguisticAnnotation]:
         del language
-        correct = [_deterministic_annotation(token) for token in tokens]
+        correct = [_deterministic_annotation(token, index) for index, token in enumerate(tokens)]
         return correct[1:] + correct[:1]
 
 
@@ -319,11 +326,10 @@ def test_property_reversing_the_reader_row_order_does_not_change_the_mapping(
 # C6 remediation — the property `_ReversingReader` above cannot exercise.
 # --------------------------------------------------------------------------
 
-_distinct_token_lists = st.lists(
+_scrambled_token_lists = st.lists(
     st.text(alphabet=st.characters(categories=["Ll"]), min_size=1, max_size=8),
     min_size=2,
     max_size=6,
-    unique=True,
 )
 
 
@@ -331,23 +337,40 @@ _distinct_token_lists = st.lists(
 @settings(
     max_examples=15, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture]
 )
-@given(tokens=_distinct_token_lists)
+@given(tokens=_scrambled_token_lists)
 def test_property_a_scrambled_analyzer_output_fails_annotation_failed_and_writes_nothing(
     annotation_session_factory: sessionmaker[Session], tokens: list[str]
 ) -> None:
-    """C6: for ANY generated token sequence of at least two DISTINCT tokens,
-    an analyzer that returns a same-length but rotated result
+    """C6 + R1 (Judgment Day round 2): for ANY generated token sequence of
+    at least two tokens — REPEATS allowed, deliberately not constrained to
+    be unique — an analyzer that returns a same-length but rotated result
     (`_RotatingScramblingAnalyzer`) must make the whole run fail with
     `ANNOTATION_FAILED` and write nothing — never silently persist pos/lemma
-    values under the wrong occurrence. Tokens are constrained `unique=True`
-    so the rotation is always content-detectable: with a repeated token the
-    rotated output could coincide with the correct one by chance.
+    values under the wrong occurrence.
 
-    RED (before the fix): raised `TypeError: LinguisticAnnotation.__init__()
-    got an unexpected keyword argument 'raw_text'` — there was no field to
-    carry identity through `_RotatingScramblingAnalyzer` at all, which is
-    itself the shape of the defect: nothing could verify a same-length
-    reordering.
+    This property previously constrained generation with `unique=True`,
+    which left a hole: with a repeated token, a same-length reordering could
+    coincide with the correct mapping by CONTENT alone, so a `raw_text`-only
+    identity check could pass right through it undetected — precisely the
+    homograph-class gap ("saw"/"saw", "that"/"that", ...) both judges
+    reproduced in round 2. `_deterministic_annotation` now echoes
+    `source_index` — the exact input position each annotation was computed
+    for — independently of `raw_text`, and `_RotatingScramblingAnalyzer`'s
+    rotation moves each annotation's LIST SLOT without changing the
+    `source_index` it carries, so the identity check catches the mismatch
+    even when every generated token is identical.
+
+    RED (round 1, before the C6 fix existed): raised `TypeError:
+    LinguisticAnnotation.__init__() got an unexpected keyword argument
+    'raw_text'` — there was no field to carry identity through
+    `_RotatingScramblingAnalyzer` at all.
+
+    RED (round 2, verified 2026-08-25, `unique=True` removed with the OLD
+    `raw_text`-only check still in place): Hypothesis shrank to
+    `tokens=['a', 'a']` and failed with `Failed: DID NOT RAISE
+    AnnotationFailedError` — a repeated token let the rotated (but
+    content-identical) output slip through unnoticed, confirming the exact
+    gap this property was previously constrained to avoid exercising.
     """
     book_id = _seed_book(annotation_session_factory, tokens=tokens)
     read_repository = SqlAlchemyAnnotationReadRepository(annotation_session_factory)
@@ -387,7 +410,7 @@ def test_property_splitting_the_write_into_two_batches_does_not_change_the_mappi
     two_batch_book_id = _seed_book(annotation_session_factory, tokens=tokens)
     read_repository = SqlAlchemyAnnotationReadRepository(annotation_session_factory)
     write_repository = SqlAlchemyAnnotationWriteRepository(annotation_session_factory)
-    annotations = [_deterministic_annotation(token) for token in tokens]
+    annotations = [_deterministic_annotation(token, index) for index, token in enumerate(tokens)]
 
     def _record_for(
         book_id: int, occurrence_id: int, annotation: LinguisticAnnotation
