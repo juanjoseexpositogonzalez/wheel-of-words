@@ -58,8 +58,13 @@ const ALLOWED_LEMMA_SYMBOLS = new Set([
 // Exemption now requires BOTH an exact-name match AND the scanned file
 // being one of that symbol's genuine owners.
 const LEMMA_OWNING_FILES: Readonly<Record<string, ReadonlySet<string>>> = {
-  "src/types/annotation.ts": ALLOWED_LEMMA_SYMBOLS,
-  "src/components/AnnotationTable.tsx": ALLOWED_LEMMA_SYMBOLS,
+  "src/types/annotation.ts": new Set([
+    "lemma",
+    "lemma_confidence",
+    "lemma_origin",
+    "automatic_lemma",
+  ]),
+  "src/components/AnnotationTable.tsx": new Set(["lemma", "lemma_confidence", "lemma_origin"]),
 };
 
 interface Violation {
@@ -104,6 +109,24 @@ function toRelativePath(globKey: string): string {
 
 function scriptKindFor(path: string): ts.ScriptKind {
   return path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+}
+
+function declaredAllowedSymbols(path: string, source: string): ReadonlySet<string> {
+  const sourceFile = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, scriptKindFor(path));
+  const declaredSymbols = new Set<string>();
+
+  function visit(node: ts.Node): void {
+    if (
+      (ts.isIdentifier(node) || ts.isStringLiteral(node) || ts.isTemplateLiteralToken(node) || ts.isJsxText(node)) &&
+      ALLOWED_LEMMA_SYMBOLS.has(node.text)
+    ) {
+      declaredSymbols.add(node.text);
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return declaredSymbols;
 }
 
 export function findViolations(path: string, source: string): Violation[] {
@@ -321,6 +344,18 @@ describe("frontend lemma-naming allow-list (REQ-003-023, tasks 1.6/1.7/1.8)", ()
     );
   });
 
+  it("each owning-file set contains only allow-listed names structurally declared by that file", () => {
+    for (const [path, owningSymbols] of Object.entries(LEMMA_OWNING_FILES)) {
+      const source = rawSourceModules[`../../${path}`];
+      expect(source, `missing owning source for ${path}`).toBeDefined();
+
+      const declaredSymbols = declaredAllowedSymbols(path, source);
+      for (const symbol of owningSymbols) {
+        expect(declaredSymbols, `${path} over-grants ${symbol}`).toContain(symbol);
+      }
+    }
+  });
+
   it("an allow-listed identifier is exempt from the guard (gap 1)", () => {
     // C1: the exemption now also requires the scanned FILE to own the
     // symbol — "src/types/annotation.ts" genuinely owns "lemma"
@@ -329,6 +364,16 @@ describe("frontend lemma-naming allow-list (REQ-003-023, tasks 1.6/1.7/1.8)", ()
     const source = "const lemma = 1;\n";
 
     expect(findViolations("src/types/annotation.ts", source)).toEqual([]);
+  });
+
+  it("an allow-listed name not declared by an owning file still fails there (M3 boundary control)", () => {
+    const source = "const automatic_lemma = 1;\n";
+
+    const violations = findViolations("src/components/AnnotationTable.tsx", source);
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({ kind: "identifier", text: "automatic_lemma" });
+    expect(ALLOWED_LEMMA_SYMBOLS.has("automatic_lemma")).toBe(true);
   });
 
   it("renaming to a lemma-shaped name not on the allow-list still fails (AC-003-24 scenario 2, task 1.8)", () => {
