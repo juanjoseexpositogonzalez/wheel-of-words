@@ -44,6 +44,14 @@ if TYPE_CHECKING:
 
 __all__ = ["OccurrenceAnnotation", "SqlAlchemyAnnotationWriteRepository"]
 
+# SQLite's compile-time SQLITE_LIMIT_VARIABLE_NUMBER is 32766 host parameters
+# per statement. The provenance `DELETE`'s `IN (?, ...)` clause binds one
+# parameter per occurrence id, so a run covering more occurrences than that
+# would overflow it unchunked. Mirrors `book_repository.py::_INSERT_BATCH` —
+# same fixed-size chunking mechanism, applied to a `DELETE ... WHERE ... IN`
+# clause instead of an `INSERT` (C3).
+_IN_CLAUSE_BATCH = 10_000
+
 
 @dataclass(frozen=True, slots=True)
 class OccurrenceAnnotation:
@@ -96,11 +104,7 @@ class SqlAlchemyAnnotationWriteRepository:
 
         occurrence_ids = [annotation.occurrence_id for annotation in annotations]
         with self._session_factory() as session:
-            session.execute(
-                delete(AnnotationProvenance).where(
-                    AnnotationProvenance.occurrence_id.in_(occurrence_ids)
-                )
-            )
+            self._delete_provenance(session, occurrence_ids)
             self._update_occurrences(session, annotations)
             self._insert_provenance(
                 session,
@@ -110,6 +114,20 @@ class SqlAlchemyAnnotationWriteRepository:
                 processed_at=processed_at,
             )
             session.commit()
+
+    def _delete_provenance(self, session: Session, occurrence_ids: Sequence[int]) -> None:
+        """DELETE existing provenance in fixed-size batches (C3).
+
+        Chunked the same way `book_repository.py::_insert_occurrences` chunks
+        its `INSERT`: a `_IN_CLAUSE_BATCH`-sized slice per statement, so no
+        single `IN (?, ...)` clause can exceed SQLite's host-parameter limit
+        regardless of how many occurrences one run covers.
+        """
+        for start in range(0, len(occurrence_ids), _IN_CLAUSE_BATCH):
+            batch = occurrence_ids[start : start + _IN_CLAUSE_BATCH]
+            session.execute(
+                delete(AnnotationProvenance).where(AnnotationProvenance.occurrence_id.in_(batch))
+            )
 
     def _update_occurrences(
         self, session: Session, annotations: Sequence[AnnotationRecord]
