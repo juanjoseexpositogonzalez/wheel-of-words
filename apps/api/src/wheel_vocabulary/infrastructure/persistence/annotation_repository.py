@@ -47,6 +47,14 @@ if TYPE_CHECKING:
 
 __all__ = ["AnnotatedOccurrence", "SqlAlchemyAnnotationReadRepository"]
 
+# SQLite's compile-time SQLITE_LIMIT_VARIABLE_NUMBER is 32766 host parameters
+# per statement. `_read_corrections` binds one parameter per occurrence id in
+# its `IN (?, ...)` clause, so a book with more occurrences than that would
+# overflow it unchunked. Mirrors `book_repository.py::_INSERT_BATCH` — same
+# fixed-size chunking mechanism, applied to a query clause instead of an
+# insert (C3).
+_IN_CLAUSE_BATCH = 10_000
+
 
 @dataclass(frozen=True, slots=True)
 class AnnotatedOccurrence:
@@ -130,16 +138,25 @@ class SqlAlchemyAnnotationReadRepository:
     def _read_corrections(
         self, session: Session, occurrence_ids: Sequence[int]
     ) -> dict[int, dict[str, str]]:
+        """Look up corrections in fixed-size batches (C3).
+
+        Chunked the same way `book_repository.py::_insert_occurrences` chunks
+        its `INSERT`: a `_IN_CLAUSE_BATCH`-sized slice per query, so no single
+        `IN (?, ...)` clause can exceed SQLite's host-parameter limit
+        regardless of corpus size.
+        """
         if not occurrence_ids:
             return {}
-        statement = select(
-            ManualCorrection.occurrence_id,
-            ManualCorrection.field,
-            ManualCorrection.corrected_value,
-        ).where(ManualCorrection.occurrence_id.in_(occurrence_ids))
         corrections: dict[int, dict[str, str]] = {}
-        for row in session.execute(statement):
-            corrections.setdefault(row.occurrence_id, {})[row.field] = row.corrected_value
+        for start in range(0, len(occurrence_ids), _IN_CLAUSE_BATCH):
+            batch = occurrence_ids[start : start + _IN_CLAUSE_BATCH]
+            statement = select(
+                ManualCorrection.occurrence_id,
+                ManualCorrection.field,
+                ManualCorrection.corrected_value,
+            ).where(ManualCorrection.occurrence_id.in_(batch))
+            for row in session.execute(statement):
+                corrections.setdefault(row.occurrence_id, {})[row.field] = row.corrected_value
         return corrections
 
 
