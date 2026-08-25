@@ -3,12 +3,22 @@
 Writes automatic `pos`/`lemma` values and provenance **unconditionally**,
 without ever reading, importing, or otherwise referencing `ManualCorrection`
 (R2/R3). Splitting read from write into two separate modules is what makes
-that guarantee structurally provable rather than merely tested:
+that guarantee checkable by a static, structural guard rather than only a
+runtime assertion that could pass by chance:
 `test_annotation_write_repository_isolation.py` asserts, via AST inspection,
-that this module's source never names `ManualCorrection` anywhere — not in an
-import, not as a bare name, not as an attribute, not as a string literal. The
-write path cannot corrupt a correction because it cannot see the correction
-table at all.
+that this module's source never names `ManualCorrection` — not in an import,
+not as a bare name, not as an attribute, not as an exact or substring string
+literal, and not as a `+`-concatenated chain of split literals. The write
+path cannot corrupt a correction through any of THOSE construction patterns,
+because it cannot see the correction table through them at all.
+
+**Not an exhaustive proof (R3, Judgment Day round 2).** The guard above is
+bounded to the string-construction patterns it explicitly recognises. An
+f-string interpolation, `str.join`, or `%`-formatted string that assembled
+`"manual_correction"` at runtime would currently evade it — "structurally
+provable" overstated what a finite AST pattern-matcher can guarantee against
+arbitrary string construction. Closing every such route is future work, not
+a claim this module makes today.
 
 **Atomicity (REQ-003-014, AC-003-15).** `write()` is one transaction: DELETE
 the occurrences' existing provenance, UPDATE each occurrence's `pos`/`lemma`,
