@@ -123,10 +123,10 @@ Closes: REQ-003H-004 (AC-003H-04), REQ-003H-006 (AC-003H-06). No further split �
 
 Closes: REQ-003H-005 (AC-003H-05). Mandatorily last — depends on every test name from Phases 1–5 existing.
 
-- [ ] 6.1 [TEST] `test_traceability.py` — RED: resolve every test name/node ID the whole matrix cites (not only SPEC-001 rows) against the collected suite; a row citing a nonexistent test fails.
-- [ ] 6.2 [IMPL] `test_traceability.py`: implement the cited-test resolution check across all rows.
-- [ ] 6.3 [DOC] Correct `docs/traceability-matrix.md`'s `REQ-003-004` row: replace "por IDENTIDAD" wording with content-equality + `source_index == position`; cite the swap regression test and the property test's shipped form.
-- [ ] 6.4 [TEST] Guard: matrix searched for an identity-based pairing claim → zero matches.
-- [ ] 6.5 [DOC] Add matrix rows for `REQ-003H-001`…`REQ-003H-006`, each with AC ref, test file(s), task ID(s), status.
-- [ ] 6.6 [REFACTOR] Full regression: `cd apps/api && uv run pytest` (503+new, 100% coverage; domain/application ≥90%, global ≥80%), `ruff check`, `mypy`; `cd apps/web && pnpm run test && pnpm exec eslint . && pnpm exec tsc --noEmit`; confirm `import.v1.json`/`annotation.v1.json` byte-identical; 4 E2E specs green.
-- [ ] 6.7 [DOC] Final traceability sweep; close out the proposal's Success Criteria checklist.
+- [x] 6.1 [TEST] `test_traceability.py` — RED: resolve every test name/node ID the whole matrix cites (not only SPEC-001 rows) against the collected suite; a row citing a nonexistent test fails.
+- [x] 6.2 [IMPL] `test_traceability.py`: implement the cited-test resolution check across all rows.
+- [x] 6.3 [DOC] Correct `docs/traceability-matrix.md`'s `REQ-003-004` row: replace "por IDENTIDAD" wording with content-equality + `source_index == position`; cite the swap regression test and the property test's shipped form.
+- [x] 6.4 [TEST] Guard: matrix searched for an identity-based pairing claim → zero matches.
+- [x] 6.5 [DOC] Add matrix rows for `REQ-003H-001`…`REQ-003H-006`, each with AC ref, test file(s), task ID(s), status.
+- [x] 6.6 [REFACTOR] Full regression: `cd apps/api && uv run pytest` (503+new, 100% coverage; domain/application ≥90%, global ≥80%), `ruff check`, `mypy`; `cd apps/web && pnpm run test && pnpm exec eslint . && pnpm exec tsc --noEmit`; confirm `import.v1.json`/`annotation.v1.json` byte-identical; 4 E2E specs green.
+- [x] 6.7 [DOC] Final traceability sweep; close out the proposal's Success Criteria checklist.
