@@ -49,6 +49,19 @@ const ALLOWED_LEMMA_SYMBOLS = new Set([
   "automatic_lemma",
 ]);
 
+// C1 remediation (mirrors the backend `_LEMMA_OWNING_FILES` in
+// `apps/api/tests/unit/test_no_lemma_naming.py`). The allow-list above used
+// to exempt an exact match EVERYWHERE, with no binding to declaration site
+// or owning module — a rename of any unrelated symbol to the bare word
+// `lemma` (e.g. `normalized_form -> lemma` in `src/types/imports.ts`,
+// outside the annotation capability entirely) produced zero violations.
+// Exemption now requires BOTH an exact-name match AND the scanned file
+// being one of that symbol's genuine owners.
+const LEMMA_OWNING_FILES: Readonly<Record<string, ReadonlySet<string>>> = {
+  "src/types/annotation.ts": ALLOWED_LEMMA_SYMBOLS,
+  "src/components/AnnotationTable.tsx": ALLOWED_LEMMA_SYMBOLS,
+};
+
 interface Violation {
   readonly file: string;
   readonly line: number;
@@ -102,12 +115,15 @@ export function findViolations(path: string, source: string): Violation[] {
     scriptKindFor(path),
   );
   const violations: Violation[] = [];
+  const owningSymbols = LEMMA_OWNING_FILES[path];
 
   function report(node: ts.Node, kind: string, text: string): void {
     if (!FORBIDDEN_PATTERN.test(text)) {
       return;
     }
-    if (ALLOWED_LEMMA_SYMBOLS.has(text)) {
+    // C1: exemption requires BOTH the exact-match allow-list AND this file
+    // being a genuine owner of the symbol — never the symbol alone.
+    if (ALLOWED_LEMMA_SYMBOLS.has(text) && owningSymbols?.has(text)) {
       return;
     }
     const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
@@ -306,9 +322,13 @@ describe("frontend lemma-naming allow-list (REQ-003-023, tasks 1.6/1.7/1.8)", ()
   });
 
   it("an allow-listed identifier is exempt from the guard (gap 1)", () => {
+    // C1: the exemption now also requires the scanned FILE to own the
+    // symbol — "src/types/annotation.ts" genuinely owns "lemma"
+    // (LEMMA_OWNING_FILES), so this source, scanned under that exact path,
+    // stays exempt.
     const source = "const lemma = 1;\n";
 
-    expect(findViolations("synthetic.ts", source)).toEqual([]);
+    expect(findViolations("src/types/annotation.ts", source)).toEqual([]);
   });
 
   it("renaming to a lemma-shaped name not on the allow-list still fails (AC-003-24 scenario 2, task 1.8)", () => {
@@ -319,6 +339,30 @@ describe("frontend lemma-naming allow-list (REQ-003-023, tasks 1.6/1.7/1.8)", ()
     expect(violations).toHaveLength(1);
     expect(violations[0]).toMatchObject({ kind: "identifier", text: "lemma_text" });
     expect(ALLOWED_LEMMA_SYMBOLS.has("lemma_text")).toBe(false);
+  });
+
+  it("renaming normalized_form to the bare allow-listed name lemma still fails (C1 remediation)", () => {
+    // The test above uses "lemma_text", a name OUTSIDE ALLOWED_LEMMA_SYMBOLS
+    // — it fails trivially on the exact-match check alone and never
+    // exercises the allow-list's own exemption logic, let alone the C1
+    // file-binding fix. "lemma" IS on the allow-list; the dangerous case is
+    // a rename that lands the exact word "lemma" on a display-form-shaped
+    // field in a file that does not own the genuine SPEC-003 lemma
+    // capability — mirrors the confirmed repro:
+    // `normalized_form -> lemma` in `src/types/imports.ts`.
+    //
+    // RED before C1: this source, scanned under "src/types/imports.ts" (a
+    // real, non-owning file — absent from LEMMA_OWNING_FILES), produced
+    // ZERO violations, because the pre-C1 exemption checked only
+    // `ALLOWED_LEMMA_SYMBOLS.has(text)` with no file binding at all.
+    const source = "export interface FormFrequency {\n  lemma: string;\n}\n";
+
+    const violations = findViolations("src/types/imports.ts", source);
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({ kind: "identifier", text: "lemma" });
+    expect(ALLOWED_LEMMA_SYMBOLS.has("lemma")).toBe(true); // confirms this exercises the allow-list
+    expect(Object.keys(LEMMA_OWNING_FILES)).not.toContain("src/types/imports.ts");
   });
 
   // Real-code mutation check: renamed `normalized_form` to `lemma_form` in
