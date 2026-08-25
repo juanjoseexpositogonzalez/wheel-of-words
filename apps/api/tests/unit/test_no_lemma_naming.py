@@ -214,16 +214,22 @@ _OPENAPI_LEMMA_OWNING_SCHEMA = "AnnotationOccurrenceResponse"
 
 # C2 remediation (AC-002-10 mandates `api/schemas/*.json`, not one hardcoded
 # file). Per-pinned-schema owning path segment for the JSON leg, mirroring
-# `_LEMMA_OWNING_FILES`'s per-Python-file binding. `""` matches any JSON
-# path (`"" in any_string` is always `True` in Python), which is how a
-# WHOLE FILE is granted ownership rather than one path segment within it —
-# used only for `annotation.v1.json`, the one pinned schema that exists
-# specifically to carry the genuine SPEC-003 lemma capability on the wire.
+# `_LEMMA_OWNING_FILES`'s per-Python-file binding.
+#
+# R2 (Judgment Day round 2): this used to bind `annotation.v1.json` to the
+# EMPTY STRING `""`, and `"" in where` is `True` for every JSON path — that
+# is a WHOLE-FILE exemption in disguise, not a genuine owning-segment
+# binding, and it made bringing this file into the scan a net coverage gain
+# of zero (verified: renaming `annotation.v1.json`'s `raw_text` property to
+# the bare allow-listed name `lemma` produced zero violations, exactly as if
+# the file were never scanned at all). The real owning component is
+# `$defs.occurrence` — the ONE schema definition that legitimately declares
+# `lemma`/`lemma_confidence` (`AnnotationOccurrenceResponse`'s wire shape).
 # `import.v1.json` and `health.v1.json` own nothing: `None` means every
 # match in that file is still a violation.
 _SCHEMA_OWNING_PATH_SEGMENTS: dict[str, str | None] = {
     "import.v1.json": None,
-    "annotation.v1.json": "",
+    "annotation.v1.json": "occurrence",
     "health.v1.json": None,
 }
 
@@ -382,10 +388,33 @@ def _json_strings(node: Any, path: str) -> Iterator[tuple[str, str]]:
         yield f"{path} (value)", node
 
 
+def _path_segments(where: str) -> list[str]:
+    """Split a `_json_strings` path into exact, comparable segments.
+
+    `where` looks like `$.components.schemas.Foo.properties.bar (key)` or
+    `$.$defs.occurrence.required[3] (value)` — dot-separated components,
+    with the trailing `` (key)``/`` (value)`` annotation stripped and any
+    trailing `[n]` array index stripped from the segment it is attached to.
+
+    R2 (Judgment Day round 2): this is what makes ownership binding an EXACT
+    segment match rather than substring containment. `owning_path_segment in
+    where` (the old check) is `True` whenever the owning name merely occurs
+    ANYWHERE inside the path string — including as a substring of an
+    unrelated, longer sibling name (`"AnnotationOccurrenceResponse" in
+    "...AnnotationOccurrenceResponseExtra..."` is `True`). Comparing against
+    `owning_path_segment in _path_segments(where)` instead requires the
+    owning name to be one COMPLETE path component, so a sibling whose name
+    merely contains it as a substring no longer inherits the exemption.
+    """
+    bare = where.split(" (", 1)[0]
+    return [re.sub(r"\[\d+\]$", "", part) for part in bare.split(".")]
+
+
 def _json_violations(document: Any, *, owning_path_segment: str | None = None) -> list[str]:
     """An exact match against `_ALLOWED_LEMMA_SYMBOLS` is exempt (REQ-003-023)
-    ONLY when the JSON path also passes through `owning_path_segment` (C1) —
-    the schema/definition that legitimately owns the genuine SPEC-003 lemma
+    ONLY when the JSON path also passes through `owning_path_segment` as a
+    COMPLETE path segment (C1, tightened by R2's exact-match fix) — the
+    schema/definition that legitimately owns the genuine SPEC-003 lemma
     capability. With `owning_path_segment=None` (the default, and always
     `import.v1.json`'s value — it owns nothing), NOTHING is exempt: a
     lemma-shaped rename anywhere in that document still fails, which is what
@@ -400,7 +429,7 @@ def _json_violations(document: Any, *, owning_path_segment: str | None = None) -
         exempt = (
             text in _ALLOWED_LEMMA_SYMBOLS
             and owning_path_segment is not None
-            and owning_path_segment in where
+            and owning_path_segment in _path_segments(where)
         )
         if not exempt:
             violations.append(f"{where} -> {text!r}")
@@ -855,6 +884,72 @@ def test_renaming_the_pinned_schemas_normalized_form_property_to_lemma_still_fai
     violations = _json_violations(
         renamed_schema
     )  # no owning_path_segment: import.v1.json owns nothing
+
+    assert violations
+    assert any("lemma" in violation for violation in violations)
+
+
+@pytest.mark.unit
+def test_renaming_a_non_owning_property_of_annotation_schema_to_lemma_still_fails() -> None:
+    """R2 (Judgment Day round 2) / C2 self-cancellation.
+
+    Before this fix, `_SCHEMA_OWNING_PATH_SEGMENTS["annotation.v1.json"]` was
+    `""` — the empty string — and `"" in where` is `True` for EVERY string,
+    which grants a WHOLE-FILE exemption rather than binding the exemption to
+    `annotation.v1.json`'s genuine owning path segment (`$defs.occurrence`,
+    the one JSON Schema component that actually declares `lemma`/
+    `lemma_confidence`). Net coverage gain from bringing this file into the
+    scan for the first time was therefore zero.
+
+    This mutates a COPY of the real pinned schema, renaming
+    `$defs.provenance.properties.source` — a field that does NOT legitimately
+    own the lemma capability — to the bare allow-listed name `lemma`. This
+    must still fail: `provenance` is not the owning component.
+
+    RED (before the fix, verified 2026-08-25): `_json_violations(mutated,
+    owning_path_segment="")` returned `[]` — zero violations — because `""`
+    matched every path, exempting the renamed `provenance.source` field
+    exactly as if it were the genuine `occurrence.lemma`.
+    """
+    annotation_schema = json.loads(
+        (_SCHEMAS_DIR / "annotation.v1.json").read_text(encoding="utf-8")
+    )
+    mutated = json.loads(json.dumps(annotation_schema))
+    provenance_properties = mutated["$defs"]["provenance"]["properties"]
+    provenance_properties["lemma"] = provenance_properties.pop("source")
+
+    violations = _json_violations(
+        mutated, owning_path_segment=_SCHEMA_OWNING_PATH_SEGMENTS["annotation.v1.json"]
+    )
+
+    assert violations
+    assert any("lemma" in violation for violation in violations)
+
+
+@pytest.mark.unit
+def test_a_sibling_openapi_schema_component_does_not_inherit_the_exemption() -> None:
+    """R2: `owning_path_segment in where` was SUBSTRING containment, not an
+    exact path-segment match — a future component whose name merely
+    CONTAINS `_OPENAPI_LEMMA_OWNING_SCHEMA` as a substring (e.g.
+    `AnnotationOccurrenceResponseV2`, or `...Extra`) silently inherited the
+    exemption meant only for `AnnotationOccurrenceResponse` itself.
+
+    RED (before the fix, verified 2026-08-25): a `lemma` key under
+    `AnnotationOccurrenceResponseExtra` produced zero violations —
+    `"AnnotationOccurrenceResponse" in "$.components.schemas.
+    AnnotationOccurrenceResponseExtra.properties.lemma (key)"` is `True` by
+    plain substring containment, even though `AnnotationOccurrenceResponseExtra`
+    is a distinct, non-owning schema component.
+    """
+    document = {
+        "components": {
+            "schemas": {
+                "AnnotationOccurrenceResponseExtra": {"properties": {"lemma": {"type": "string"}}}
+            }
+        }
+    }
+
+    violations = _json_violations(document, owning_path_segment=_OPENAPI_LEMMA_OWNING_SCHEMA)
 
     assert violations
     assert any("lemma" in violation for violation in violations)
