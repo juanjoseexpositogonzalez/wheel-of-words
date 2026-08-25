@@ -197,6 +197,34 @@ def test_execute_writes_one_validated_record_per_token_in_order() -> None:
 
 
 @pytest.mark.unit
+def test_same_text_swap_with_consistently_reassigned_source_index_is_accepted() -> None:
+    """REQ-003H-006 G3: this accepted result is the documented bound.
+
+    `source_index` is self-reported by the analyzer, so a same-text swap that
+    also reassigns its indexes is self-consistent with the inputs it claims.
+    The port contract deliberately does not claim to detect this case.
+    """
+    analyzer = _StubAnalyzer(
+        produce=lambda tokens: [
+            _annotation("NOUN", "saw", raw_text="saw", source_index=0),
+            _annotation("VERB", "see", raw_text="saw", source_index=1),
+        ]
+    )
+    use_case, writer = _use_case(
+        tokens_by_book={1: [(10, "saw"), (11, "saw")]}, analyzers={"en": analyzer}
+    )
+
+    use_case.execute(1, language="en")
+
+    assert len(writer.calls) == 1
+    records = writer.calls[0].annotations
+    assert [(record.occurrence_id, record.pos, record.lemma) for record in records] == [  # type: ignore[attr-defined]
+        (10, "NOUN", "saw"),
+        (11, "VERB", "see"),
+    ]
+
+
+@pytest.mark.unit
 def test_execute_of_a_book_with_zero_occurrences_writes_an_empty_sequence() -> None:
     """REQ-002-012's zero-occurrence state, re-verified for annotation."""
     analyzer = _StubAnalyzer(produce=lambda tokens: [])
@@ -385,8 +413,8 @@ def test_a_reordered_same_length_output_fails_annotation_failed_and_writes_nothi
 
 
 @pytest.mark.unit
-def test_swapped_annotations_with_the_same_raw_text_fail_and_write_nothing() -> None:
-    """R1 (Judgment Day round 2): `raw_text` content equality alone cannot
+def test_same_text_swap_without_reassigning_source_index_fails_and_writes_nothing() -> None:
+    """REQ-003H-006 covered-case control: `raw_text` content equality alone cannot
     catch a swap between two occurrences that share the SAME surface form —
     homographs such as "saw" (VERB "see" vs. NOUN "saw") are pervasive in
     real prose. Occurrence 10 ("saw", the verb) and occurrence 11 ("saw",
