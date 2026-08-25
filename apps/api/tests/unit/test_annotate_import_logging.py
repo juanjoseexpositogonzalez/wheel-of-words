@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from wheel_vocabulary.application.annotation.errors import (
+    AnalyzerUnavailableError,
     AnnotationFailedError,
     UnsupportedLanguageError,
 )
@@ -90,6 +91,18 @@ class _StubAnalyzer:
     def analyze(self, tokens: Sequence[str], *, language: str) -> Sequence[LinguisticAnnotation]:
         del language
         return self._produce(tokens)
+
+
+class _ExplodingRegistry:
+    """Raises an arbitrary exception from `resolve()` — simulating a real
+    model-load failure surfacing through `AnalyzerRegistry.resolve()`."""
+
+    def __init__(self, exc: BaseException) -> None:
+        self._exc = exc
+
+    def resolve(self, language: str) -> object:
+        del language
+        raise self._exc
 
 
 class _FixedClock:
@@ -166,6 +179,34 @@ def test_an_unsupported_language_logs_the_code_and_the_import_id_not_the_languag
     assert any(f"code={UnsupportedLanguageError.code}" in message for message in messages)
     assert any("import_id=1" in message for message in messages)
     assert _SENTINEL not in _rendered(caplog.records)
+
+
+@pytest.mark.unit
+def test_a_model_load_failure_logs_the_code_and_the_import_id_not_the_path(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """C5: a model load failure logs `code=ANALYZER_UNAVAILABLE` and the
+    import id via `_log_failure`, same as every other failure mode — and the
+    raw exception's own message, which may carry a model name or a
+    filesystem path (spaCy's real `E050` message does exactly this), is
+    never rendered anywhere in the log output."""
+    caplog.set_level(logging.DEBUG)
+    path_leaking_error = OSError(f"[E050] Can't find model '/opt/models/{_SENTINEL}'")
+    use_case = AnnotateImport(
+        reader=_FakeReader({1: [(10, "run")]}),
+        registry=_ExplodingRegistry(path_leaking_error),
+        writer=_FakeWriter(),
+        clock=_FixedClock(),
+    )
+
+    with pytest.raises(AnalyzerUnavailableError):
+        use_case.execute(1, language="en")
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any(f"code={AnalyzerUnavailableError.code}" in message for message in messages)
+    assert any("import_id=1" in message for message in messages)
+    assert _SENTINEL not in _rendered(caplog.records)
+    assert "/opt/models" not in _rendered(caplog.records)
 
 
 @pytest.mark.unit
