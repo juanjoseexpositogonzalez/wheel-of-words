@@ -47,6 +47,7 @@ ADRs are numbered globally and sequentially. Numbers are zero-padded to four dig
 | [ADR-0008](0008-multi-language-scope.md) | Multi-language scope from day one | Accepted | 2026-07-16 | 2 |
 | [ADR-0009](0009-mwe-language-specific-instances.md) | Multiword expressions as language-specific instances | Accepted | 2026-07-16 | 2 |
 | [ADR-0010](0010-documentation-language-policy.md) | Documentation language policy: methodology EN, product-facing ES | Accepted | 2026-07-16 | 2 |
+| [ADR-0011](0011-deferred-parser-exclusion-for-main-verb-tagging.md) | Deferred: `parser` stays excluded, accepting AUX-for-VERB mistagging on main-verb be/have/do | Accepted | 2026-08-25 | — |
 
 ---
 
