@@ -107,12 +107,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from _guard_binding import OwningDefinition, is_exempt, render, walk_json
 
 from wheel_vocabulary.api.main import create_app
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
-
     from fastapi.testclient import TestClient
 
 _PACKAGE_ROOT = Path(__file__).resolve().parents[2] / "src" / "wheel_vocabulary"
@@ -203,35 +202,38 @@ _LEMMA_OWNING_COLUMNS: frozenset[tuple[str, str]] = frozenset(
     }
 )
 
-# C1 remediation, JSON leg. `import.v1.json` owns NOTHING — REQ-002-007
-# forbids any lemma-shaped name there outright, so no path segment is bound
-# for it (every match is a violation). The served OpenAPI document DOES
-# legitimately publish these names, but only inside the ONE Pydantic model
-# that declares them (`AnnotationOccurrenceResponse`, `api/dtos/annotation.py`)
-# — a JSON-path segment naming that schema component is the OpenAPI
-# equivalent of `_LEMMA_OWNING_FILES`'s per-file binding.
-_OPENAPI_LEMMA_OWNING_SCHEMA = "AnnotationOccurrenceResponse"
-
-# C2 remediation (AC-002-10 mandates `api/schemas/*.json`, not one hardcoded
-# file). Per-pinned-schema owning path segment for the JSON leg, mirroring
-# `_LEMMA_OWNING_FILES`'s per-Python-file binding.
-#
-# R2 (Judgment Day round 2): this used to bind `annotation.v1.json` to the
-# EMPTY STRING `""`, and `"" in where` is `True` for every JSON path — that
-# is a WHOLE-FILE exemption in disguise, not a genuine owning-segment
-# binding, and it made bringing this file into the scan a net coverage gain
-# of zero (verified: renaming `annotation.v1.json`'s `raw_text` property to
-# the bare allow-listed name `lemma` produced zero violations, exactly as if
-# the file were never scanned at all). The real owning component is
-# `$defs.occurrence` — the ONE schema definition that legitimately declares
-# `lemma`/`lemma_confidence` (`AnnotationOccurrenceResponse`'s wire shape).
-# `import.v1.json` and `health.v1.json` own nothing: `None` means every
-# match in that file is still a violation.
-_SCHEMA_OWNING_PATH_SEGMENTS: dict[str, str | None] = {
-    "import.v1.json": None,
-    "annotation.v1.json": "occurrence",
-    "health.v1.json": None,
+_OCCURRENCE_LEMMA_PROPERTIES = frozenset(
+    {"lemma", "lemma_confidence", "lemma_origin", "automatic_lemma"}
+)
+_OCCURRENCE_PROPERTIES = frozenset(
+    {
+        "position",
+        "raw_text",
+        "pos",
+        "pos_origin",
+        "automatic_pos",
+        "pos_confidence",
+        *_OCCURRENCE_LEMMA_PROPERTIES,
+    }
+)
+_SCHEMA_OWNERS: dict[str, tuple[OwningDefinition, ...]] = {
+    "import.v1.json": (),
+    "annotation.v1.json": (
+        OwningDefinition(
+            path=("$", "$defs", "occurrence"),
+            declared=_OCCURRENCE_PROPERTIES,
+            exempt=_OCCURRENCE_LEMMA_PROPERTIES,
+        ),
+    ),
+    "health.v1.json": (),
 }
+_OPENAPI_OWNERS = (
+    OwningDefinition(
+        path=("$", "components", "schemas", "AnnotationOccurrenceResponse"),
+        declared=_OCCURRENCE_PROPERTIES,
+        exempt=_OCCURRENCE_LEMMA_PROPERTIES,
+    ),
+)
 
 
 def _schema_paths() -> list[Path]:
@@ -375,64 +377,16 @@ def _python_violations(source: str, label: str) -> list[str]:
     return violations
 
 
-def _json_strings(node: Any, path: str) -> Iterator[tuple[str, str]]:
-    """Yield every object key and every string value, with its JSON path."""
-    if isinstance(node, dict):
-        for key, value in node.items():
-            yield f"{path}.{key} (key)", key
-            yield from _json_strings(value, f"{path}.{key}")
-    elif isinstance(node, list):
-        for index, item in enumerate(node):
-            yield from _json_strings(item, f"{path}[{index}]")
-    elif isinstance(node, str):
-        yield f"{path} (value)", node
-
-
-def _path_segments(where: str) -> list[str]:
-    """Split a `_json_strings` path into exact, comparable segments.
-
-    `where` looks like `$.components.schemas.Foo.properties.bar (key)` or
-    `$.$defs.occurrence.required[3] (value)` — dot-separated components,
-    with the trailing `` (key)``/`` (value)`` annotation stripped and any
-    trailing `[n]` array index stripped from the segment it is attached to.
-
-    R2 (Judgment Day round 2): this is what makes ownership binding an EXACT
-    segment match rather than substring containment. `owning_path_segment in
-    where` (the old check) is `True` whenever the owning name merely occurs
-    ANYWHERE inside the path string — including as a substring of an
-    unrelated, longer sibling name (`"AnnotationOccurrenceResponse" in
-    "...AnnotationOccurrenceResponseExtra..."` is `True`). Comparing against
-    `owning_path_segment in _path_segments(where)` instead requires the
-    owning name to be one COMPLETE path component, so a sibling whose name
-    merely contains it as a substring no longer inherits the exemption.
-    """
-    bare = where.split(" (", 1)[0]
-    return [re.sub(r"\[\d+\]$", "", part) for part in bare.split(".")]
-
-
-def _json_violations(document: Any, *, owning_path_segment: str | None = None) -> list[str]:
-    """An exact match against `_ALLOWED_LEMMA_SYMBOLS` is exempt (REQ-003-023)
-    ONLY when the JSON path also passes through `owning_path_segment` as a
-    COMPLETE path segment (C1, tightened by R2's exact-match fix) — the
-    schema/definition that legitimately owns the genuine SPEC-003 lemma
-    capability. With `owning_path_segment=None` (the default, and always
-    `import.v1.json`'s value — it owns nothing), NOTHING is exempt: a
-    lemma-shaped rename anywhere in that document still fails, which is what
-    closes the renaming hole — `import.v1.json` has no such segment anywhere,
-    so renaming its `normalized_form` property to `lemma` is caught, not
-    silently waved through.
-    """
+def _json_violations(document: Any, *, owners: tuple[OwningDefinition, ...] = ()) -> list[str]:
+    """Report forbidden JSON names unless their declaring manifest is intact."""
     violations: list[str] = []
-    for where, text in _json_strings(document, "$"):
+    for match in walk_json(document):
+        _, _, text = match
         if not _FORBIDDEN.search(text):
             continue
-        exempt = (
-            text in _ALLOWED_LEMMA_SYMBOLS
-            and owning_path_segment is not None
-            and owning_path_segment in _path_segments(where)
-        )
-        if not exempt:
-            violations.append(f"{where} -> {text!r}")
+        if not is_exempt(match, document, list(owners)):
+            segments, kind, _ = match
+            violations.append(f"{render(segments, kind)} -> {text!r}")
     return violations
 
 
@@ -471,9 +425,9 @@ def test_the_schema_scan_reaches_every_pinned_schema_file() -> None:
 
     assert scanned, "the schema glob resolved to zero files"
     assert scanned >= _EXPECTED_SCHEMA_FILES
-    assert set(_SCHEMA_OWNING_PATH_SEGMENTS) >= scanned, (
-        "a pinned schema file has no entry in _SCHEMA_OWNING_PATH_SEGMENTS: "
-        + ", ".join(sorted(scanned - set(_SCHEMA_OWNING_PATH_SEGMENTS)))
+    assert set(_SCHEMA_OWNERS) >= scanned, (
+        "a pinned schema file has no entry in _SCHEMA_OWNERS: "
+        + ", ".join(sorted(scanned - set(_SCHEMA_OWNERS)))
     )
 
 
@@ -572,7 +526,7 @@ def test_every_pinned_schema_file_names_no_lemma_or_lexeme_outside_its_owner() -
         for schema_path in _schema_paths()
         for violation in _json_violations(
             json.loads(schema_path.read_text(encoding="utf-8")),
-            owning_path_segment=_SCHEMA_OWNING_PATH_SEGMENTS[schema_path.name],
+            owners=_SCHEMA_OWNERS[schema_path.name],
         )
     ]
 
@@ -600,9 +554,7 @@ def test_health_schema_is_genuinely_reachable_and_would_fail_a_lemma_shaped_prop
     mutated = json.loads(health_schema_path.read_text(encoding="utf-8"))
     mutated["properties"]["lemma"] = {"type": "string"}
 
-    violations = _json_violations(
-        mutated, owning_path_segment=_SCHEMA_OWNING_PATH_SEGMENTS["health.v1.json"]
-    )
+    violations = _json_violations(mutated, owners=_SCHEMA_OWNERS["health.v1.json"])
 
     assert violations
     assert any("lemma" in violation for violation in violations)
@@ -612,14 +564,11 @@ def test_health_schema_is_genuinely_reachable_and_would_fail_a_lemma_shaped_prop
 def test_the_served_openapi_document_names_no_lemma_or_lexeme() -> None:
     """AC-002-10: FastAPI publishes model docstrings, so published prose is contract.
 
-    C1: the allow-list is scoped to `_OPENAPI_LEMMA_OWNING_SCHEMA`
-    (`AnnotationOccurrenceResponse`) — the ONE Pydantic model that genuinely
-    declares these fields. A lemma-shaped name published under any OTHER
-    schema component (e.g. `FormFrequencyResponse`) would still fail.
+    The manifest is scoped to `AnnotationOccurrenceResponse` — the one Pydantic
+    model that genuinely declares these fields. A lemma-shaped name published
+    under any other schema component would still fail.
     """
-    violations = _json_violations(
-        create_app().openapi(), owning_path_segment=_OPENAPI_LEMMA_OWNING_SCHEMA
-    )
+    violations = _json_violations(create_app().openapi(), owners=_OPENAPI_OWNERS)
 
     assert not violations, "lemma naming leaked into the served OpenAPI document:\n" + "\n".join(
         violations
@@ -750,16 +699,22 @@ def test_an_allow_listed_key_is_exempt_from_the_json_leg() -> None:
     """Gap 1, JSON leg: `_json_violations` exempts an allow-listed key or
     value by exact match, and nothing else — `lemma_form` is not `lemma`.
 
-    C1: exemption also requires the owning path segment. `lemma` sits under
-    the genuine owning schema here; `lemma_form` never matches
-    `_ALLOWED_LEMMA_SYMBOLS` at all, so it fails regardless of path.
+    The synthetic owner pins its complete declared set. `lemma_form` never
+    matches `_ALLOWED_LEMMA_SYMBOLS`, so it fails regardless of position.
     """
     document = {
-        "components": {"schemas": {"AnnotationOccurrenceResponse": {"lemma": "run"}}},
+        "components": {
+            "schemas": {"AnnotationOccurrenceResponse": {"properties": {"lemma": {}}}}
+        },
         "lemma_form": "leak",
     }
 
-    violations = _json_violations(document, owning_path_segment=_OPENAPI_LEMMA_OWNING_SCHEMA)
+    synthetic_owner = OwningDefinition(
+        path=("$", "components", "schemas", "AnnotationOccurrenceResponse"),
+        declared=frozenset({"lemma"}),
+        exempt=frozenset({"lemma"}),
+    )
+    violations = _json_violations(document, owners=(synthetic_owner,))
 
     assert violations == ["$.lemma_form (key) -> 'lemma_form'"]
 
@@ -918,9 +873,7 @@ def test_renaming_a_non_owning_property_of_annotation_schema_to_lemma_still_fail
     provenance_properties = mutated["$defs"]["provenance"]["properties"]
     provenance_properties["lemma"] = provenance_properties.pop("source")
 
-    violations = _json_violations(
-        mutated, owning_path_segment=_SCHEMA_OWNING_PATH_SEGMENTS["annotation.v1.json"]
-    )
+    violations = _json_violations(mutated, owners=_SCHEMA_OWNERS["annotation.v1.json"])
 
     assert violations
     assert any("lemma" in violation for violation in violations)
@@ -949,7 +902,7 @@ def test_a_sibling_openapi_schema_component_does_not_inherit_the_exemption() -> 
         }
     }
 
-    violations = _json_violations(document, owning_path_segment=_OPENAPI_LEMMA_OWNING_SCHEMA)
+    violations = _json_violations(document, owners=_OPENAPI_OWNERS)
 
     assert violations
     assert any("lemma" in violation for violation in violations)
@@ -988,3 +941,36 @@ def test_a_lemma_shaped_column_on_an_unexpected_table_still_fails() -> None:
         assert "_test_probe_lemma_on_the_wrong_table.lemma" in violations
     finally:
         Base.metadata.remove(probe)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "sibling_property",
+    ["position", "raw_text", "pos", "pos_origin", "automatic_pos", "pos_confidence"],
+)
+def test_renaming_each_non_lemma_occurrence_property_to_lemma_still_fails(
+    sibling_property: str,
+) -> None:
+    """AC-003H-01 mutation check.
+
+    RED against the component-wide binding: every parameter returned ``[]`` and
+    failed as ``assert []``. The shared manifest-bound helper must report each
+    renamed property instead of treating the entire definition as an owner.
+    """
+    schema = json.loads((_SCHEMAS_DIR / "annotation.v1.json").read_text(encoding="utf-8"))
+    properties = schema["$defs"]["occurrence"]["properties"]
+    properties["lemma"] = properties.pop(sibling_property)
+
+    violations = _json_violations(schema, owners=_SCHEMA_OWNERS["annotation.v1.json"])
+
+    assert violations, f"renaming {sibling_property} to lemma produced no violations"
+
+
+@pytest.mark.unit
+def test_the_genuine_annotation_lemma_properties_remain_exempt() -> None:
+    """AC-003H-01 boundary control: only the four declared lemma properties pass."""
+    schema = json.loads((_SCHEMAS_DIR / "annotation.v1.json").read_text(encoding="utf-8"))
+    properties = schema["$defs"]["occurrence"]["properties"]
+
+    assert set(properties) >= _OCCURRENCE_LEMMA_PROPERTIES
+    assert not _json_violations(schema, owners=_SCHEMA_OWNERS["annotation.v1.json"])
