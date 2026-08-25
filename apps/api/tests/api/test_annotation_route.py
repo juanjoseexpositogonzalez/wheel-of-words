@@ -72,12 +72,13 @@ class _StubAnalyzer:
         return [
             LinguisticAnnotation(
                 raw_text=token,
+                source_index=index,
                 pos="VERB",
                 lemma=token.lower(),
                 pos_confidence=0.9,
                 lemma_confidence=None,
             )
-            for token in tokens
+            for index, token in enumerate(tokens)
         ]
 
 

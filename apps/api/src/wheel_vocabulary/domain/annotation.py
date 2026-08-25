@@ -76,6 +76,18 @@ class LinguisticAnnotation:
     identity — comparing the token it actually asked about against the one
     the analyzer says it answered for — rather than trusting bare position.
 
+    ``source_index`` is the position, within the ``Sequence[str]`` passed to
+    ``analyze``, this annotation was computed for (Judgment Day round 2, R1
+    remediation of the residual C6 gap). ``raw_text`` alone is CONTENT
+    equality, not IDENTITY: two occurrences with the same surface form (a
+    homograph such as "saw" — VERB "see" vs. NOUN "saw" — or any repeated
+    token) can have their correct-but-swapped annotations pass a bare
+    ``raw_text`` comparison undetected, because both annotations' text
+    happens to match both tokens' text. ``source_index`` breaks that tie: it
+    is checked against the caller's own loop position IN ADDITION to
+    ``raw_text``, so a swap is caught even when every token involved shares
+    identical text.
+
     This object performs no validation itself: a caller assembling one from
     an analyzer result MUST validate a POS against ``UPOS_TAGS`` and each
     confidence against ``validate_confidence`` before construction, and MUST
@@ -85,6 +97,7 @@ class LinguisticAnnotation:
     """
 
     raw_text: str
+    source_index: int
     pos: str | None
     lemma: str | None
     pos_confidence: float | None
