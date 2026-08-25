@@ -138,9 +138,14 @@ def test_a_successful_run_logs_no_sentinel_token(caplog: pytest.LogCaptureFixtur
     analyzer = _StubAnalyzer(
         produce=lambda tokens: [
             LinguisticAnnotation(
-                raw_text=t, pos="NOUN", lemma=t, pos_confidence=None, lemma_confidence=None
+                raw_text=t,
+                source_index=index,
+                pos="NOUN",
+                lemma=t,
+                pos_confidence=None,
+                lemma_confidence=None,
             )
-            for t in tokens
+            for index, t in enumerate(tokens)
         ]
     )
     use_case = _use_case(tokens_by_book={1: [(10, _SENTINEL)]}, analyzers={"en": analyzer})
@@ -219,10 +224,16 @@ def test_a_non_upos_tag_failure_logs_the_code_the_import_id_and_the_position(
     analyzer = _StubAnalyzer(
         produce=lambda tokens: [
             LinguisticAnnotation(
-                raw_text="ok", pos="NOUN", lemma="ok", pos_confidence=None, lemma_confidence=None
+                raw_text="ok",
+                source_index=0,
+                pos="NOUN",
+                lemma="ok",
+                pos_confidence=None,
+                lemma_confidence=None,
             ),
             LinguisticAnnotation(
                 raw_text=_SENTINEL,
+                source_index=1,
                 pos="NN",
                 lemma=_SENTINEL,
                 pos_confidence=None,
