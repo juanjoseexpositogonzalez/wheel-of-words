@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from wheel_vocabulary.application.annotation.errors import (
+    AnalyzerUnavailableError,
     AnnotationFailedError,
     UnsupportedLanguageError,
 )
@@ -245,6 +246,104 @@ def test_execute_propagates_unsupported_language_and_writes_nothing() -> None:
 
     with pytest.raises(UnsupportedLanguageError):
         use_case.execute(1, language="fr")
+
+    assert writer.calls == []
+
+
+# --------------------------------------------------------------------------
+# C5 — a model load failure must never escape raw or leak a filesystem path.
+# --------------------------------------------------------------------------
+
+
+class _ExplodingRegistry:
+    """Raises an arbitrary exception from `resolve()` — simulating a real
+    `spacy.load()`/pipeline-assembly failure surfacing through
+    `AnalyzerRegistry.resolve()` (`infrastructure/nlp/registry.py`)."""
+
+    def __init__(self, exc: BaseException) -> None:
+        self._exc = exc
+
+    def resolve(self, language: str) -> object:
+        del language
+        raise self._exc
+
+
+@pytest.mark.unit
+def test_a_missing_model_os_error_becomes_analyzer_unavailable_and_writes_nothing() -> None:
+    """C5: `spacy.load()` raises a raw `OSError` for a missing/unloadable
+    model, and that error's own message routinely carries the model name or
+    a filesystem path (spaCy's real `E050` message does exactly this) — a
+    string `application/annotation/errors.py` explicitly forbids leaking
+    (REQ-003-019). It must be translated to `AnalyzerUnavailableError` (503),
+    never left to propagate as-is."""
+    path_leaking_error = OSError(
+        "[E050] Can't find model '/home/user/.venv/models/en_core_web_sm-3.8.0'"
+    )
+    use_case = AnnotateImport(
+        reader=_FakeReader({1: [(10, "run")]}),
+        registry=_ExplodingRegistry(path_leaking_error),
+        writer=_FakeWriter(),
+        clock=_FakeClock([_NOW]),
+    )
+
+    with pytest.raises(AnalyzerUnavailableError) as excinfo:
+        use_case.execute(1, language="en")
+
+    assert "/home/user" not in excinfo.value.message
+    assert "en_core_web_sm" not in excinfo.value.message
+
+
+@pytest.mark.unit
+def test_a_missing_model_os_error_writes_nothing() -> None:
+    """C5: the writer is never reached when the model fails to load."""
+    writer = _FakeWriter()
+    use_case = AnnotateImport(
+        reader=_FakeReader({1: [(10, "run")]}),
+        registry=_ExplodingRegistry(OSError("model not found")),
+        writer=writer,
+        clock=_FakeClock([_NOW]),
+    )
+
+    with pytest.raises(AnalyzerUnavailableError):
+        use_case.execute(1, language="en")
+
+    assert writer.calls == []
+
+
+@pytest.mark.unit
+def test_a_malformed_pipeline_key_error_becomes_analyzer_unavailable() -> None:
+    """C5: a `KeyError` (e.g. `get_pipe` on a missing pipe) is equally a
+    load-time adapter defect, not a user input problem — same translation
+    applies regardless of the raw exception TYPE the loader happens to
+    raise."""
+    use_case = AnnotateImport(
+        reader=_FakeReader({1: [(10, "run")]}),
+        registry=_ExplodingRegistry(KeyError("tagger")),
+        writer=_FakeWriter(),
+        clock=_FakeClock([_NOW]),
+    )
+
+    with pytest.raises(AnalyzerUnavailableError):
+        use_case.execute(1, language="en")
+
+
+@pytest.mark.unit
+def test_an_analyzer_raising_unsupported_language_from_analyze_is_not_downgraded() -> None:
+    """C5: `ports.py::LinguisticAnalyzer.analyze` documents
+    `UnsupportedLanguageError` as a legitimate raise from inside `analyze()`
+    itself (a multi-language adapter dispatching internally, ADR-0008). The
+    blanket `except Exception` around that call must not catch and downgrade
+    it to a 500 `ANNOTATION_FAILED`, discarding the real 422 cause."""
+
+    def _raise_unsupported(tokens: Sequence[str]) -> Sequence[LinguisticAnnotation]:
+        del tokens
+        raise UnsupportedLanguageError(language="xx")
+
+    analyzer = _StubAnalyzer(produce=_raise_unsupported)
+    use_case, writer = _use_case(tokens_by_book={1: [(10, "run")]}, analyzers={"en": analyzer})
+
+    with pytest.raises(UnsupportedLanguageError):
+        use_case.execute(1, language="en")
 
     assert writer.calls == []
 
