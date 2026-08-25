@@ -73,10 +73,10 @@ Closes: REQ-003H-001 (B1–B6), most of AC-003H-01, and `002-text-import`'s amen
 
 Closes: REQ-003H-001 B6 clause.
 
-- [ ] 2.1 [TEST] `no-lemma-naming.test.ts`: assert each `LEMMA_OWNING_FILES` entry contains only names that file's identifiers/JSX/string literals structurally declare, not a blanket reference to `ALLOWED_LEMMA_SYMBOLS`. RED if any file is over-granted.
-- [ ] 2.2 [IMPL] Narrow `LEMMA_OWNING_FILES` entries in `apps/web/tests/contracts/no-lemma-naming.test.ts` to each file's genuinely declared subset; confirm `lemmatizer` remains absent everywhere in `apps/web`.
-- [ ] 2.3 [TEST] Boundary control (M3): a name in `ALLOWED_LEMMA_SYMBOLS` not declared by a given owning file still fails when introduced there.
-- [ ] 2.4 [DOC] Traceability stub update for the B6 clause of `REQ-003H-001`.
+- [x] 2.1 [TEST] `no-lemma-naming.test.ts`: assert each `LEMMA_OWNING_FILES` entry contains only names that file's identifiers/JSX/string literals structurally declare, not a blanket reference to `ALLOWED_LEMMA_SYMBOLS`. RED if any file is over-granted.
+- [x] 2.2 [IMPL] Narrow `LEMMA_OWNING_FILES` entries in `apps/web/tests/contracts/no-lemma-naming.test.ts` to each file's genuinely declared subset; confirm `lemmatizer` remains absent everywhere in `apps/web`.
+- [x] 2.3 [TEST] Boundary control (M3): a name in `ALLOWED_LEMMA_SYMBOLS` not declared by a given owning file still fails when introduced there.
+- [x] 2.4 [DOC] Traceability stub update for the B6 clause of `REQ-003H-001`.
 
 ## Phase 3 — Docstring instance exemption (`08c-docstring-instance-exemption`)
 
