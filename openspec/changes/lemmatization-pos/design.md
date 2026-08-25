@@ -63,18 +63,45 @@ and `attribute_ruler` maps the assigned fine tag to the UPOS we persist. Because
 each UPOS, this value is a **lower bound on P(UPOS | context), not necessarily a strict one** — it
 never overstates confidence, and where more than one fine tag maps to the same UPOS it systematically
 *understates* it (`NN` vs `NNS`, `VBD` vs `VBN` both mean `NOUN`/`VERB`). **The bound is not strict
-for every UPOS category, though.** `en_core_web_sm`'s `attribute_ruler` maps some UPOS values from
-EXACTLY one fine tag — confirmed for `MD → AUX`, `UH → INTJ`, `CD → NUM`, `WRB → SCONJ` (each has
-exactly one POS-setting rule keyed on that fine tag in the pinned model's rule table) — and for those
-categories `pos_confidence` **equals** `P(UPOS | context)` exactly, not merely bounds it from below.
-(`CC → CCONJ` is a near-singleton with one narrow lexical exception — `LOWER: "but", DEP: "advmod"` →
-`ADV` — but that rule can never fire in THIS adapter's actual runtime, since `parser` is excluded and
-`DEP` is therefore always unset (§P2 above); `CC` is effectively also exact here, though not by the
-same "only one rule exists" mechanism as the other four.) That understatement — where it exists — is
-a known property, not a defect, and MUST be stated in the release notes and reflected in the UI
-label. Reporting the exact UPOS posterior would require
-marginalising over a `tag → UPOS` table; deferred (OQ-1) because it buys accuracy in a place that
-does not change which tag is shown.
+for every UPOS category, though.**
+
+**Correction (R4, Judgment Day round 2).** An earlier revision of this section claimed `MD → AUX`,
+`UH → INTJ`, `CD → NUM` and `WRB → SCONJ` each had "exactly one POS-setting rule" and were therefore
+all exact. That reasoning checked the wrong direction: showing that `MD` maps *only* to `AUX` says
+nothing about whether `AUX` is reachable from *other* fine tags too — exactness requires the reverse,
+that `AUX` (the target) is reachable from *only* `MD` (the source), globally, across the whole rule
+table. Enumerating `en_core_web_sm`'s pinned `attribute_ruler.patterns` directly (179 rules total)
+settles it:
+
+| Target UPOS | Rules | Distinct fine tags feeding it | Exact? |
+|---|---|---|---|
+| `AUX` | 20 | `MD`, `VB`, `VBP`, `VBN`, `VBG`, `VBZ`, `VBD` (7 tags) | **No** |
+| `SCONJ` | 3 | `WRB`, `IN` (2 tags) | **No** |
+| `INTJ` | 1 | `UH` (1 tag) | **Yes** |
+| `NUM` | 1 | `CD` (1 tag) | **Yes** |
+
+Only `UH → INTJ` and `CD → NUM` are genuine singletons — for those two, and only those two,
+`pos_confidence` **equals** `P(UPOS | context)` exactly. `MD → AUX` and `WRB → SCONJ` are two of
+several tags feeding a shared target, so `pos_confidence` still *understates* `P(AUX | context)` and
+`P(SCONJ | context)` respectively, exactly like the general `NN`/`NNS` case above — verified through
+the real adapter (`SpacyLinguisticAnalyzer._annotate`), summing the softmax row over every fine-tag
+column that `attribute_ruler` would resolve to the same target UPOS for the actual word encountered:
+`"is"` → `AUX`, tag `VBZ`, `pos_confidence=0.999807` vs measured `P(AUX)=0.999810` (diff `3e-6`, from
+residual `MD` probability mass); `"since"` → `SCONJ`, tag `IN`, `pos_confidence=0.987158` vs measured
+`P(SCONJ)=0.988532` (diff `1.4e-3`, from residual `WRB` mass) — while `"Wow"` → `INTJ` and a bare `"3"`
+→ `NUM` both measured `diff=0.0` exactly, confirming the two genuine singletons.
+
+`CC → CCONJ` remains a separate, ALSO-exact case, by a different mechanism than "only one rule
+targets it": it has one narrow lexical exception — `LOWER: "but", DEP: "advmod"` → `ADV` — but that
+rule can never fire in THIS adapter's actual runtime, since `parser` is excluded and `DEP` is
+therefore always unset (§P2 above); `CC` is effectively exact here too, though its exactness comes
+from an unreachable exception rather than the rule table simply having no exception at all.
+
+That understatement — where it exists (`AUX`, `SCONJ`, and every other non-singleton UPOS) — is a
+known property, not a defect, and MUST be stated in the release notes and reflected in the UI label.
+Reporting the exact UPOS posterior would require marginalising over a `tag → UPOS` table for every
+category, not only the two genuine singletons; deferred (OQ-1) because it buys accuracy in a place
+that does not change which tag is shown.
 
 **Nothing is fabricated.** Setting `softmax_normalize = True` does not invent a number: it asks the
 model to complete its own trained forward pass. `normalize_outputs=False` is purely an inference
@@ -140,7 +167,14 @@ becomes visible to the user.
 
 ## P3 (RESOLVED) — Read-time precedence, by construction
 
-Two repositories in **two modules**, because that is what makes `R3` structurally provable.
+Two repositories in **two modules**, because that is what makes `R3` checkable by a static AST
+guard rather than only a runtime assertion. That guard is bounded to the string-construction
+patterns it recognises (exact match, substring, `+`-concatenated literal chains) — an f-string,
+`str.join`, or `%`-formatted string assembling the forbidden name would currently evade it
+(Judgment Day round 2, R3). "Structurally provable" is a stronger claim than a finite AST
+pattern-matcher can make against arbitrary string construction; see
+`infrastructure/persistence/annotation_write_repository.py`'s own module docstring for the
+corrected, bounded claim.
 
 `infrastructure/persistence/annotation_repository.py` (read) issues one query per import:
 
