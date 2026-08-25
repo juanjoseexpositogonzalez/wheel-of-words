@@ -93,6 +93,59 @@ def test_scores_that_do_not_sum_to_one_fail_the_check() -> None:
 
 
 @pytest.mark.unit
+def test_a_row_with_a_negative_entry_fails_even_when_it_sums_to_one() -> None:
+    """S5: the sum-tolerance check alone accepts a non-probability. `[1.0,
+    -1.0, 1.0]` sums to exactly `1.0` (within tolerance) while containing a
+    negative "probability" — no real softmax output can ever do this, so a
+    row shaped like this is definitive evidence the published `pos_confidence`
+    is not a real posterior.
+
+    RED before S5: `_assert_scores_are_normalized` did not raise for this
+    array — `np.allclose([1.0], 1.0, atol=1e-4)` is `True`, and nothing else
+    was checked.
+    """
+    scores = np.array([[1.0, -1.0, 1.0]])
+
+    with pytest.raises(AnalyzerUnavailableError):
+        _assert_scores_are_normalized(scores)
+
+
+@pytest.mark.unit
+def test_a_row_containing_nan_fails_the_check() -> None:
+    """S5: NaN in a score row must fail loudly and explicitly.
+
+    Not a new RED case on its own — `np.nan` already taints
+    `scores.sum(axis=1)` to `nan`, and `np.allclose(nan, 1.0)` is `False`
+    with the library default `equal_nan=False`, so the pre-S5 sum-tolerance
+    check already rejected this array (confirmed: it also emits a numpy
+    `RuntimeWarning: invalid value encountered in reduce` while computing
+    that sum). This test pins the EXPLICIT finiteness check S5 adds, which
+    catches the same input through its own, independent assertion, before
+    the sum is ever computed — deterministic, warning-free, and not
+    incidentally dependent on `allclose`'s NaN-comparison semantics.
+    """
+    scores = np.array([[np.nan, 0.5, 0.5]])
+
+    with pytest.raises(AnalyzerUnavailableError):
+        _assert_scores_are_normalized(scores)
+
+
+@pytest.mark.unit
+def test_a_row_containing_infinity_fails_the_check() -> None:
+    """S5: `+inf`/`-inf` in a score row must fail loudly and explicitly.
+
+    Same non-novelty note as the NaN case above: `inf + (-inf)` is `nan` by
+    IEEE 754 regardless of summation order, so this was already indirectly
+    rejected pre-S5 through the same NaN-taints-the-sum path. Pinned here as
+    its own explicit, independent check for the same reasons.
+    """
+    scores = np.array([[np.inf, -np.inf, 1.0]])
+
+    with pytest.raises(AnalyzerUnavailableError):
+        _assert_scores_are_normalized(scores)
+
+
+@pytest.mark.unit
 def test_agreeing_decomposed_and_reference_pos_pass_the_check() -> None:
     _assert_decomposed_path_agrees_with_the_plain_pipeline(
         ["NOUN", "VERB"], ["NOUN", "VERB"]
