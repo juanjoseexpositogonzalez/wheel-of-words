@@ -64,10 +64,10 @@ Closes: REQ-003H-001 (B1–B6), most of AC-003H-01, and `002-text-import`'s amen
 - [x] 1.4 [TEST] `test_no_lemma_naming.py`: rename each of `position`, `raw_text`, `pos`, `pos_origin`, `automatic_pos`, `pos_confidence` to `lemma` in turn — each produces ≥1 violation (AC-003H-01); the four genuine lemma properties still pass; schema-glob fails-closed retained (M2). RED against the still-unmigrated guard.
 - [x] 1.5 [IMPL] Rebind `test_no_lemma_naming.py`'s JSON + OpenAPI legs onto `_guard_binding.OwningDefinition` manifests for `import.v1.json` / `annotation.v1.json` / `health.v1.json` and `AnnotationOccurrenceResponse`; delete the local `_path_segments` / `_SCHEMA_OWNING_PATH_SEGMENTS`.
 - [x] 1.6 [REFACTOR] Confirm zero duplicated binding code remains in `test_no_lemma_naming.py`; `cd apps/api && uv run pytest tests/unit/test_no_lemma_naming.py tests/unit/test__guard_binding.py`.
-- [ ] 1.7 [TEST] `test_annotation_contract.py`: same six rename-in-turn scenarios against `annotation.v1.json` via the shared helper. RED against the file's current local `_path_segments`/`_OWNING_PATH_SEGMENT`.
-- [ ] 1.8 [IMPL] Rebind `test_annotation_contract.py` onto `_guard_binding` directly; delete its duplicated local helper (B5).
-- [ ] 1.9 [TEST] `test_the_binding_helper_exists_once`: static check that exactly one binding module exists and both guard files import it (helper-uniqueness scenario, M2).
-- [ ] 1.10 [DOC] `docs/traceability-matrix.md`: draft stub row for `REQ-003H-001` (finalized in Phase 6).
+- [x] 1.7 [TEST] `test_annotation_contract.py`: same six rename-in-turn scenarios against `annotation.v1.json` via the shared helper. RED against the file's current local `_path_segments`/`_OWNING_PATH_SEGMENT`.
+- [x] 1.8 [IMPL] Rebind `test_annotation_contract.py` onto `_guard_binding` directly; delete its duplicated local helper (B5).
+- [x] 1.9 [TEST] `test_the_binding_helper_exists_once`: static check that exactly one binding module exists and both guard files import it (helper-uniqueness scenario, M2).
+- [x] 1.10 [DOC] `docs/traceability-matrix.md`: draft stub row for `REQ-003H-001` (finalized in Phase 6).
 
 ## Phase 2 — Frontend owning sets (`08b-frontend-owning-sets`)
 
