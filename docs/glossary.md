@@ -148,6 +148,15 @@ Las entradas están en orden alfabético. Busca por el nombre exacto del términ
 
 ---
 
+### source_index
+
+- **Categoría**: atributo
+- **Definición**: Índice de entrada que el analizador declara para una anotación; el caso de uso exige que coincida con la posición de salida para verificar la autoconsistencia del resultado, sin afirmar corrección lingüística independiente.
+- **Referencias**: `REQ-003H-006`; [`ports.py`](../apps/api/src/wheel_vocabulary/application/annotation/ports.py)
+- **Impacto multiidioma**: Concepto independiente del idioma; expresa la posición en la secuencia de tokens suministrada, no una regla lingüística.
+
+---
+
 ### Token
 
 - **Categoría**: concepto
