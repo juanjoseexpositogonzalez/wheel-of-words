@@ -1,6 +1,8 @@
 """Regression tests for the SPEC-001 traceability corrections (TD04/TD05)."""
 
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 _REPOSITORY_ROOT = Path(__file__).parents[4]
@@ -15,6 +17,10 @@ _TASKS = (
 )
 
 _PLACEHOLDER_RE = re.compile(r"(?:^|\b)(?:N/A|TODO|TBD|NONE|PENDING)\b", re.IGNORECASE)
+_TEST_REFERENCE_RE = re.compile(
+    r"apps/(?P<app>api|web)/(?P<path>tests/[\w/{}.,-]+\.(?:py|ts|tsx))(?:::(?P<node>test_\w+))?"
+    r"|::(?P<relative_node>test_\w+)"
+)
 
 
 def _matrix_rows(matrix: str) -> list[list[str]]:
@@ -38,6 +44,49 @@ def _requirement_ids(rows: list[list[str]]) -> list[str]:
 def _is_placeholder(value: str) -> bool:
     normalized = value.strip().strip("`*_ ").strip()
     return bool(_PLACEHOLDER_RE.search(normalized))
+
+
+def _collected_python_nodes() -> set[str]:
+    """Return node IDs from pytest's collection of the backend test suite."""
+    collected = subprocess.run(
+        [sys.executable, "-m", "pytest", "--collect-only", "-q"],
+        check=True,
+        capture_output=True,
+        cwd=_REPOSITORY_ROOT / "apps" / "api",
+        text=True,
+    )
+    return {
+        line
+        for line in collected.stdout.splitlines()
+        if line.startswith("tests/") and "::test_" in line
+    }
+
+
+def _unresolved_matrix_python_nodes(matrix: str, collected_nodes: set[str]) -> list[str]:
+    """Return cited Python test files or nodes absent from pytest collection."""
+    unresolved: list[str] = []
+    for row in _matrix_rows(matrix):
+        tests = row[3]
+        current_path: str | None = None
+        for match in _TEST_REFERENCE_RE.finditer(tests):
+            if match["path"]:
+                is_python_test = match["app"] == "api" and match["path"].endswith(".py")
+                current_path = match["path"] if is_python_test else None
+            if current_path is None:
+                continue
+            path = current_path
+            node = match["node"] or match["relative_node"]
+            cited = f"{path}::{node}" if node else path
+            if node:
+                exists = any(
+                    collected == cited or collected.startswith(f"{cited}[")
+                    for collected in collected_nodes
+                )
+            else:
+                exists = "{" in path or (_REPOSITORY_ROOT / "apps" / "api" / path).is_file()
+            if not exists:
+                unresolved.append(cited)
+    return unresolved
 
 
 def test_configuration_requirement_has_its_own_traceability_row() -> None:
@@ -136,3 +185,50 @@ def test_bootstrap_tasks_are_explicitly_tagged_before_the_smoke_anchor() -> None
 
     assert prerequisites
     assert all(tag == "BOOTSTRAP" for task, tag in prerequisites if task != "TA15")
+
+
+def test_every_cited_python_test_node_resolves_against_the_collected_suite() -> None:
+    """AC-003H-05: a cited test node must be collectable, never a stale name.
+
+    RED before the resolver existed: ``NameError: name
+    '_unresolved_matrix_python_nodes' is not defined``.
+    """
+    matrix = _MATRIX.read_text(encoding="utf-8")
+
+    assert _unresolved_matrix_python_nodes(matrix, _collected_python_nodes()) == []
+
+
+def test_cited_test_resolution_reports_a_nonexistent_node() -> None:
+    """The resolution guard fails closed for a stale matrix node reference."""
+    matrix = (
+        "| REQ-999-001 | synthetic | AC-999-01 | "
+        "`apps/api/tests/unit/test_traceability.py::test_missing` | T999 | Cumplido |"
+    )
+
+    collected = {"tests/unit/test_traceability.py::test_real"}
+
+    assert _unresolved_matrix_python_nodes(matrix, collected) == [
+        "tests/unit/test_traceability.py::test_missing"
+    ]
+
+
+def test_cited_test_resolution_expands_a_relative_node_reference() -> None:
+    """A ``::test`` reference inherits the preceding cited Python test file."""
+    matrix = (
+        "| REQ-999-001 | synthetic | AC-999-01 | "
+        "`apps/api/tests/unit/test_traceability.py::test_real`, "
+        "`::test_missing` | T999 | Cumplido |"
+    )
+
+    collected = {"tests/unit/test_traceability.py::test_real"}
+
+    assert _unresolved_matrix_python_nodes(matrix, collected) == [
+        "tests/unit/test_traceability.py::test_missing"
+    ]
+
+
+def test_matrix_contains_no_identity_based_pairing_claim() -> None:
+    """AC-003H-05: pairing is content equality plus ``source_index`` equality."""
+    matrix = _MATRIX.read_text(encoding="utf-8")
+
+    assert not re.search(r"(?:por |by )identidad", matrix, flags=re.IGNORECASE)
