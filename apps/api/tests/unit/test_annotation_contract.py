@@ -169,19 +169,76 @@ def test_schema_rejects_an_unknown_error_code() -> None:
         jsonschema.validate(envelope, _schema()["$defs"]["error"])
 
 
+def _path_segments(where: str) -> list[str]:
+    """Mirrors `test_no_lemma_naming.py::_path_segments` (R2, Judgment Day
+    round 2) for the same reason `_json_strings` above already mirrors its
+    sibling: this file has no import dependency on that test module, and
+    duplicating the small pure helper keeps that independence."""
+    bare = where.split(" (", 1)[0]
+    return [re.sub(r"\[\d+\]$", "", part) for part in bare.split(".")]
+
+
+# The one `$defs` component in `annotation.v1.json` that genuinely declares
+# `lemma`/`lemma_confidence` — mirrors
+# `test_no_lemma_naming.py::_SCHEMA_OWNING_PATH_SEGMENTS["annotation.v1.json"]`
+# (R2 remediation: that binding used to be the empty string, matching every
+# path unconditionally; it is now this exact owning segment).
+_OWNING_PATH_SEGMENT = "occurrence"
+
+
 @pytest.mark.unit
 def test_the_pinned_json_schema_names_no_lemma_or_lexeme_outside_the_allow_list() -> None:
     """AC-003-24: the versioned schema is in scope for the narrowed guard
     the same way `import.v1.json` is (task 1.7); this file is the schema's
     own leg since `test_no_lemma_naming.py::_SCHEMA_PATH` only covers
-    `import.v1.json`."""
+    `import.v1.json`.
+
+    R2 (Judgment Day round 2): the predicate here used to be the UNBOUND
+    pre-C1 shape — `text not in _ALLOWED_LEMMA_SYMBOLS` alone, with no
+    binding to WHERE in the document the match occurs — even though C1
+    bound every other leg (`_LEMMA_OWNING_FILES`, `_LEMMA_OWNING_COLUMNS`,
+    `_OPENAPI_LEMMA_OWNING_SCHEMA`) to its owning declaration site. This test
+    was not touched by the C1 fix round despite
+    `docs/traceability-matrix.md` citing it as C1 evidence. Now bound to
+    `_OWNING_PATH_SEGMENT` via the same exact-segment-match predicate
+    `test_no_lemma_naming.py::_json_violations` uses.
+    """
     violations = [
         f"{where} -> {text!r}"
         for where, text in _json_strings(_schema(), "$")
-        if _FORBIDDEN_LEMMA_PATTERN.search(text) and text not in _ALLOWED_LEMMA_SYMBOLS
+        if _FORBIDDEN_LEMMA_PATTERN.search(text)
+        and not (text in _ALLOWED_LEMMA_SYMBOLS and _OWNING_PATH_SEGMENT in _path_segments(where))
     ]
 
     assert not violations, "lemma naming leaked into annotation.v1.json:\n" + "\n".join(violations)
+
+
+@pytest.mark.unit
+def test_renaming_a_non_owning_property_to_lemma_still_fails_outside_the_allow_list() -> None:
+    """R2: proves the predicate above is genuinely BOUND to
+    `_OWNING_PATH_SEGMENT`, not merely `text not in _ALLOWED_LEMMA_SYMBOLS`
+    on its own — a rename that lands the bare allow-listed name `lemma` on
+    `$defs.provenance.properties.source` (a field `provenance` does not
+    legitimately own) must still be reported.
+
+    RED (before the fix, verified 2026-08-25): the unbound predicate
+    `text not in _ALLOWED_LEMMA_SYMBOLS` alone found zero violations for
+    this exact mutation — `lemma` IS in `_ALLOWED_LEMMA_SYMBOLS`, and the old
+    check never looked at WHERE the match occurred at all.
+    """
+    mutated = _schema()
+    provenance_properties = mutated["$defs"]["provenance"]["properties"]
+    provenance_properties["lemma"] = provenance_properties.pop("source")
+
+    violations = [
+        f"{where} -> {text!r}"
+        for where, text in _json_strings(mutated, "$")
+        if _FORBIDDEN_LEMMA_PATTERN.search(text)
+        and not (text in _ALLOWED_LEMMA_SYMBOLS and _OWNING_PATH_SEGMENT in _path_segments(where))
+    ]
+
+    assert violations
+    assert any("lemma" in violation for violation in violations)
 
 
 # --------------------------------------------------------------------------
