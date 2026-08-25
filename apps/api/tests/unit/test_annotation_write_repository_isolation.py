@@ -40,11 +40,27 @@ _WRITE_REPOSITORY_PATH = (
 # Nodes that own a docstring: the docstring is body[0], never any other
 # Constant. C4 remediation: switching the string-literal check below from
 # exact equality to a substring search (needed to catch a raw-SQL string
-# that EMBEDS the forbidden name) means the module's own docstring — which
-# legitimately explains "never reading, importing, or otherwise referencing
-# ManualCorrection" in prose — would otherwise trip the guard on itself.
-# Mirrors `test_no_lemma_naming.py::_docstring_constant_ids` exactly.
-_DOCSTRING_OWNERS = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+# that EMBEDS the forbidden name) means the guarded module's own docstring
+# (`annotation_write_repository.py`'s module docstring legitimately explains
+# "never reading, importing, or otherwise referencing ManualCorrection" in
+# prose — the confirmed source of the false positive, verified by scanning
+# that file's `ast.Constant` nodes for the forbidden text) would otherwise
+# trip the guard on itself.
+#
+# R3 (Judgment Day round 2): the FIRST version of this fix mirrored
+# `test_no_lemma_naming.py::_docstring_constant_ids` exactly, which exempts
+# EVERY docstring owner — module, class, AND function. That is too wide for
+# THIS guard specifically: a docstring is an ordinary runtime-reachable
+# string (`fn.__doc__` is a plain attribute access), so a function whose
+# docstring IS the raw forbidden SQL, later passed to
+# `sqlalchemy.text(fn.__doc__)`, reached `manual_correction` with zero
+# violations reported — an evasion route the exemption itself created. The
+# genuine false positive this exemption exists to fix is a MODULE-level
+# docstring only (verified: the module scan above found exactly one
+# `ManualCorrection`-containing string constant, and it is the module
+# docstring); no function or class docstring in the guarded production
+# module needs — or gets — this exemption.
+_DOCSTRING_OWNERS = (ast.Module,)
 
 
 def _docstring_constant_ids(tree: ast.AST) -> frozenset[int]:
@@ -95,11 +111,14 @@ def _references_to(source: str, label: str, forbidden_name: str) -> list[str]:
     exactly. A `BinOp` `+` chain of string constants is separately folded
     and checked the same way, so a split literal such as
     `"Manual" + "Correction"` cannot evade detection by never spelling the
-    forbidden name as one complete `ast.Constant`. A module/class/function
-    docstring is exempt from the substring check (never from the exact-name
-    identifier checks above it), so legitimate prose explaining what this
-    guard forbids — including this very module's own docstring — stays
-    green; that exemption is scoped exactly like `test_no_lemma_naming.py`'s.
+    forbidden name as one complete `ast.Constant`. ONLY a MODULE docstring is
+    exempt from the substring check (never from the exact-name identifier
+    checks above it, and never a class or function docstring — R3, Judgment
+    Day round 2): the guarded production module's own module-level docstring
+    legitimately explains what this guard forbids in prose and stays green,
+    but a class or function docstring gets no such exemption, because it is
+    an ordinary runtime-reachable string (`obj.__doc__`) that could otherwise
+    be used to smuggle the forbidden name past this check undetected.
     """
     tree = ast.parse(source, filename=label)
     docstrings = _docstring_constant_ids(tree)
@@ -279,6 +298,62 @@ def test_a_metadata_tables_subscript_naming_the_table_would_be_caught() -> None:
     one of them gets its own test, not only the ones that needed a code
     change to pass."""
     source = 'Base.metadata.tables["manual_correction"]\n'
+
+    violations = _references_to(source, "synthetic.py", "manual_correction")
+
+    assert violations
+    assert any("manual_correction" in violation for violation in violations)
+
+
+@pytest.mark.unit
+def test_a_function_docstring_holding_the_raw_forbidden_sql_would_be_caught() -> None:
+    """R3 (Judgment Day round 2): the C4 docstring exemption was scoped to
+    EVERY docstring owner (`ast.Module`, `ast.ClassDef`, `ast.FunctionDef`,
+    `ast.AsyncFunctionDef`) — but a docstring is an ordinary runtime-reachable
+    string, not inert prose by construction: `q.__doc__` is a normal
+    attribute access that can be passed anywhere a string can, including
+    `sqlalchemy.text(q.__doc__)`. A function whose docstring IS the raw
+    forbidden SQL therefore reached `manual_correction` with zero violations
+    reported, purely because a docstring happened to be its home.
+
+    The control case directly below (`test_the_same_sql_outside_a_docstring_
+    is_still_caught`) proves the miss is caused SPECIFICALLY by the docstring
+    exemption, not by some other gap in the substring check: identical SQL,
+    not in `body[0]`, is caught.
+
+    RED (before the fix, verified 2026-08-25): `_references_to` returned
+    `[]` for this exact source — the function's docstring, `body[0]` of the
+    `FunctionDef`, was exempted by `_docstring_constant_ids` exactly like a
+    module docstring, even though nothing about a function's own docstring
+    makes it any less runtime-reachable than a module's.
+    """
+    source = 'def q():\n    """DELETE FROM manual_correction WHERE 1=1"""\n    return q.__doc__\n'
+
+    violations = _references_to(source, "synthetic.py", "manual_correction")
+
+    assert violations
+    assert any("manual_correction" in violation for violation in violations)
+
+
+@pytest.mark.unit
+def test_the_same_sql_outside_a_docstring_is_still_caught() -> None:
+    """Control case for the test above: identical SQL, placed as an ordinary
+    string literal rather than as `body[0]` of the function, is caught both
+    before and after the fix — proving the miss above was caused
+    specifically by the docstring exemption, not some other gap."""
+    source = 'def q():\n    return "DELETE FROM manual_correction WHERE 1=1"\n'
+
+    violations = _references_to(source, "synthetic.py", "manual_correction")
+
+    assert violations
+    assert any("manual_correction" in violation for violation in violations)
+
+
+@pytest.mark.unit
+def test_a_class_docstring_holding_the_raw_forbidden_sql_would_also_be_caught() -> None:
+    """Same evasion, applied to a class docstring instead of a function
+    docstring — `_DOCSTRING_OWNERS` exempted `ast.ClassDef` too."""
+    source = 'class Q:\n    """DELETE FROM manual_correction WHERE 1=1"""\n'
 
     violations = _references_to(source, "synthetic.py", "manual_correction")
 
