@@ -60,10 +60,19 @@ pos_confidence = float(scores[i].max())
 `pos_confidence` is the tagger's posterior probability for the **fine-grained (Penn Treebank) tag it
 assigned**, in `[0.0, 1.0]` by construction. `en_core_web_sm` tags 50 fine labels (`NN`, `VBD`, …)
 and `attribute_ruler` maps the assigned fine tag to the UPOS we persist. Because ≥1 fine tag maps to
-each UPOS, this value is a **strict lower bound on P(UPOS | context)** — it never overstates
-confidence, and it systematically *understates* it where the uncertainty is intra-UPOS (`NN` vs
-`NNS`, `VBD` vs `VBN`). That understatement is a known property, not a defect, and MUST be stated in
-the release notes and reflected in the UI label. Reporting the exact UPOS posterior would require
+each UPOS, this value is a **lower bound on P(UPOS | context), not necessarily a strict one** — it
+never overstates confidence, and where more than one fine tag maps to the same UPOS it systematically
+*understates* it (`NN` vs `NNS`, `VBD` vs `VBN` both mean `NOUN`/`VERB`). **The bound is not strict
+for every UPOS category, though.** `en_core_web_sm`'s `attribute_ruler` maps some UPOS values from
+EXACTLY one fine tag — confirmed for `MD → AUX`, `UH → INTJ`, `CD → NUM`, `WRB → SCONJ` (each has
+exactly one POS-setting rule keyed on that fine tag in the pinned model's rule table) — and for those
+categories `pos_confidence` **equals** `P(UPOS | context)` exactly, not merely bounds it from below.
+(`CC → CCONJ` is a near-singleton with one narrow lexical exception — `LOWER: "but", DEP: "advmod"` →
+`ADV` — but that rule can never fire in THIS adapter's actual runtime, since `parser` is excluded and
+`DEP` is therefore always unset (§P2 above); `CC` is effectively also exact here, though not by the
+same "only one rule exists" mechanism as the other four.) That understatement — where it exists — is
+a known property, not a defect, and MUST be stated in the release notes and reflected in the UI
+label. Reporting the exact UPOS posterior would require
 marginalising over a `tag → UPOS` table; deferred (OQ-1) because it buys accuracy in a place that
 does not change which tag is shown.
 
