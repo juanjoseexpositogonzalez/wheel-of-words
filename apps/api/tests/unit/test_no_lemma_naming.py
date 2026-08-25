@@ -156,6 +156,61 @@ _ALLOWED_LEMMA_SYMBOLS = frozenset(
     }
 )
 
+# C1 remediation. An exact match against `_ALLOWED_LEMMA_SYMBOLS` used to be
+# exempt EVERYWHERE, with no binding to declaration site, owning module, or
+# capability — so renaming ANY unrelated symbol to the bare name `lemma`
+# (e.g. `FormFrequencyResponse.display_form -> lemma` in `api/dtos/imports.py`,
+# outside the annotation capability entirely) produced zero violations.
+# `_LEMMA_OWNING_FILES` binds each allow-listed symbol to the specific
+# module(s) that legitimately declare or handle the genuine SPEC-003 lemma
+# capability — the exemption now requires BOTH an exact-name match AND the
+# scanned file being one of that symbol's owners. A rename landing an
+# allow-listed name in any other file still fails.
+_LEMMA_OWNING_FILES: dict[str, frozenset[str]] = {
+    "domain/annotation.py": frozenset({"lemma", "lemma_confidence"}),
+    "infrastructure/persistence/models.py": frozenset({"lemma", "lemma_confidence"}),
+    "infrastructure/persistence/annotation_repository.py": frozenset(
+        {"lemma", "lemma_confidence", "lemma_origin", "automatic_lemma"}
+    ),
+    "infrastructure/persistence/annotation_write_repository.py": frozenset(
+        {"lemma", "lemma_confidence"}
+    ),
+    "infrastructure/nlp/spacy_analyzer.py": frozenset({"lemma", "lemma_confidence", "lemmatizer"}),
+    "application/annotation/ports.py": frozenset({"lemma", "lemma_confidence"}),
+    "application/annotation/use_cases.py": frozenset({"lemma", "lemma_confidence"}),
+    "api/dtos/annotation.py": frozenset(
+        {"lemma", "lemma_confidence", "lemma_origin", "automatic_lemma"}
+    ),
+    "api/routes/annotation.py": frozenset(
+        {"lemma", "lemma_confidence", "lemma_origin", "automatic_lemma"}
+    ),
+    # Migration labels use their own format (`migrations/versions/<file>`,
+    # see `_migration_modules`/its call site below), not `_relative()`.
+    "migrations/versions/0003_annotation.py": frozenset({"lemma", "lemma_confidence"}),
+}
+
+# C1 remediation, reflected-column leg. The same symbol-alone exemption hole
+# existed here too: `occurrence.lemma` legitimately exists, but the old check
+# ignored WHICH TABLE a lemma-shaped column lived on — a same-named column
+# accidentally or deliberately added to `book` (or any other table) would
+# have been silently exempt. Bound to the exact (table, column) pairs that
+# genuinely persist the SPEC-003 lemma capability.
+_LEMMA_OWNING_COLUMNS: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("occurrence", "lemma"),
+        ("annotation_provenance", "lemma_confidence"),
+    }
+)
+
+# C1 remediation, JSON leg. `import.v1.json` owns NOTHING — REQ-002-007
+# forbids any lemma-shaped name there outright, so no path segment is bound
+# for it (every match is a violation). The served OpenAPI document DOES
+# legitimately publish these names, but only inside the ONE Pydantic model
+# that declares them (`AnnotationOccurrenceResponse`, `api/dtos/annotation.py`)
+# — a JSON-path segment naming that schema component is the OpenAPI
+# equivalent of `_LEMMA_OWNING_FILES`'s per-file binding.
+_OPENAPI_LEMMA_OWNING_SCHEMA = "AnnotationOccurrenceResponse"
+
 
 def _python_modules() -> list[Path]:
     return sorted(_PACKAGE_ROOT.rglob("*.py"))
@@ -175,6 +230,23 @@ def _reflected_column_names() -> list[str]:
     from wheel_vocabulary.infrastructure.persistence.base import Base
 
     return [column.name for table in Base.metadata.tables.values() for column in table.columns]
+
+
+def _reflected_columns_with_table() -> list[tuple[str, str]]:
+    """`(table_name, column_name)` for every persisted column (C1 remediation).
+
+    `_reflected_column_names()` above discards which table each column lives
+    on, which is exactly what let a same-named column on the WRONG table
+    escape the guard silently. This is the table-aware counterpart used to
+    check against `_LEMMA_OWNING_COLUMNS`.
+    """
+    from wheel_vocabulary.infrastructure.persistence.base import Base
+
+    return [
+        (table.name, column.name)
+        for table in Base.metadata.tables.values()
+        for column in table.columns
+    ]
 
 
 def _docstring_constant_ids(tree: ast.AST) -> frozenset[int]:
@@ -229,14 +301,24 @@ def _declared_names(node: ast.AST) -> list[tuple[str, str]]:
     return []
 
 
+def _is_exempt(name: str, owned_symbols: frozenset[str]) -> bool:
+    """REQ-003-023 exact-match allow-list, AND (C1) bound to the file that
+    legitimately owns this symbol — never the symbol alone."""
+    return name in _ALLOWED_LEMMA_SYMBOLS and name in owned_symbols
+
+
 def _python_violations(source: str, label: str) -> list[str]:
     """Report forbidden naming in identifiers and non-docstring string literals.
 
-    An exact match against `_ALLOWED_LEMMA_SYMBOLS` is exempt (REQ-003-023);
-    everything else that matches `_FORBIDDEN` is still reported.
+    An exact match against `_ALLOWED_LEMMA_SYMBOLS` is exempt (REQ-003-023)
+    ONLY when `label` is one of that symbol's owning files in
+    `_LEMMA_OWNING_FILES` (C1) — everything else that matches `_FORBIDDEN` is
+    still reported, including an allow-listed bare name landing in a file
+    that does not own it.
     """
     tree = ast.parse(source, filename=label)
     docstrings = _docstring_constant_ids(tree)
+    owned_symbols = _LEMMA_OWNING_FILES.get(label, frozenset())
     violations: list[str] = []
 
     for node in ast.walk(tree):
@@ -244,14 +326,14 @@ def _python_violations(source: str, label: str) -> list[str]:
         violations.extend(
             f"{label}:{line} {kind} {name!r}"
             for kind, name in _declared_names(node)
-            if _FORBIDDEN.search(name) and name not in _ALLOWED_LEMMA_SYMBOLS
+            if _FORBIDDEN.search(name) and not _is_exempt(name, owned_symbols)
         )
         if (
             isinstance(node, ast.Constant)
             and isinstance(node.value, str)
             and id(node) not in docstrings
             and _FORBIDDEN.search(node.value)
-            and node.value not in _ALLOWED_LEMMA_SYMBOLS
+            and not _is_exempt(node.value, owned_symbols)
         ):
             violations.append(f"{label}:{line} string literal {node.value!r}")
 
@@ -271,13 +353,29 @@ def _json_strings(node: Any, path: str) -> Iterator[tuple[str, str]]:
         yield f"{path} (value)", node
 
 
-def _json_violations(document: Any) -> list[str]:
-    """An exact match against `_ALLOWED_LEMMA_SYMBOLS` is exempt (REQ-003-023)."""
-    return [
-        f"{where} -> {text!r}"
-        for where, text in _json_strings(document, "$")
-        if _FORBIDDEN.search(text) and text not in _ALLOWED_LEMMA_SYMBOLS
-    ]
+def _json_violations(document: Any, *, owning_path_segment: str | None = None) -> list[str]:
+    """An exact match against `_ALLOWED_LEMMA_SYMBOLS` is exempt (REQ-003-023)
+    ONLY when the JSON path also passes through `owning_path_segment` (C1) —
+    the schema/definition that legitimately owns the genuine SPEC-003 lemma
+    capability. With `owning_path_segment=None` (the default, and always
+    `import.v1.json`'s value — it owns nothing), NOTHING is exempt: a
+    lemma-shaped rename anywhere in that document still fails, which is what
+    closes the renaming hole — `import.v1.json` has no such segment anywhere,
+    so renaming its `normalized_form` property to `lemma` is caught, not
+    silently waved through.
+    """
+    violations: list[str] = []
+    for where, text in _json_strings(document, "$"):
+        if not _FORBIDDEN.search(text):
+            continue
+        exempt = (
+            text in _ALLOWED_LEMMA_SYMBOLS
+            and owning_path_segment is not None
+            and owning_path_segment in where
+        )
+        if not exempt:
+            violations.append(f"{where} -> {text!r}")
+    return violations
 
 
 @pytest.fixture
@@ -357,6 +455,21 @@ def test_persisted_columns_contain_no_lemma_naming() -> None:
         "lemma naming leaked into a persisted column name: " + ", ".join(reflected_violations)
     )
 
+    # C1: table-bound check. A lemma-shaped column name is only legitimate on
+    # the exact (table, column) pairs in `_LEMMA_OWNING_COLUMNS` — the same
+    # column name on any OTHER table still fails, closing the hole where
+    # `name not in _ALLOWED_LEMMA_SYMBOLS` alone ignored which table a
+    # lemma-shaped column actually lived on.
+    table_scoped_violations = [
+        f"{table}.{column}"
+        for table, column in _reflected_columns_with_table()
+        if _FORBIDDEN.search(column) and (table, column) not in _LEMMA_OWNING_COLUMNS
+    ]
+    assert not table_scoped_violations, (
+        "lemma naming leaked into a persisted column on an unexpected table: "
+        + ", ".join(table_scoped_violations)
+    )
+
 
 @pytest.mark.unit
 def test_the_pinned_json_schema_names_no_lemma_or_lexeme() -> None:
@@ -370,8 +483,16 @@ def test_the_pinned_json_schema_names_no_lemma_or_lexeme() -> None:
 
 @pytest.mark.unit
 def test_the_served_openapi_document_names_no_lemma_or_lexeme() -> None:
-    """AC-002-10: FastAPI publishes model docstrings, so published prose is contract."""
-    violations = _json_violations(create_app().openapi())
+    """AC-002-10: FastAPI publishes model docstrings, so published prose is contract.
+
+    C1: the allow-list is scoped to `_OPENAPI_LEMMA_OWNING_SCHEMA`
+    (`AnnotationOccurrenceResponse`) — the ONE Pydantic model that genuinely
+    declares these fields. A lemma-shaped name published under any OTHER
+    schema component (e.g. `FormFrequencyResponse`) would still fail.
+    """
+    violations = _json_violations(
+        create_app().openapi(), owning_path_segment=_OPENAPI_LEMMA_OWNING_SCHEMA
+    )
 
     assert not violations, "lemma naming leaked into the served OpenAPI document:\n" + "\n".join(
         violations
@@ -486,19 +607,32 @@ def test_the_allow_list_is_a_finite_enumeration_of_exact_lemma_symbols() -> None
 
 @pytest.mark.unit
 def test_an_allow_listed_identifier_is_exempt_from_the_python_leg() -> None:
-    """Gap 1: `_python_violations` had no exemption mechanism before task 1.7."""
+    """Gap 1: `_python_violations` had no exemption mechanism before task 1.7.
+
+    C1: the exemption now also requires the SCANNED FILE to own the symbol
+    — `"domain/annotation.py"` genuinely owns `lemma` (`_LEMMA_OWNING_FILES`),
+    so this source, scanned under that exact label, stays exempt.
+    """
     source = "class LinguisticAnnotation:\n    lemma: str | None\n"
 
-    assert _python_violations(source, "synthetic.py") == []
+    assert _python_violations(source, "domain/annotation.py") == []
 
 
 @pytest.mark.unit
 def test_an_allow_listed_key_is_exempt_from_the_json_leg() -> None:
     """Gap 1, JSON leg: `_json_violations` exempts an allow-listed key or
-    value by exact match, and nothing else — `lemma_form` is not `lemma`."""
-    document = {"lemma": "run", "lemma_form": "leak"}
+    value by exact match, and nothing else — `lemma_form` is not `lemma`.
 
-    violations = _json_violations(document)
+    C1: exemption also requires the owning path segment. `lemma` sits under
+    the genuine owning schema here; `lemma_form` never matches
+    `_ALLOWED_LEMMA_SYMBOLS` at all, so it fails regardless of path.
+    """
+    document = {
+        "components": {"schemas": {"AnnotationOccurrenceResponse": {"lemma": "run"}}},
+        "lemma_form": "leak",
+    }
+
+    violations = _json_violations(document, owning_path_segment=_OPENAPI_LEMMA_OWNING_SCHEMA)
 
     assert violations == ["$.lemma_form (key) -> 'lemma_form'"]
 
@@ -565,18 +699,99 @@ def test_the_allow_list_is_now_exercised_by_a_genuine_persisted_lemma_column() -
 def test_renaming_normalized_form_to_a_lemma_shaped_name_still_fails_despite_the_allow_list() -> (
     None
 ):
-    """AC-003-24 scenario 2 (task 1.8): exact equality, not `in`/`startswith`
-    — a rename to any name outside the five enumerated symbols still fails."""
+    """AC-003-24 scenario 2 (task 1.8) / C1 remediation.
+
+    The ORIGINAL version of this test used `lemma_text`, a name OUTSIDE
+    `_ALLOWED_LEMMA_SYMBOLS` — it fails trivially on the exact-match check
+    alone and never exercises the allow-list's own exemption logic at all,
+    let alone the (C1) file-binding fix. `lemma` IS on the allow-list; the
+    dangerous case is a rename that lands the exact word `lemma` on a
+    display-form-shaped field in a file that does not own the genuine
+    SPEC-003 lemma capability (mirrors the confirmed repro:
+    `FormFrequencyResponse.display_form -> lemma` in `api/dtos/imports.py`).
+
+    RED before C1: this source, scanned under `"api/dtos/imports.py"` (a
+    real, non-owning file — absent from `_LEMMA_OWNING_FILES`), produced
+    ZERO violations, because the pre-C1 exemption checked only
+    `name not in _ALLOWED_LEMMA_SYMBOLS` with no file binding at all.
+    """
     source = '''
 """Groups by normalized form; it is not a lemma and not a lexeme."""
 
 
-class FormFrequency:
-    lemma_text: str
+class FormFrequencyResponse:
+    lemma: str
 '''
 
-    violations = _python_violations(source, "synthetic.py")
+    violations = _python_violations(source, "api/dtos/imports.py")
 
     assert violations
-    assert any("lemma_text" in violation for violation in violations)
-    assert "lemma_text" not in _ALLOWED_LEMMA_SYMBOLS
+    assert any("lemma" in violation for violation in violations)
+    assert "lemma" in _ALLOWED_LEMMA_SYMBOLS  # confirms this exercises the allow-list, not a miss
+    assert "api/dtos/imports.py" not in _LEMMA_OWNING_FILES
+
+
+@pytest.mark.unit
+def test_renaming_the_pinned_schemas_normalized_form_property_to_lemma_still_fails() -> None:
+    """C1 remediation — the second confirmed repro: `import.v1.json`'s
+    `normalized_form` property renamed to `lemma`.
+
+    RED before C1: `_json_violations` exempted any exact match against
+    `_ALLOWED_LEMMA_SYMBOLS` unconditionally — a document shaped exactly like
+    the pinned schema, with its property renamed to `lemma`, produced ZERO
+    violations. `import.v1.json` legitimately owns no lemma symbol at all
+    (REQ-002-007), so the call site under test
+    (`test_the_pinned_json_schema_names_no_lemma_or_lexeme`) never passes an
+    `owning_path_segment` — every match is still a violation, by design.
+    """
+    renamed_schema = {
+        "$defs": {
+            "form": {
+                "type": "object",
+                "properties": {"lemma": {"type": "string"}},
+                "required": ["lemma"],
+            }
+        }
+    }
+
+    violations = _json_violations(
+        renamed_schema
+    )  # no owning_path_segment: import.v1.json owns nothing
+
+    assert violations
+    assert any("lemma" in violation for violation in violations)
+
+
+@pytest.mark.unit
+def test_a_lemma_shaped_column_on_an_unexpected_table_still_fails() -> None:
+    """C1 remediation — the third confirmed repro: a lemma-shaped column
+    that is NOT `occurrence.lemma`/`annotation_provenance.lemma_confidence`.
+
+    RED before C1: the reflected-column check only tested
+    `name not in _ALLOWED_LEMMA_SYMBOLS`, ignoring which TABLE a matching
+    column lived on — a same-named `lemma` column on any table OTHER than
+    `occurrence` was silently exempt, identically to the genuine
+    `occurrence.lemma` column. A throwaway probe table, attached to and
+    removed from the SAME `Base.metadata` the guard reads, proves the fix —
+    mirroring `test_reflected_column_scan_covers_every_table_not_only_book_
+    and_occurrence`'s existing mutation pattern.
+    """
+    from sqlalchemy import Column, String, Table
+
+    from wheel_vocabulary.infrastructure.persistence.base import Base
+
+    probe = Table(
+        "_test_probe_lemma_on_the_wrong_table",
+        Base.metadata,
+        Column("id", String, primary_key=True),
+        Column("lemma", String),
+    )
+    try:
+        violations = [
+            f"{table}.{column}"
+            for table, column in _reflected_columns_with_table()
+            if _FORBIDDEN.search(column) and (table, column) not in _LEMMA_OWNING_COLUMNS
+        ]
+        assert "_test_probe_lemma_on_the_wrong_table.lemma" in violations
+    finally:
+        Base.metadata.remove(probe)
