@@ -74,10 +74,28 @@ class LinguisticAnalyzer(Protocol):
 
         Each returned ``LinguisticAnnotation.raw_text`` MUST equal the input
         token it was computed for, at the same list position (REQ-003-004,
-        C6). The caller verifies this identity, not bare position, before
-        pairing an annotation with an occurrence — a conforming
-        implementation costs nothing extra here since the token text is
-        already in hand while producing each annotation.
+        C6). At output list index ``i``, ``source_index == i`` MUST also
+        hold; violating either pairing obligation is rejected as
+        ``ANNOTATION_FAILED``. The caller verifies these pairing conditions, not bare
+        position, before pairing an annotation with an occurrence — a
+        conforming implementation costs nothing extra here since the token
+        text is already in hand while producing each annotation.
+
+        Each annotation's ``pos`` MUST be None or a UPOS tag. Its
+        ``pos_confidence`` and ``lemma_confidence`` MUST each be ``None`` or
+        within [0.0, 1.0]. Violating either value obligation is rejected as
+        ``ANNOTATION_FAILED``.
+
+        Bounded guarantee (REQ-003H-006): the check proves that the analyzer's
+        output is **self-consistent with the input it was given** — each
+        annotation reports both the token text and the input index it claims to
+        have been computed for, and both MUST agree with the occurrence at that
+        position, so an internally reordered result of equal length is rejected
+        instead of being written to the wrong occurrence. It does **not** prove
+        that the annotation is linguistically correct for that token, and it
+        cannot detect an analyzer that swaps two same-text annotations while
+        consistently reassigning `source_index`, because `source_index` is
+        self-reported by the analyzer.
 
         Raises:
             UnsupportedLanguageError: no analyzer is installed for
