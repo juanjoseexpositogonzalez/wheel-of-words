@@ -15,7 +15,12 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import delete, func, insert, select
 
-from wheel_vocabulary.infrastructure.persistence.models import Book, Occurrence
+from wheel_vocabulary.infrastructure.persistence.models import (
+    AnnotationProvenance,
+    Book,
+    ManualCorrection,
+    Occurrence,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -109,21 +114,40 @@ class SqlAlchemyBookRepository:
             ]
 
     def delete(self, book_id: int) -> bool:
-        """Delete a `Book` and every `Occurrence` derived from it — design §6.2.
+        """Delete a `Book` and every row derived from it — design §6.2, S1.
 
         Existence is checked first with its own query, mirroring
         `frequency_pairs`'s unknown-vs-empty pattern above, so the `False`
         return does not depend on a driver-specific `rowcount` value. Once
-        existence is confirmed, two explicit `DELETE` statements run in one
-        transaction (`occurrence` then `book`) — never `ON DELETE CASCADE`:
-        SQLite ships with `PRAGMA foreign_keys = OFF` by default, and this
-        engine (`infrastructure/persistence/engine.py`) never turns it on, so
-        the FK's declared cascade would silently do nothing.
+        existence is confirmed, four explicit `DELETE` statements run in one
+        transaction — `manual_correction`, `annotation_provenance`,
+        `occurrence`, `book`, always in that order — never `ON DELETE
+        CASCADE`: SQLite ships with `PRAGMA foreign_keys = OFF` by default,
+        and this engine (`infrastructure/persistence/engine.py`) never turns
+        it on, so the FK's declared cascade would silently do nothing.
+
+        The two annotation child tables MUST be deleted alongside
+        `occurrence`, not just `occurrence` and `book` alone (as an earlier
+        revision of this method did): `Occurrence.id` is a plain SQLite
+        ROWID, freed and eligible for reuse the moment its row is gone. A
+        `manual_correction`/`annotation_provenance` row left behind, keyed
+        to that now-reusable id, would silently attach to whatever LATER,
+        unrelated import's occurrence happens to reuse it — a ghost
+        correction the user never made on the new import at all.
         """
         with self._session_factory() as session:
             if session.get(Book, book_id) is None:
                 return False
 
+            occurrence_ids = select(Occurrence.id).where(Occurrence.book_id == book_id)
+            session.execute(
+                delete(ManualCorrection).where(ManualCorrection.occurrence_id.in_(occurrence_ids))
+            )
+            session.execute(
+                delete(AnnotationProvenance).where(
+                    AnnotationProvenance.occurrence_id.in_(occurrence_ids)
+                )
+            )
             session.execute(delete(Occurrence).where(Occurrence.book_id == book_id))
             session.execute(delete(Book).where(Book.id == book_id))
             session.commit()
