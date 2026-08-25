@@ -38,6 +38,29 @@ _DOMAIN_MODULE_PATH = (
 )
 _ISO_639_SHAPE = re.compile(r"^[a-z]{2,3}([-_][A-Za-z]{2,4})?$")
 _FORBIDDEN_NLP_IMPORTS = frozenset({"spacy", "thinc", "stanza"})
+_ANALYZE_OBLIGATION = "source_index == i"
+_BOUNDED_SOURCE_INDEX_GUARANTEE = (
+    "the check proves that the analyzer's output is "
+    "**self-consistent with the input it was given** "
+    "— each annotation reports both the token text and the input index it claims to have been "
+    "computed for, and both MUST agree with the occurrence at that position, so an "
+    "internally reordered result of equal length is rejected instead of being written to the "
+    "wrong occurrence. "
+    "It does **not** prove that the annotation is linguistically correct for that token, and it "
+    "cannot detect an analyzer that swaps two same-text annotations while consistently reassigning "
+    "`source_index`, because `source_index` is self-reported by the analyzer."
+)
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
+_SPEC_PATH = (
+    _PROJECT_ROOT
+    / "openspec"
+    / "changes"
+    / "spec-003-harden-guards-and-claims"
+    / "specs"
+    / "003-lemmatization-pos"
+    / "spec.md"
+)
+_TRACEABILITY_MATRIX_PATH = _PROJECT_ROOT / "docs" / "traceability-matrix.md"
 
 
 class _FakeAnalyzer:
@@ -80,6 +103,10 @@ def _string_constants(tree: ast.AST) -> set[str]:
         for node in ast.walk(tree)
         if isinstance(node, ast.Constant) and isinstance(node.value, str)
     }
+
+
+def _normalized_whitespace(value: str) -> str:
+    return " ".join(value.split())
 
 
 @pytest.mark.unit
@@ -154,3 +181,83 @@ def test_analyze_has_no_default_for_the_language_parameter() -> None:
                 checked += 1
 
     assert checked == 1, "expected exactly one `analyze` definition with a `language` kwarg"
+
+
+@pytest.mark.unit
+def test_analyze_docstring_states_the_source_index_failure_obligation() -> None:
+    """REQ-003H-004 M1 (RED before 08e, observed 2026-08-25):
+    `E AssertionError: assert 'source_index == i' in 'Return one annotation
+    per input token, in the same order.\\n\\n        ``tokens`` MUST be the
+    already-tokenized, ordere...  ``language``. Raised before any pipeline
+    loads and before\\n                any row is written (AC-003-03).\\n
+        '` because the port documented only `raw_text`, not the rejected
+    source-index condition.
+
+    Removing the documented `source_index == i` sentence must therefore make
+    this assertion fail rather than leave the contract guard vacuous.
+    """
+    docstring = LinguisticAnalyzer.analyze.__doc__
+
+    assert docstring is not None
+    assert _ANALYZE_OBLIGATION in docstring
+    assert "ANNOTATION_FAILED" in docstring
+    assert "raw_text" in docstring
+
+
+@pytest.mark.unit
+def test_each_annotation_validation_rejection_has_a_port_obligation() -> None:
+    """REQ-003H-004: every `_validate_and_assemble` rejection branch maps
+    to a `LinguisticAnalyzer.analyze` contract obligation."""
+    docstring = LinguisticAnalyzer.analyze.__doc__
+
+    assert docstring is not None
+    rejection_obligations = {
+        "annotation count": "one annotation per input token",
+        "raw-text and source-index pairing": "source_index == i",
+        "UPOS tag": "None or a UPOS tag",
+        "confidence range": "within [0.0, 1.0]",
+    }
+
+    missing = {
+        branch: obligation
+        for branch, obligation in rejection_obligations.items()
+        if obligation not in docstring
+    }
+
+    assert not missing, f"undocumented annotation validation branches: {missing}"
+
+
+@pytest.mark.unit
+def test_bounded_source_index_guarantee_is_verbatim_in_all_required_locations() -> None:
+    """REQ-003H-006 G2: the bounded statement must not drift between the
+    port contract, its source specification, and the traceability matrix."""
+    docstring = LinguisticAnalyzer.analyze.__doc__
+
+    assert docstring is not None
+    expected = _normalized_whitespace(_BOUNDED_SOURCE_INDEX_GUARANTEE)
+    locations = {
+        "port contract": docstring,
+        "specification": _SPEC_PATH.read_text(encoding="utf-8"),
+        "traceability matrix": _TRACEABILITY_MATRIX_PATH.read_text(encoding="utf-8"),
+    }
+    missing = [
+        name
+        for name, content in locations.items()
+        if expected not in _normalized_whitespace(content)
+    ]
+
+    assert not missing, f"bounded source-index guarantee missing or altered in: {missing}"
+    assert "verifies this identity" not in docstring
+
+
+@pytest.mark.unit
+def test_docs_name_source_index() -> None:
+    """REQ-003H-004: the annotation contract is discoverable in `docs/`."""
+    docs_path = _PROJECT_ROOT / "docs"
+    matches = [
+        path
+        for path in docs_path.rglob("*")
+        if path.is_file() and "source_index" in path.read_text(encoding="utf-8")
+    ]
+
+    assert matches, "expected at least one docs/ file to name source_index"

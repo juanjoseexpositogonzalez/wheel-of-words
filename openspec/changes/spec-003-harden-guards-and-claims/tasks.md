@@ -110,14 +110,14 @@ Closes: REQ-003H-003 (K1–K5), AC-003H-03. Split point per Mandate 1: cut after
 
 Closes: REQ-003H-004 (AC-003H-04), REQ-003H-006 (AC-003H-06). No further split — G2 requires one work unit.
 
-- [ ] 5.1 [TEST] `test_annotation_ports.py` — RED: assert `LinguisticAnalyzer.analyze`'s docstring states `source_index == i` and names `ANNOTATION_FAILED`, alongside the retained `raw_text` obligation; deleting the sentence fails the test, observed output recorded verbatim (non-vacuity).
-- [ ] 5.2 [IMPL] `application/annotation/ports.py`: extend `LinguisticAnalyzer.analyze`'s docstring with the `source_index == i` obligation and `ANNOTATION_FAILED` failure name.
-- [ ] 5.3 [TEST] Enumerate every rejection branch of the application's annotation validation; assert each maps to a documented port obligation.
-- [ ] 5.4 [TEST] `test_annotate_import.py` — **G3 executable acceptance**: stub analyzer swaps two same-text annotations while consistently reassigning `source_index`; assert the run is accepted and rows written, docstring citing `REQ-003H-006` as the documented bound.
-- [ ] 5.5 [TEST] `test_annotate_import.py` — covered-case control: same swap WITHOUT reassigning `source_index` fails `ANNOTATION_FAILED`, zero rows written (regression guard on already-shipped behaviour).
-- [ ] 5.6 [DOC] **G2 — one bounded statement, three locations, one work unit**: write the bounded `source_index` guarantee once; copy verbatim into `ports.py` (5.2), confirm it matches the spec's `REQ-003H-006` wording, and into `docs/traceability-matrix.md`'s `REQ-003H-006` row.
-- [ ] 5.7 [DOC] `docs/glossary.md`: add Spanish `source_index` entry (categoría: atributo), referencing `REQ-003H-006`/`ports.py`.
-- [ ] 5.8 [TEST] Guard: `docs/` searched for `source_index` returns ≥1 match.
+- [x] 5.1 [TEST] `test_annotation_ports.py` — RED: assert `LinguisticAnalyzer.analyze`'s docstring states `source_index == i` and names `ANNOTATION_FAILED`, alongside the retained `raw_text` obligation; deleting the sentence fails the test, observed output recorded verbatim (non-vacuity).
+- [x] 5.2 [IMPL] `application/annotation/ports.py`: extend `LinguisticAnalyzer.analyze`'s docstring with the `source_index == i` obligation and `ANNOTATION_FAILED` failure name.
+- [x] 5.3 [TEST] Enumerate every rejection branch of the application's annotation validation; assert each maps to a documented port obligation.
+- [x] 5.4 [TEST] `test_annotate_import.py` — **G3 executable acceptance**: stub analyzer swaps two same-text annotations while consistently reassigning `source_index`; assert the run is accepted and rows written, docstring citing `REQ-003H-006` as the documented bound.
+- [x] 5.5 [TEST] `test_annotate_import.py` — covered-case control: same swap WITHOUT reassigning `source_index` fails `ANNOTATION_FAILED`, zero rows written (regression guard on already-shipped behaviour).
+- [x] 5.6 [DOC] **G2 — one bounded statement, three locations, one work unit**: write the bounded `source_index` guarantee once; copy verbatim into `ports.py` (5.2), confirm it matches the spec's `REQ-003H-006` wording, and into `docs/traceability-matrix.md`'s `REQ-003H-006` row.
+- [x] 5.7 [DOC] `docs/glossary.md`: add Spanish `source_index` entry (categoría: atributo), referencing `REQ-003H-006`/`ports.py`.
+- [x] 5.8 [TEST] Guard: `docs/` searched for `source_index` returns ≥1 match.
 
 ## Phase 6 — Traceability matrix (`08f-traceability-matrix`)
 
