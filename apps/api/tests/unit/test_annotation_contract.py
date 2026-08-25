@@ -28,6 +28,7 @@ from typing import Any
 
 import jsonschema
 import pytest
+from _guard_binding import OwningDefinition, is_exempt, render, walk_json
 from pydantic import ValidationError
 
 from wheel_vocabulary.api.dtos.annotation import (
@@ -37,9 +38,6 @@ from wheel_vocabulary.api.dtos.annotation import (
 )
 
 _FORBIDDEN_LEMMA_PATTERN = re.compile("lemma|lemas|lexeme|lexema", re.IGNORECASE)
-_ALLOWED_LEMMA_SYMBOLS = frozenset(
-    {"lemma", "lemma_confidence", "lemma_origin", "automatic_lemma", "lemmatizer"}
-)
 
 _SUCCESS_OCCURRENCE: dict[str, Any] = {
     "position": 3,
@@ -73,24 +71,6 @@ def _schema() -> dict[str, Any]:
     path = importlib.resources.files("wheel_vocabulary.api.schemas").joinpath("annotation.v1.json")
     loaded: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     return loaded
-
-
-def _json_strings(node: Any, path: str) -> list[tuple[str, str]]:
-    """Every JSON object key and string value, with its path — mirrors
-    `test_no_lemma_naming.py::_json_strings` for the schema file itself,
-    which that guard does not scan directly (it only scans `import.v1.json`
-    and the served OpenAPI document)."""
-    found: list[tuple[str, str]] = []
-    if isinstance(node, dict):
-        for key, value in node.items():
-            found.append((f"{path}.{key} (key)", key))
-            found.extend(_json_strings(value, f"{path}.{key}"))
-    elif isinstance(node, list):
-        for index, item in enumerate(node):
-            found.extend(_json_strings(item, f"{path}[{index}]"))
-    elif isinstance(node, str):
-        found.append((f"{path} (value)", node))
-    return found
 
 
 @pytest.mark.unit
@@ -169,21 +149,36 @@ def test_schema_rejects_an_unknown_error_code() -> None:
         jsonschema.validate(envelope, _schema()["$defs"]["error"])
 
 
-def _path_segments(where: str) -> list[str]:
-    """Mirrors `test_no_lemma_naming.py::_path_segments` (R2, Judgment Day
-    round 2) for the same reason `_json_strings` above already mirrors its
-    sibling: this file has no import dependency on that test module, and
-    duplicating the small pure helper keeps that independence."""
-    bare = where.split(" (", 1)[0]
-    return [re.sub(r"\[\d+\]$", "", part) for part in bare.split(".")]
+_OCCURRENCE_LEMMA_PROPERTIES = frozenset(
+    {"lemma", "lemma_confidence", "lemma_origin", "automatic_lemma"}
+)
+_OCCURRENCE_PROPERTIES = frozenset(
+    {
+        "position",
+        "raw_text",
+        "pos",
+        "pos_origin",
+        "automatic_pos",
+        "pos_confidence",
+        *_OCCURRENCE_LEMMA_PROPERTIES,
+    }
+)
+_OCCURRENCE_OWNER = OwningDefinition(
+    path=("$", "$defs", "occurrence"),
+    declared=_OCCURRENCE_PROPERTIES,
+    exempt=_OCCURRENCE_LEMMA_PROPERTIES,
+)
 
 
-# The one `$defs` component in `annotation.v1.json` that genuinely declares
-# `lemma`/`lemma_confidence` — mirrors
-# `test_no_lemma_naming.py::_SCHEMA_OWNING_PATH_SEGMENTS["annotation.v1.json"]`
-# (R2 remediation: that binding used to be the empty string, matching every
-# path unconditionally; it is now this exact owning segment).
-_OWNING_PATH_SEGMENT = "occurrence"
+def _schema_violations(schema: dict[str, Any]) -> list[str]:
+    violations: list[str] = []
+    for match in walk_json(schema):
+        segments, kind, text = match
+        if _FORBIDDEN_LEMMA_PATTERN.search(text) and not is_exempt(
+            match, schema, [_OCCURRENCE_OWNER]
+        ):
+            violations.append(f"{render(segments, kind)} -> {text!r}")
+    return violations
 
 
 @pytest.mark.unit
@@ -193,22 +188,11 @@ def test_the_pinned_json_schema_names_no_lemma_or_lexeme_outside_the_allow_list(
     own leg since `test_no_lemma_naming.py::_SCHEMA_PATH` only covers
     `import.v1.json`.
 
-    R2 (Judgment Day round 2): the predicate here used to be the UNBOUND
-    pre-C1 shape — `text not in _ALLOWED_LEMMA_SYMBOLS` alone, with no
-    binding to WHERE in the document the match occurs — even though C1
-    bound every other leg (`_LEMMA_OWNING_FILES`, `_LEMMA_OWNING_COLUMNS`,
-    `_OPENAPI_LEMMA_OWNING_SCHEMA`) to its owning declaration site. This test
-    was not touched by the C1 fix round despite
-    `docs/traceability-matrix.md` citing it as C1 evidence. Now bound to
-    `_OWNING_PATH_SEGMENT` via the same exact-segment-match predicate
-    `test_no_lemma_naming.py::_json_violations` uses.
+    The shared helper binds exemptions to a declared-property manifest. A
+    match only passes when it is one of the four genuine properties and the
+    complete `$defs.occurrence.properties` set is intact.
     """
-    violations = [
-        f"{where} -> {text!r}"
-        for where, text in _json_strings(_schema(), "$")
-        if _FORBIDDEN_LEMMA_PATTERN.search(text)
-        and not (text in _ALLOWED_LEMMA_SYMBOLS and _OWNING_PATH_SEGMENT in _path_segments(where))
-    ]
+    violations = _schema_violations(_schema())
 
     assert not violations, "lemma naming leaked into annotation.v1.json:\n" + "\n".join(violations)
 
@@ -230,15 +214,33 @@ def test_renaming_a_non_owning_property_to_lemma_still_fails_outside_the_allow_l
     provenance_properties = mutated["$defs"]["provenance"]["properties"]
     provenance_properties["lemma"] = provenance_properties.pop("source")
 
-    violations = [
-        f"{where} -> {text!r}"
-        for where, text in _json_strings(mutated, "$")
-        if _FORBIDDEN_LEMMA_PATTERN.search(text)
-        and not (text in _ALLOWED_LEMMA_SYMBOLS and _OWNING_PATH_SEGMENT in _path_segments(where))
-    ]
+    violations = _schema_violations(mutated)
 
     assert violations
     assert any("lemma" in violation for violation in violations)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "sibling_property",
+    ["position", "raw_text", "pos", "pos_origin", "automatic_pos", "pos_confidence"],
+)
+def test_renaming_each_non_lemma_occurrence_property_to_lemma_still_fails(
+    sibling_property: str,
+) -> None:
+    """AC-003H-01 mutation check for this schema guard.
+
+    RED against the local component-wide binding: every parameter produced
+    ``[]`` and failed with ``assert []``. The shared manifest-bound helper must
+    report each renamed sibling property.
+    """
+    schema = _schema()
+    properties = schema["$defs"]["occurrence"]["properties"]
+    properties["lemma"] = properties.pop(sibling_property)
+
+    violations = _schema_violations(schema)
+
+    assert violations, f"renaming {sibling_property} to lemma produced no violations"
 
 
 # --------------------------------------------------------------------------
