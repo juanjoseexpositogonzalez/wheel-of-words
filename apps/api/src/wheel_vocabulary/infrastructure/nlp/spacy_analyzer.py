@@ -75,15 +75,32 @@ _EXCLUDED_PIPES = ("parser", "ner", "senter")
 
 
 def _assert_scores_are_normalized(scores: np.ndarray) -> None:
-    """§P1 self-check leg 1: every row of `scores` sums to `1.0 ± 1e-4`.
+    """§P1 self-check leg 1: every row of `scores` is a real probability
+    distribution — finite, non-negative, and summing to `1.0 ± 1e-4`.
 
     Raises `AnalyzerUnavailableError` — never a bare assertion — because a
     failed check here means the deployed model cannot be trusted to report a
     real posterior, which is a runtime availability problem (503), not a
     programming error.
+
+    S5 remediation: the sum-tolerance check alone accepts a non-probability
+    such as `[1.0, -1.0, 1.0]`, which sums to exactly `1.0` while containing
+    a negative entry no real softmax output could ever produce — publishing
+    it as `pos_confidence` would be a silent semantic corruption identical
+    in kind to the un-normalized-logits case this self-check already exists
+    to catch. Finiteness and non-negativity are checked FIRST, before the
+    sum is computed: this also means a NaN/Inf row (already indirectly
+    rejected by the sum check, since `nan`/`inf` taints `.sum()` and
+    `np.allclose` treats NaN as never close) is now caught by its own
+    explicit, warning-free assertion instead of relying on that incidental
+    floating-point behaviour.
     """
     if scores.size == 0:
         return
+    if not bool(np.all(np.isfinite(scores))):
+        raise AnalyzerUnavailableError()
+    if not bool(np.all(scores >= 0.0)):
+        raise AnalyzerUnavailableError()
     if not bool(np.allclose(scores.sum(axis=1), 1.0, atol=_SCORE_SUM_TOLERANCE)):
         raise AnalyzerUnavailableError()
 
