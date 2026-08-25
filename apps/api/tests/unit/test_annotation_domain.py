@@ -59,7 +59,7 @@ def _string_constants(tree: ast.AST) -> set[str]:
 def test_linguistic_annotation_is_frozen() -> None:
     """REQ-003-002: the value object is immutable."""
     annotation = LinguisticAnnotation(
-        pos="NOUN", lemma="run", pos_confidence=0.9, lemma_confidence=None
+        raw_text="running", pos="NOUN", lemma="run", pos_confidence=0.9, lemma_confidence=None
     )
 
     with pytest.raises(dataclasses.FrozenInstanceError):
@@ -70,7 +70,7 @@ def test_linguistic_annotation_is_frozen() -> None:
 def test_linguistic_annotation_fields_may_all_be_none() -> None:
     """REQ-003-005/006 shape: an unannotated occurrence has every field None."""
     annotation = LinguisticAnnotation(
-        pos=None, lemma=None, pos_confidence=None, lemma_confidence=None
+        raw_text="running", pos=None, lemma=None, pos_confidence=None, lemma_confidence=None
     )
 
     assert annotation.pos is None

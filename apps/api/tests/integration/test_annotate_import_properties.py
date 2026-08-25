@@ -35,7 +35,9 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from sqlalchemy import select
 
+from wheel_vocabulary.application.annotation.errors import AnnotationFailedError
 from wheel_vocabulary.application.annotation.ports import AnalyzerIdentity
+from wheel_vocabulary.application.annotation.ports import LinguisticAnalyzer as _AnalyzerPort
 from wheel_vocabulary.application.annotation.use_cases import AnnotateImport
 from wheel_vocabulary.domain.annotation import UPOS_TAGS, LinguisticAnnotation
 from wheel_vocabulary.infrastructure.persistence.annotation_repository import (
@@ -73,7 +75,11 @@ def _deterministic_annotation(token: str) -> LinguisticAnnotation:
     analyzer being contextual."""
     index = sum(ord(character) for character in token) % len(_UPOS_LIST)
     return LinguisticAnnotation(
-        pos=_UPOS_LIST[index], lemma=token, pos_confidence=None, lemma_confidence=None
+        raw_text=token,
+        pos=_UPOS_LIST[index],
+        lemma=token,
+        pos_confidence=None,
+        lemma_confidence=None,
     )
 
 
@@ -85,11 +91,31 @@ class _DeterministicAnalyzer:
         return [_deterministic_annotation(token) for token in tokens]
 
 
+class _RotatingScramblingAnalyzer:
+    """A deliberately non-conforming analyzer — C6 regression fixture.
+
+    Computes the exact same correct `LinguisticAnnotation` per token as
+    `_DeterministicAnalyzer`, then returns them ROTATED by one position
+    relative to the input it received: index 0 of the result is what index 1
+    of the input asked for, and so on. Same length as the input, so the
+    length check alone cannot catch it — this simulates precisely the C6
+    defect class: an analyzer violating its own "same order" port contract
+    (`ports.py::LinguisticAnalyzer.analyze`).
+    """
+
+    identity = _IDENTITY
+
+    def analyze(self, tokens: Sequence[str], *, language: str) -> Sequence[LinguisticAnnotation]:
+        del language
+        correct = [_deterministic_annotation(token) for token in tokens]
+        return correct[1:] + correct[:1]
+
+
 class _FakeRegistry:
-    def __init__(self, analyzer: _DeterministicAnalyzer) -> None:
+    def __init__(self, analyzer: _AnalyzerPort) -> None:
         self._analyzer = analyzer
 
-    def resolve(self, language: str) -> _DeterministicAnalyzer:
+    def resolve(self, language: str) -> _AnalyzerPort:
         del language
         return self._analyzer
 
@@ -105,10 +131,22 @@ class _SequentialClock:
 class _ReversingReader:
     """Wraps a real `AnnotationReader`, returning its rows in REVERSE order.
 
-    Proves read-order independence precisely: `AnnotateImport` must map each
-    annotation back to its own occurrence by the token it actually produced
-    it for, never by list position — feeding it tokens in a different order
-    must not scramble which occurrence gets which annotation.
+    Proves READ-order independence: reversing which order the reader hands
+    `AnnotateImport` its occurrences must not scramble the final mapping.
+
+    **What this does NOT prove (C6).** `AnnotateImport` builds `raw_texts`
+    directly from whatever `tokens` this reader returns, then feeds that
+    exact sequence to the analyzer — `_DeterministicAnalyzer` computes each
+    annotation purely from token content, so its output is reversed in
+    lockstep with `tokens` no matter what order they arrive in. A PURELY
+    POSITIONAL `zip(tokens, annotations)` therefore pairs correctly here
+    every time, by construction, regardless of whether the implementation
+    actually checks identity — this property alone cannot distinguish a
+    correct implementation from a buggy one that trusts position blindly.
+    `test_property_a_scrambled_analyzer_output_fails_annotation_failed_and_
+    writes_nothing` (below) closes that gap with `_RotatingScramblingAnalyzer`,
+    which reorders its OUTPUT independently of its input order — the one
+    case a positional implementation cannot get right by accident.
     """
 
     def __init__(self, real_reader: SqlAlchemyAnnotationReadRepository) -> None:
@@ -275,6 +313,60 @@ def test_property_reversing_the_reader_row_order_does_not_change_the_mapping(
     ).execute(reversed_book_id, language="en")
 
     assert _mapping(read_repository, forward_book_id) == _mapping(read_repository, reversed_book_id)
+
+
+# --------------------------------------------------------------------------
+# C6 remediation — the property `_ReversingReader` above cannot exercise.
+# --------------------------------------------------------------------------
+
+_distinct_token_lists = st.lists(
+    st.text(alphabet=st.characters(categories=["Ll"]), min_size=1, max_size=8),
+    min_size=2,
+    max_size=6,
+    unique=True,
+)
+
+
+@pytest.mark.integration
+@settings(
+    max_examples=15, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture]
+)
+@given(tokens=_distinct_token_lists)
+def test_property_a_scrambled_analyzer_output_fails_annotation_failed_and_writes_nothing(
+    annotation_session_factory: sessionmaker[Session], tokens: list[str]
+) -> None:
+    """C6: for ANY generated token sequence of at least two DISTINCT tokens,
+    an analyzer that returns a same-length but rotated result
+    (`_RotatingScramblingAnalyzer`) must make the whole run fail with
+    `ANNOTATION_FAILED` and write nothing — never silently persist pos/lemma
+    values under the wrong occurrence. Tokens are constrained `unique=True`
+    so the rotation is always content-detectable: with a repeated token the
+    rotated output could coincide with the correct one by chance.
+
+    RED (before the fix): raised `TypeError: LinguisticAnnotation.__init__()
+    got an unexpected keyword argument 'raw_text'` — there was no field to
+    carry identity through `_RotatingScramblingAnalyzer` at all, which is
+    itself the shape of the defect: nothing could verify a same-length
+    reordering.
+    """
+    book_id = _seed_book(annotation_session_factory, tokens=tokens)
+    read_repository = SqlAlchemyAnnotationReadRepository(annotation_session_factory)
+    write_repository = SqlAlchemyAnnotationWriteRepository(annotation_session_factory)
+    registry = _FakeRegistry(_RotatingScramblingAnalyzer())
+    use_case = AnnotateImport(
+        reader=read_repository,
+        registry=registry,
+        writer=write_repository,
+        clock=_SequentialClock([_FIRST_RUN]),
+    )
+
+    with pytest.raises(AnnotationFailedError):
+        use_case.execute(book_id, language="en")
+
+    rows = read_repository.read(book_id)
+    assert rows is not None
+    assert all(row.effective_pos is None for row in rows), "a failed run must write nothing"
+    assert all(row.pos_origin == "automatic" for row in rows)
 
 
 @pytest.mark.integration

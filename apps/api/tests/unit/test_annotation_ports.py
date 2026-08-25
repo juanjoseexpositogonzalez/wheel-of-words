@@ -53,7 +53,7 @@ class _FakeAnalyzer:
         del language  # the fake ignores it; the real adapter does not (Phase 4)
         return [
             LinguisticAnnotation(
-                pos="NOUN", lemma=token, pos_confidence=None, lemma_confidence=None
+                raw_text=token, pos="NOUN", lemma=token, pos_confidence=None, lemma_confidence=None
             )
             for token in tokens
         ]

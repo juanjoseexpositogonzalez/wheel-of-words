@@ -144,6 +144,11 @@ class SpacyLinguisticAnalyzer:
         doc, scores = self._annotate(tokens)
         return [
             LinguisticAnnotation(
+                # C6: echoes the exact token this annotation was computed
+                # for, at its own position in `doc` — never the caller's
+                # input list — so a caller can verify the pairing by
+                # identity rather than trusting bare position.
+                raw_text=token.text,
                 pos=token.pos_ or None,
                 # `token.lemma` (the vocab-hash form, not the `_`-suffixed
                 # string form) is the allow-listed exact symbol "lemma"
