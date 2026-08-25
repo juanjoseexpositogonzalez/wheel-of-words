@@ -117,6 +117,7 @@ if TYPE_CHECKING:
 
 _PACKAGE_ROOT = Path(__file__).resolve().parents[2] / "src" / "wheel_vocabulary"
 _SCHEMA_PATH = _PACKAGE_ROOT / "api" / "schemas" / "import.v1.json"
+_SCHEMAS_DIR = _PACKAGE_ROOT / "api" / "schemas"
 _FORBIDDEN_PATTERN = "lemma|lemas|lexeme|lexema"
 _FORBIDDEN = re.compile(_FORBIDDEN_PATTERN, re.IGNORECASE)
 
@@ -210,6 +211,34 @@ _LEMMA_OWNING_COLUMNS: frozenset[tuple[str, str]] = frozenset(
 # — a JSON-path segment naming that schema component is the OpenAPI
 # equivalent of `_LEMMA_OWNING_FILES`'s per-file binding.
 _OPENAPI_LEMMA_OWNING_SCHEMA = "AnnotationOccurrenceResponse"
+
+# C2 remediation (AC-002-10 mandates `api/schemas/*.json`, not one hardcoded
+# file). Per-pinned-schema owning path segment for the JSON leg, mirroring
+# `_LEMMA_OWNING_FILES`'s per-Python-file binding. `""` matches any JSON
+# path (`"" in any_string` is always `True` in Python), which is how a
+# WHOLE FILE is granted ownership rather than one path segment within it —
+# used only for `annotation.v1.json`, the one pinned schema that exists
+# specifically to carry the genuine SPEC-003 lemma capability on the wire.
+# `import.v1.json` and `health.v1.json` own nothing: `None` means every
+# match in that file is still a violation.
+_SCHEMA_OWNING_PATH_SEGMENTS: dict[str, str | None] = {
+    "import.v1.json": None,
+    "annotation.v1.json": "",
+    "health.v1.json": None,
+}
+
+
+def _schema_paths() -> list[Path]:
+    """Every JSON Schema under `api/schemas/` — AC-002-10, C2 remediation.
+
+    The guard used to hardcode a single file (`import.v1.json`), so
+    `health.v1.json` and `annotation.v1.json` were never reached by this
+    module's scan at all — a lemma-shaped name landing in either would have
+    gone entirely undetected here (`annotation.v1.json` has its own,
+    separate coverage in `test_annotation_contract.py`, but that is
+    incidental, not this guard doing its job).
+    """
+    return sorted(_SCHEMAS_DIR.glob("*.json"))
 
 
 def _python_modules() -> list[Path]:
@@ -391,6 +420,9 @@ def imported_body(imports_client: TestClient) -> dict[str, Any]:
     return body
 
 
+_EXPECTED_SCHEMA_FILES = frozenset({"import.v1.json", "annotation.v1.json", "health.v1.json"})
+
+
 @pytest.mark.unit
 def test_the_scan_reaches_the_shipped_backend_sources() -> None:
     """Without this, an empty walk would make the guard below vacuously green."""
@@ -398,6 +430,22 @@ def test_the_scan_reaches_the_shipped_backend_sources() -> None:
 
     assert scanned >= _EXPECTED_FILES
     assert _SCHEMA_PATH.is_file()
+
+
+@pytest.mark.unit
+def test_the_schema_scan_reaches_every_pinned_schema_file() -> None:
+    """C2: `_schema_paths()` globs `api/schemas/*.json` (AC-002-10), not one
+    hardcoded file — fails closed (non-vacuously) if the glob resolves to
+    nothing, mirroring the Python-source walk's own non-vacuity test above.
+    """
+    scanned = {path.name for path in _schema_paths()}
+
+    assert scanned, "the schema glob resolved to zero files"
+    assert scanned >= _EXPECTED_SCHEMA_FILES
+    assert set(_SCHEMA_OWNING_PATH_SEGMENTS) >= scanned, (
+        "a pinned schema file has no entry in _SCHEMA_OWNING_PATH_SEGMENTS: "
+        + ", ".join(sorted(scanned - set(_SCHEMA_OWNING_PATH_SEGMENTS)))
+    )
 
 
 @pytest.mark.unit
@@ -479,6 +527,56 @@ def test_the_pinned_json_schema_names_no_lemma_or_lexeme() -> None:
     assert not violations, "lemma naming leaked into the pinned JSON Schema:\n" + "\n".join(
         violations
     )
+
+
+@pytest.mark.unit
+def test_every_pinned_schema_file_names_no_lemma_or_lexeme_outside_its_owner() -> None:
+    """C2: AC-002-10 mandates `api/schemas/*.json`, not the single hardcoded
+    `import.v1.json` the test above still separately pins. `health.v1.json`
+    was entirely unscanned by this module before C2 — it has no legitimate
+    lemma symbol of its own, so it is held to the same zero-match bar as
+    `import.v1.json`. `annotation.v1.json` is the one schema that genuinely
+    owns the SPEC-003 lemma capability end to end.
+    """
+    violations = [
+        violation
+        for schema_path in _schema_paths()
+        for violation in _json_violations(
+            json.loads(schema_path.read_text(encoding="utf-8")),
+            owning_path_segment=_SCHEMA_OWNING_PATH_SEGMENTS[schema_path.name],
+        )
+    ]
+
+    assert not violations, "lemma naming leaked into a pinned JSON Schema:\n" + "\n".join(
+        violations
+    )
+
+
+@pytest.mark.unit
+def test_health_schema_is_genuinely_reachable_and_would_fail_a_lemma_shaped_property() -> None:
+    """C2 mutation check: `health.v1.json` legitimately has zero lemma-shaped
+    content today, so the assertion above passes vacuously with respect to
+    it. This proves the scan actually REACHES it and would catch a
+    violation, using the exact same `_schema_paths()`/`_json_violations`
+    pipeline the guard test above uses — mirroring a real mutation on a copy
+    of the pinned document rather than the pinned file itself.
+
+    RED before C2: `health.v1.json` was never read by this module at all
+    (`_SCHEMA_PATH` pointed only at `import.v1.json`), so this scenario
+    could not even be expressed.
+    """
+    health_schema_path = _SCHEMAS_DIR / "health.v1.json"
+    assert health_schema_path in _schema_paths()
+
+    mutated = json.loads(health_schema_path.read_text(encoding="utf-8"))
+    mutated["properties"]["lemma"] = {"type": "string"}
+
+    violations = _json_violations(
+        mutated, owning_path_segment=_SCHEMA_OWNING_PATH_SEGMENTS["health.v1.json"]
+    )
+
+    assert violations
+    assert any("lemma" in violation for violation in violations)
 
 
 @pytest.mark.unit
