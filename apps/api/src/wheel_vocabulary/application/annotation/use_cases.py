@@ -166,12 +166,20 @@ class AnnotateImport:
 
         records: list[_ValidatedAnnotation] = []
         for position, (token, annotation) in enumerate(zip(tokens, annotations, strict=True)):
-            # C6: verify the pairing by identity, not bare list position. A
-            # same-length but internally reordered analyzer result would
-            # otherwise be silently written to the wrong occurrence — this
-            # is what REQ-003-004's "ordering mismatch" clause requires to
-            # fail loudly instead.
-            if annotation.raw_text != token.raw_text:
+            # C6 + R1 (Judgment Day round 2): verify the pairing by identity,
+            # not bare list position, and not content alone. A same-length
+            # but internally reordered analyzer result would otherwise be
+            # silently written to the wrong occurrence — this is what
+            # REQ-003-004's "ordering mismatch" clause requires to fail
+            # loudly instead. `raw_text` equality alone is NOT identity: two
+            # occurrences sharing the same surface form (a homograph, or any
+            # repeated token) can have correct-but-swapped annotations pass
+            # a bare content comparison, because both annotations' text
+            # matches both tokens' text. `source_index` closes that gap —
+            # each annotation must echo the exact position it was produced
+            # for, verified against the position the caller is currently
+            # pairing it against.
+            if annotation.raw_text != token.raw_text or annotation.source_index != position:
                 self._log_failure(AnnotationFailedError.code, book_id, position=position)
                 raise AnnotationFailedError()
 
