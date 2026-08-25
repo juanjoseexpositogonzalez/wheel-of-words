@@ -148,10 +148,16 @@ def _use_case(
 
 
 def _annotation(
-    pos: str | None, lemma: str | None, pos_confidence: float | None = None, *, raw_text: str
+    pos: str | None,
+    lemma: str | None,
+    pos_confidence: float | None = None,
+    *,
+    raw_text: str,
+    source_index: int = 0,
 ) -> LinguisticAnnotation:
     return LinguisticAnnotation(
         raw_text=raw_text,
+        source_index=source_index,
         pos=pos,
         lemma=lemma,
         pos_confidence=pos_confidence,
@@ -168,8 +174,8 @@ def _annotation(
 def test_execute_writes_one_validated_record_per_token_in_order() -> None:
     analyzer = _StubAnalyzer(
         produce=lambda tokens: [
-            _annotation("VERB", "run", 0.9, raw_text="run"),
-            _annotation("NOUN", "dog", raw_text="dog"),
+            _annotation("VERB", "run", 0.9, raw_text="run", source_index=0),
+            _annotation("NOUN", "dog", raw_text="dog", source_index=1),
         ]
     )
     use_case, writer = _use_case(
@@ -379,6 +385,46 @@ def test_a_reordered_same_length_output_fails_annotation_failed_and_writes_nothi
 
 
 @pytest.mark.unit
+def test_swapped_annotations_with_the_same_raw_text_fail_and_write_nothing() -> None:
+    """R1 (Judgment Day round 2): `raw_text` content equality alone cannot
+    catch a swap between two occurrences that share the SAME surface form —
+    homographs such as "saw" (VERB "see" vs. NOUN "saw") are pervasive in
+    real prose. Occurrence 10 ("saw", the verb) and occurrence 11 ("saw",
+    the noun) both have `raw_text == "saw"`; the stub analyzer returns the
+    two CORRECT annotations but at SWAPPED positions. Every prior C6 test
+    used tokens with different `raw_text` ("run"/"dog"), so this exact
+    same-surface-form swap was never exercised — this is the residual gap
+    both judges reproduced.
+
+    RED (before the fix, verified 2026-08-25): the assertion
+    `pytest.raises(AnnotationFailedError)` fails with
+    `Failed: DID NOT RAISE <class '...AnnotationFailedError'>` — the old
+    `annotation.raw_text != token.raw_text` check passes for both swapped
+    positions (content is identical), so occurrence 10 silently receives the
+    NOUN/"saw" tag and occurrence 11 silently receives the VERB/"see" tag,
+    with no error and no `_log_failure` record.
+    """
+    analyzer = _StubAnalyzer(
+        produce=lambda tokens: [
+            # Correctly computed for input index 1 (`source_index=1`), but
+            # placed at output position 0 — belongs to occurrence 11.
+            _annotation("NOUN", "saw", raw_text="saw", source_index=1),
+            # Correctly computed for input index 0 (`source_index=0`), but
+            # placed at output position 1 — belongs to occurrence 10.
+            _annotation("VERB", "see", raw_text="saw", source_index=0),
+        ]
+    )
+    use_case, writer = _use_case(
+        tokens_by_book={1: [(10, "saw"), (11, "saw")]}, analyzers={"en": analyzer}
+    )
+
+    with pytest.raises(AnnotationFailedError):
+        use_case.execute(1, language="en")
+
+    assert writer.calls == []
+
+
+@pytest.mark.unit
 def test_a_short_return_fails_annotation_failed_and_writes_nothing() -> None:
     """AC-003-04: one fewer annotation than tokens fails the run."""
     analyzer = _StubAnalyzer(produce=lambda tokens: [_annotation("VERB", "run", raw_text="run")])
@@ -463,8 +509,8 @@ def test_a_second_token_failure_still_writes_nothing_for_the_whole_batch() -> No
     valid first token does not get written while a later one fails."""
     analyzer = _StubAnalyzer(
         produce=lambda tokens: [
-            _annotation("VERB", "run", raw_text="run"),
-            _annotation("NN", "dog", raw_text="dog"),
+            _annotation("VERB", "run", raw_text="run", source_index=0),
+            _annotation("NN", "dog", raw_text="dog", source_index=1),
         ]
     )
     use_case, writer = _use_case(
