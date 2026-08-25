@@ -142,6 +142,15 @@ class AnnotateImport:
 
         records: list[_ValidatedAnnotation] = []
         for position, (token, annotation) in enumerate(zip(tokens, annotations, strict=True)):
+            # C6: verify the pairing by identity, not bare list position. A
+            # same-length but internally reordered analyzer result would
+            # otherwise be silently written to the wrong occurrence — this
+            # is what REQ-003-004's "ordering mismatch" clause requires to
+            # fail loudly instead.
+            if annotation.raw_text != token.raw_text:
+                self._log_failure(AnnotationFailedError.code, book_id, position=position)
+                raise AnnotationFailedError()
+
             pos = annotation.pos
             if pos is not None and pos not in UPOS_TAGS:
                 self._log_failure(AnnotationFailedError.code, book_id, position=position)
