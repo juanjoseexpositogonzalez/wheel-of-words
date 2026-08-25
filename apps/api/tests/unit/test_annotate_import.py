@@ -147,10 +147,14 @@ def _use_case(
 
 
 def _annotation(
-    pos: str | None, lemma: str | None, pos_confidence: float | None = None
+    pos: str | None, lemma: str | None, pos_confidence: float | None = None, *, raw_text: str
 ) -> LinguisticAnnotation:
     return LinguisticAnnotation(
-        pos=pos, lemma=lemma, pos_confidence=pos_confidence, lemma_confidence=None
+        raw_text=raw_text,
+        pos=pos,
+        lemma=lemma,
+        pos_confidence=pos_confidence,
+        lemma_confidence=None,
     )
 
 
@@ -163,8 +167,8 @@ def _annotation(
 def test_execute_writes_one_validated_record_per_token_in_order() -> None:
     analyzer = _StubAnalyzer(
         produce=lambda tokens: [
-            _annotation("VERB", "run", 0.9),
-            _annotation("NOUN", "dog"),
+            _annotation("VERB", "run", 0.9, raw_text="run"),
+            _annotation("NOUN", "dog", raw_text="dog"),
         ]
     )
     use_case, writer = _use_case(
@@ -199,7 +203,7 @@ def test_execute_of_a_book_with_zero_occurrences_writes_an_empty_sequence() -> N
 @pytest.mark.unit
 def test_a_none_pos_passes_validation_as_not_yet_annotated() -> None:
     """REQ-003-005: `None` means unannotated, distinct from an invalid tag."""
-    analyzer = _StubAnalyzer(produce=lambda tokens: [_annotation(None, None)])
+    analyzer = _StubAnalyzer(produce=lambda tokens: [_annotation(None, None, raw_text="x")])
     use_case, writer = _use_case(tokens_by_book={1: [(10, "x")]}, analyzers={"en": analyzer})
 
     use_case.execute(1, language="en")
@@ -211,7 +215,7 @@ def test_a_none_pos_passes_validation_as_not_yet_annotated() -> None:
 def test_a_whitespace_only_lemma_is_normalized_to_none_not_rejected() -> None:
     """AC-003-06: whitespace-only lemma persists as NULL, not an empty
     string, and this is a success — not one of the failure modes below."""
-    analyzer = _StubAnalyzer(produce=lambda tokens: [_annotation("X", "   ")])
+    analyzer = _StubAnalyzer(produce=lambda tokens: [_annotation("X", "   ", raw_text="x")])
     use_case, writer = _use_case(tokens_by_book={1: [(10, "x")]}, analyzers={"en": analyzer})
 
     use_case.execute(1, language="en")
@@ -246,14 +250,39 @@ def test_execute_propagates_unsupported_language_and_writes_nothing() -> None:
 
 
 # --------------------------------------------------------------------------
-# The 6 stub failure modes (task 4.9) — every one writes nothing.
+# The 6 stub failure modes (task 4.9) plus C6's identity-mismatch mode —
+# every one writes nothing.
 # --------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_a_reordered_same_length_output_fails_annotation_failed_and_writes_nothing() -> None:
+    """C6: pairing is verified by identity (`raw_text`), not bare list
+    position. Same length as the token stream, but the two annotations are
+    swapped relative to what each token actually is — a buggy or malicious
+    analyzer violating its own "same order" contract. Before the fix, this
+    was silently written: occurrence 10 ("run") would receive the "dog"
+    annotation and vice versa, with no error and no log entry."""
+    analyzer = _StubAnalyzer(
+        produce=lambda tokens: [
+            _annotation("NOUN", "dog", raw_text="dog"),  # belongs to token 11, placed first
+            _annotation("VERB", "run", raw_text="run"),  # belongs to token 10, placed second
+        ]
+    )
+    use_case, writer = _use_case(
+        tokens_by_book={1: [(10, "run"), (11, "dog")]}, analyzers={"en": analyzer}
+    )
+
+    with pytest.raises(AnnotationFailedError):
+        use_case.execute(1, language="en")
+
+    assert writer.calls == []
 
 
 @pytest.mark.unit
 def test_a_short_return_fails_annotation_failed_and_writes_nothing() -> None:
     """AC-003-04: one fewer annotation than tokens fails the run."""
-    analyzer = _StubAnalyzer(produce=lambda tokens: [_annotation("VERB", "run")])
+    analyzer = _StubAnalyzer(produce=lambda tokens: [_annotation("VERB", "run", raw_text="run")])
     use_case, writer = _use_case(
         tokens_by_book={1: [(10, "run"), (11, "dog")]}, analyzers={"en": analyzer}
     )
@@ -267,7 +296,7 @@ def test_a_short_return_fails_annotation_failed_and_writes_nothing() -> None:
 @pytest.mark.unit
 def test_a_non_upos_tag_fails_annotation_failed_and_writes_nothing() -> None:
     """AC-003-05: `NN` (Penn Treebank, not UPOS) is rejected, never coerced."""
-    analyzer = _StubAnalyzer(produce=lambda tokens: [_annotation("NN", "run")])
+    analyzer = _StubAnalyzer(produce=lambda tokens: [_annotation("NN", "run", raw_text="run")])
     use_case, writer = _use_case(tokens_by_book={1: [(10, "run")]}, analyzers={"en": analyzer})
 
     with pytest.raises(AnnotationFailedError):
@@ -279,7 +308,9 @@ def test_a_non_upos_tag_fails_annotation_failed_and_writes_nothing() -> None:
 @pytest.mark.unit
 def test_an_out_of_range_confidence_fails_annotation_failed_and_writes_nothing() -> None:
     """AC-003-08: `1.4` fails, never clamped to `1.0`."""
-    analyzer = _StubAnalyzer(produce=lambda tokens: [_annotation("VERB", "run", 1.4)])
+    analyzer = _StubAnalyzer(
+        produce=lambda tokens: [_annotation("VERB", "run", 1.4, raw_text="run")]
+    )
     use_case, writer = _use_case(tokens_by_book={1: [(10, "run")]}, analyzers={"en": analyzer})
 
     with pytest.raises(AnnotationFailedError):
@@ -332,7 +363,10 @@ def test_a_second_token_failure_still_writes_nothing_for_the_whole_batch() -> No
     """design §P5: validation covers the WHOLE batch before any write — a
     valid first token does not get written while a later one fails."""
     analyzer = _StubAnalyzer(
-        produce=lambda tokens: [_annotation("VERB", "run"), _annotation("NN", "dog")]
+        produce=lambda tokens: [
+            _annotation("VERB", "run", raw_text="run"),
+            _annotation("NN", "dog", raw_text="dog"),
+        ]
     )
     use_case, writer = _use_case(
         tokens_by_book={1: [(10, "run"), (11, "dog")]}, analyzers={"en": analyzer}
