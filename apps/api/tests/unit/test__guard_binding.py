@@ -19,9 +19,7 @@ import pytest
 from _guard_binding import OwningDefinition, is_exempt, render, walk_json
 
 _OCCURRENCE_PATH = ("$", "$defs", "occurrence")
-_OCCURRENCE_EXEMPT = frozenset(
-    {"lemma", "lemma_confidence", "lemma_origin", "automatic_lemma"}
-)
+_OCCURRENCE_EXEMPT = frozenset({"lemma", "lemma_confidence", "lemma_origin", "automatic_lemma"})
 
 
 def _annotation_schema() -> dict[str, Any]:
