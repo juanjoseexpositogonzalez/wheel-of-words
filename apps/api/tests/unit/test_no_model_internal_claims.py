@@ -13,15 +13,16 @@ _PRIMARY_DOCUMENTS = (
     _REPOSITORY_ROOT / "docs/traceability-matrix.md",
 )
 _DOCS_DIRECTORY = _REPOSITORY_ROOT / "docs"
+_ARCHIVED_CHANGE = (
+    _REPOSITORY_ROOT / "openspec/changes/archive/2026-08-26-spec-003-harden-guards-and-claims"
+)
 _GOVERNED_DOCUMENTS = (
     *_PRIMARY_DOCUMENTS,
-    _REPOSITORY_ROOT / "openspec/changes/spec-003-harden-guards-and-claims/design.md",
-    _REPOSITORY_ROOT / "openspec/changes/spec-003-harden-guards-and-claims/proposal.md",
-    _REPOSITORY_ROOT / "openspec/changes/spec-003-harden-guards-and-claims/tasks.md",
-    _REPOSITORY_ROOT
-    / "openspec/changes/spec-003-harden-guards-and-claims/specs/002-text-import/spec.md",
-    _REPOSITORY_ROOT
-    / "openspec/changes/spec-003-harden-guards-and-claims/specs/003-lemmatization-pos/spec.md",
+    _ARCHIVED_CHANGE / "design.md",
+    _ARCHIVED_CHANGE / "proposal.md",
+    _ARCHIVED_CHANGE / "tasks.md",
+    _ARCHIVED_CHANGE / "specs/002-text-import/spec.md",
+    _ARCHIVED_CHANGE / "specs/003-lemmatization-pos/spec.md",
 )
 
 _SIGNATURE_FAMILIES = {
