@@ -19,10 +19,18 @@ from _attribute_ruler_enumeration import (
     mutate_one_enumerated_value,
 )
 
-from wheel_vocabulary.infrastructure.nlp.spacy_analyzer import _EXCLUDED_PIPES
+from wheel_vocabulary.infrastructure.nlp.spacy_analyzer import (
+    _EXCLUDED_PIPES,
+    SpacyLinguisticAnalyzer,
+)
 
 _MODEL_NAME = "en_core_web_sm"
 _DOMAIN_PATH = Path(__file__).resolve().parents[2] / "src" / "wheel_vocabulary" / "domain"
+
+
+def load_pinned_pipeline() -> object:
+    """Load the pinned model for every runtime enumeration scenario."""
+    return spacy.load(_MODEL_NAME, exclude=_EXCLUDED_PIPES)
 
 
 def _imported_roots(module_path: Path) -> set[str]:
@@ -48,7 +56,34 @@ def _absolute_import_modules(module_path: Path) -> set[str]:
 @pytest.fixture
 def loaded_pipeline() -> object:
     """Load the pinned model directly; absence must fail this integration test."""
-    return spacy.load(_MODEL_NAME, exclude=_EXCLUDED_PIPES)
+    return load_pinned_pipeline()
+
+
+@pytest.mark.integration
+def test_runtime_enumeration_fails_loudly_when_the_pinned_model_cannot_load(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """REQ-003H-003: model load failure must raise, never skip or pass vacuously."""
+
+    def _missing_model(*_args: object, **_kwargs: object) -> object:
+        raise OSError("pinned model is unavailable")
+
+    monkeypatch.setattr(spacy, "load", _missing_model)
+
+    with pytest.raises(OSError, match="pinned model is unavailable"):
+        load_pinned_pipeline()
+
+
+@pytest.mark.integration
+def test_shipped_adapter_source_indexes_match_document_input_positions() -> None:
+    """REQ-003H-006: the adapter returns the document enumeration index."""
+    tokens = ["first", "second", "first", "fourth"]
+    analyzer = SpacyLinguisticAnalyzer(_MODEL_NAME)
+
+    annotations = analyzer.analyze(tokens, language="en")
+
+    assert [annotation.raw_text for annotation in annotations] == tokens
+    assert [annotation.source_index for annotation in annotations] == list(range(len(tokens)))
 
 
 @pytest.mark.integration
