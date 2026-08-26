@@ -51,15 +51,7 @@ _BOUNDED_SOURCE_INDEX_GUARANTEE = (
     "`source_index`, because `source_index` is self-reported by the analyzer."
 )
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
-_SPEC_PATH = (
-    _PROJECT_ROOT
-    / "openspec"
-    / "changes"
-    / "spec-003-harden-guards-and-claims"
-    / "specs"
-    / "003-lemmatization-pos"
-    / "spec.md"
-)
+_SPEC_PATH = _PROJECT_ROOT / "openspec" / "specs" / "003-lemmatization-pos" / "spec.md"
 _TRACEABILITY_MATRIX_PATH = _PROJECT_ROOT / "docs" / "traceability-matrix.md"
 
 
