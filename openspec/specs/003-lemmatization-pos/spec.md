@@ -1,11 +1,11 @@
-# Delta for 003-lemmatization-pos
+# Specification for 003-lemmatization-pos hardening
 
-Change: `spec-003-harden-guards-and-claims`.
+Archived change: `spec-003-harden-guards-and-claims`.
 
-This delta amends the **in-flight** capability specification at
-`openspec/changes/lemmatization-pos/specs/003-lemmatization-pos/spec.md`. `003-lemmatization-pos` has
-no baseline at `openspec/specs/`; it is not yet archived. Both changes reconcile into a single
-`openspec/specs/003-lemmatization-pos/spec.md` at archive time. See §4 `DEC-1`.
+This baseline specification records the archived hardening requirements added by
+`spec-003-harden-guards-and-claims`. The archived source delta remains at
+`openspec/changes/archive/2026-08-26-spec-003-harden-guards-and-claims/specs/003-lemmatization-pos/spec.md`.
+See §4 `DEC-1` for the pre-archive targeting decision.
 
 A companion delta accompanies it — `../002-text-import/spec.md` — which modifies exactly one
 requirement of `002-text-import` (`REQ-002-007`/`AC-002-10`), because the binding invariant defined
@@ -475,7 +475,7 @@ None was resolved silently.
 
 | ID | Ambiguity, contradiction or open decision | Resolution | Status |
 |----|-------------------------------------------|------------|--------|
-| **DEC-1** | **Delta-spec target.** `003-lemmatization-pos` has no baseline spec: it exists only in the not-yet-archived `lemmatization-pos` change, so "amend the baseline" is not available and "amend the other change's files directly" would erase this change's own audit trail. | This change carries its **own** delta specs under `openspec/changes/spec-003-harden-guards-and-claims/specs/`, which amend the in-flight `openspec/changes/lemmatization-pos/specs/` documents. Both changes reconcile into a single `openspec/specs/003-lemmatization-pos/` at archive time. Settled by the orchestrator. | **Closed. Do not re-open** |
+| **DEC-1** | **Pre-archive delta-spec target.** Before archive, `003-lemmatization-pos` had no baseline spec: it existed only in the not-yet-archived `lemmatization-pos` change, so "amend the baseline" was not available and "amend the other change's files directly" would have erased this change's own audit trail. | The change carried its own delta specs under `openspec/changes/spec-003-harden-guards-and-claims/specs/`, which amended the in-flight `openspec/changes/lemmatization-pos/specs/` documents. Archive promoted the reconciled hardening requirements into `openspec/specs/003-lemmatization-pos/spec.md` and preserved the original delta under `openspec/changes/archive/2026-08-26-spec-003-harden-guards-and-claims/`. Settled by the orchestrator. | **Closed. Do not re-open** |
 | **DEC-2** | **H6 direction.** Strengthen the `source_index` mechanism, or state the real bounded guarantee accurately. | **State the bounded guarantee** (`REQ-003H-006`). Strengthening requires a source of truth independent of the analyzer, which is over-engineering for a case the shipped adapter cannot exhibit. **This whole cycle exists because claims were written stronger than what is enforced; the fix must not repeat that pattern.** Settled by the orchestrator. | **Closed. Do not re-open** |
 | **DEC-3** | Whether these findings modify existing `003-lemmatization-pos` requirements. `REQ-003-004` and `REQ-003-011` are the requirements whose guards have holes. | **`ADDED` only.** Neither requirement is wrong — each is silent where this change adds an obligation. Under the delta convention a `MODIFIED` block replaces the whole requirement at archive time, so re-stating a correct requirement in order to append to it risks losing scenarios for no gain. The one genuine `MODIFIED` is `REQ-002-007`, in the companion delta, because its acceptance criterion is currently satisfiable by a guard that has the hole. | Accepted |
 | **REC-1** | **H3 has been wrong three times running**, in the same paragraph. Round 1 wrote a false claim. Round 2, explicitly instructed to verify empirically, wrote a *different* false claim and shipped a statement that contradicts itself two paragraphs later. Round 3 would be a fourth attempt at the same method. | The requirement is **structural, not editorial** (`REQ-003H-003`, §2.5). "Write the paragraph correctly" is forbidden as a remedy: it is what failed twice. The claim must be produced by an executable enumeration bound to the pinned model, or must not exist. Hand-written model-internal prose is treated as the **defect class**, not the sentence as the defect. | **Closed as specified. The remedy is generation, never rewording** |
