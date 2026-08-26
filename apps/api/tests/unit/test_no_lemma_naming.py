@@ -703,9 +703,7 @@ def test_an_allow_listed_key_is_exempt_from_the_json_leg() -> None:
     matches `_ALLOWED_LEMMA_SYMBOLS`, so it fails regardless of position.
     """
     document = {
-        "components": {
-            "schemas": {"AnnotationOccurrenceResponse": {"properties": {"lemma": {}}}}
-        },
+        "components": {"schemas": {"AnnotationOccurrenceResponse": {"properties": {"lemma": {}}}}},
         "lemma_form": "leak",
     }
 
