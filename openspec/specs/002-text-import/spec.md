@@ -350,11 +350,23 @@ record that a value is not a lemma is to write the word "lemma". One exception, 
 narrowing rather than a loophole: a docstring that a framework publishes is contract surface, not
 prose. A Pydantic model docstring is serialised by FastAPI into `components.schemas.*.description`
 in the served `/openapi.json` and rendered in the API browser, so it remains fully bound by the
-prohibition above.
+ prohibition above.
+
+The guard is narrowed by an explicit, enumerated allow-list of exact symbol and property names. Every
+exemption SHALL be the pair `(exact name, owning site)`, bound to the narrowest structural unit that
+contains exactly the exempt names. Binding to a container that also holds non-exempt names is
+forbidden; paths are carried from traversal rather than re-split from rendered strings; the binding
+implementation exists once and is shared by every guard; and each owning set lists only names its site
+declares. JSON Schema and served OpenAPI exemptions MUST bind to properties within their declaring
+definition or component, never to the definition or component as a whole. These are the `B1`–`B6`
+constraints defined by `003-lemmatization-pos` §2.1. The module-docstring exemption is justified by
+`E2(b-i)`: anything published from it is re-caught by the served OpenAPI leg.
 
 Acceptance: **AC-002-10** — Given the shipped backend and frontend sources, the versioned JSON
-Schema, and the served OpenAPI document, when each is inspected structurally for
-`lemma|lemas|lexeme|lexema` (case-insensitive), then the match count is zero in each of:
+Schemas, and the served OpenAPI document, when each is inspected structurally for
+`lemma|lemas|lexeme|lexema` (case-insensitive), then every match is a member of the explicitly
+enumerated allow-list and is bound to its owning site, and the match count outside that allow-list
+is zero in each of:
 
 - **Python sources** (`apps/api/src/wheel_vocabulary/`), parsed into an AST with the standard
   library `ast` module: every identifier — variable, parameter, function, method, class, attribute,
@@ -372,14 +384,22 @@ Schema, and the served OpenAPI document, when each is inspected structurally for
   `/* */` comments never enter the tree `ts.createSourceFile` produces, exactly as `#` comments never
   enter the Python one. This directory is TypeScript, not Python; the two legs are stated separately
   because they are parsed by different tools, not because they enforce different rules.
-- **The versioned JSON Schema** (`api/schemas/import.v1.json`), parsed as JSON: every object key and
-  every string value. JSON has no docstring, so nothing in it is exempt.
+- **The persisted column names** reflected from `Base.metadata`: each allow-listed column is exempt
+  only on the table that owns it.
+- **The versioned JSON Schemas** (`api/schemas/*.json`), parsed as JSON: every object key and every
+  string value. JSON has no docstring, so nothing in it is exempt. Each allow-listed property is
+  exempt only as the property of the definition that declares it; renaming a sibling property to an
+  allow-listed name MUST produce a violation, and a key containing `.` MUST NOT inherit an ancestor
+  segment's exemption.
 - **The served OpenAPI document**: every string. This leg is what keeps the docstring exemption
   scoped — it catches a docstring at exactly the point where it stops being prose and becomes
   published contract.
 
 and when the read response is inspected, then the per-row grouping key is `normalized_form` and the
-per-row display value is `display_form`.
+per-row display value is `display_form`; and when the binding implementation is located, exactly one
+implementation exists and every guard that needs it imports it; and when each absence assertion is
+inspected, its test has a mutation check with recorded output, a non-vacuity check, and a boundary
+control.
 
 **Rationale — this MUST NOT be reverted to a text search.** `AC-002-10` originally mandated a
 literal case-insensitive grep over the source tree. That guard forbade the word inside the very
