@@ -95,8 +95,7 @@ def test_governed_document_set_excludes_legitimate_documentation_syntax() -> Non
     """M3: the full docs tree and this change's artifacts remain false-positive free."""
     documents = _governed_documents()
     matches = {
-        document.relative_to(_REPOSITORY_ROOT): _find_matches(document)
-        for document in documents
+        document.relative_to(_REPOSITORY_ROOT): _find_matches(document) for document in documents
     }
     documentation_text = "\n".join(
         document.read_text(encoding="utf-8")
