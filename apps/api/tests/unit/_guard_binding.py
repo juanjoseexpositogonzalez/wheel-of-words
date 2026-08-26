@@ -68,9 +68,7 @@ def is_exempt(match: JsonMatch, document: Any, owners: Sequence[OwningDefinition
     """Return whether a match is a manifest-pinned exempt property key."""
     _, _, text = match
     for owner in owners:
-        if (
-            _is_owner_position(match, owner)
-        ) and (
+        if (_is_owner_position(match, owner)) and (
             text in owner.exempt
             and owner.exempt <= owner.declared
             and _declared_properties(document, owner) == owner.declared
