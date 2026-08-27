@@ -118,11 +118,11 @@ exception` for a different grouping).
 Focused test: `cd apps/api && uv run pytest tests/integration/test_alembic_0004.py -q`
 Runtime harness: `cd apps/api && uv run alembic upgrade head && uv run alembic downgrade -1` (both must exit 0)
 
-- T1 [TEST] Write `apps/api/tests/integration/test_alembic_0004.py` — mirrors `test_alembic_0003.py`: upgrade adds `ix_occurrence_book_lemma_pos` on `occurrence(book_id, lemma, pos)` (`PRAGMA index_list`); downgrade removes it and returns `alembic_version` to `0003_annotation`. RED: file/revision does not exist.
-- T2 [MIGRATION] Create `apps/api/migrations/versions/0004_vocabulary_group_index.py`: `revision="0004_vocabulary_group_index"`, `down_revision="0003_annotation"`; `upgrade()` → `op.create_index("ix_occurrence_book_lemma_pos", "occurrence", ["book_id", "lemma", "pos"])`; `downgrade()` → `op.drop_index(...)`.
-- T3 [TEST] Extend `apps/api/tests/unit/test_no_lemma_naming.py::_LEMMA_OWNING_FILES` (`:169-190`) with `"migrations/versions/0004_vocabulary_group_index.py": frozenset({"lemma"})` — the migration's column-list literal `"lemma"` would otherwise fail the existing lemma-naming guard.
-- T4 [IMPL] Modify `apps/api/src/wheel_vocabulary/infrastructure/persistence/models.py` (`Occurrence.__table_args__`, `:72-74`): add `Index("ix_occurrence_book_lemma_pos", "book_id", "lemma", "pos")` alongside the existing `ix_occurrence_book_norm_raw`.
-- T5 [TEST] Run T1 green (AC-005-09 scenario 3); run the runtime harness above to prove both directions exit 0.
+- [x] T1 [TEST] Write `apps/api/tests/integration/test_alembic_0004.py` — mirrors `test_alembic_0003.py`: upgrade adds `ix_occurrence_book_lemma_pos` on `occurrence(book_id, lemma, pos)` (`PRAGMA index_list`); downgrade removes it and returns `alembic_version` to `0003_annotation`. RED: file/revision does not exist.
+- [x] T2 [MIGRATION] Create `apps/api/migrations/versions/0004_vocabulary_group_index.py`: `revision="0004_vocabulary_group_index"`, `down_revision="0003_annotation"`; `upgrade()` → `op.create_index("ix_occurrence_book_lemma_pos", "occurrence", ["book_id", "lemma", "pos"])`; `downgrade()` → `op.drop_index(...)`.
+- [x] T3 [TEST] Extend `apps/api/tests/unit/test_no_lemma_naming.py::_LEMMA_OWNING_FILES` (`:169-190`) with `"migrations/versions/0004_vocabulary_group_index.py": frozenset({"lemma"})` — the migration's column-list literal `"lemma"` would otherwise fail the existing lemma-naming guard. **Deviation**: also required adding the exact index-name literal `"ix_occurrence_book_lemma_pos"` to `_ALLOWED_LEMMA_SYMBOLS` and its owning-file entries (`models.py`, `0004_vocabulary_group_index.py`) — `_FORBIDDEN` is a substring match, not word-bounded, so the index name itself (not just the bare `"lemma"` column-list literal) trips the guard. See apply-progress for detail.
+- [x] T4 [IMPL] Modify `apps/api/src/wheel_vocabulary/infrastructure/persistence/models.py` (`Occurrence.__table_args__`, `:72-74`): add `Index("ix_occurrence_book_lemma_pos", "book_id", "lemma", "pos")` alongside the existing `ix_occurrence_book_norm_raw`.
+- [x] T5 [TEST] Run T1 green (AC-005-09 scenario 3); run the runtime harness above to prove both directions exit 0.
 
 ## Phase 2 — Vocabulary repository core (WU2, ~270 lines)
 

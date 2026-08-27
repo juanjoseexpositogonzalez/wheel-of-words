@@ -153,6 +153,13 @@ _ALLOWED_LEMMA_SYMBOLS = frozenset(
         "lemma_origin",  # automatic|manual marker (R5)
         "automatic_lemma",  # retained audit value (R4)
         "lemmatizer",  # spaCy pipe name, string literal in the adapter
+        # vocabulary-browser design §Migration/Rollout — the covering index
+        # name is itself a string literal containing "lemma"; `_FORBIDDEN`
+        # is a substring match, so this needs its own exact-match entry,
+        # same pattern as `lemma_confidence` above (not covered by task T3's
+        # `frozenset({"lemma"})` text, which only exempts the column-list
+        # literal — an apply-phase deviation, see apply-progress).
+        "ix_occurrence_book_lemma_pos",
     }
 )
 
@@ -168,7 +175,9 @@ _ALLOWED_LEMMA_SYMBOLS = frozenset(
 # allow-listed name in any other file still fails.
 _LEMMA_OWNING_FILES: dict[str, frozenset[str]] = {
     "domain/annotation.py": frozenset({"lemma", "lemma_confidence"}),
-    "infrastructure/persistence/models.py": frozenset({"lemma", "lemma_confidence"}),
+    "infrastructure/persistence/models.py": frozenset(
+        {"lemma", "lemma_confidence", "ix_occurrence_book_lemma_pos"}
+    ),
     "infrastructure/persistence/annotation_repository.py": frozenset(
         {"lemma", "lemma_confidence", "lemma_origin", "automatic_lemma"}
     ),
@@ -187,6 +196,9 @@ _LEMMA_OWNING_FILES: dict[str, frozenset[str]] = {
     # Migration labels use their own format (`migrations/versions/<file>`,
     # see `_migration_modules`/its call site below), not `_relative()`.
     "migrations/versions/0003_annotation.py": frozenset({"lemma", "lemma_confidence"}),
+    "migrations/versions/0004_vocabulary_group_index.py": frozenset(
+        {"lemma", "ix_occurrence_book_lemma_pos"}
+    ),
 }
 
 # C1 remediation, reflected-column leg. The same symbol-alone exemption hole
@@ -676,7 +688,14 @@ def test_inflected_forms_stay_separate_rows(imported_body: dict[str, Any]) -> No
 def test_the_allow_list_is_a_finite_enumeration_of_exact_lemma_symbols() -> None:
     """REQ-003-023 / design §P6: an explicit enumeration of exact names, not
     a path/directory exclusion or a pattern relaxation."""
-    expected = {"lemma", "lemma_confidence", "lemma_origin", "automatic_lemma", "lemmatizer"}
+    expected = {
+        "lemma",
+        "lemma_confidence",
+        "lemma_origin",
+        "automatic_lemma",
+        "lemmatizer",
+        "ix_occurrence_book_lemma_pos",
+    }
 
     assert frozenset(expected) == _ALLOWED_LEMMA_SYMBOLS
 
