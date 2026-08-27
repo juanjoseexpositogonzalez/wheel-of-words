@@ -71,6 +71,9 @@ class Occurrence(Base):
     # (design §6.1 rationale).
     __table_args__ = (
         Index("ix_occurrence_book_norm_raw", "book_id", "normalized_text", "raw_text"),
+        # Covering index for the vocabulary-browser GROUP BY (design §D1): an
+        # ordered index scan over (book_id, lemma, pos), no temp B-tree.
+        Index("ix_occurrence_book_lemma_pos", "book_id", "lemma", "pos"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

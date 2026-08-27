@@ -29,8 +29,15 @@ def test_upgrade_adds_lemma_provenance_and_correction(
     alembic_config: Config,
     managed_engine: Callable[[Engine], Engine],
 ) -> None:
-    """AC-003-16: upgrade creates the three new objects, downgrade removes them."""
-    command.upgrade(alembic_config, "head")
+    """AC-003-16: upgrade creates the three new objects, downgrade removes them.
+
+    Pinned to the explicit revision `0003_annotation`, not `head`/`-1`: this
+    test asserts what THIS revision does, and `head` has moved past it since
+    `0004_vocabulary_group_index` landed (vocabulary-browser design
+    §Migration/Rollout) — relative navigation would silently test the wrong
+    revision boundary once another migration lands on top.
+    """
+    command.upgrade(alembic_config, "0003_annotation")
 
     engine = managed_engine(
         create_engine(alembic_config.get_main_option("sqlalchemy.url"), future=True)
@@ -41,7 +48,7 @@ def test_upgrade_adds_lemma_provenance_and_correction(
     occurrence_columns = {column["name"] for column in inspector.get_columns("occurrence")}
     assert "lemma" in occurrence_columns
 
-    command.downgrade(alembic_config, "-1")
+    command.downgrade(alembic_config, "0002_book_occurrence")
 
     inspector = inspect(engine)
     assert "annotation_provenance" not in inspector.get_table_names()
