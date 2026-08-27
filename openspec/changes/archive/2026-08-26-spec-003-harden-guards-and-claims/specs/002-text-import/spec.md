@@ -7,7 +7,7 @@ Change: `spec-003-harden-guards-and-claims`.
 `002-text-import` changes.
 
 **This delta stacks on the in-flight `lemmatization-pos` delta**, not on the archived baseline.
-`openspec/changes/lemmatization-pos/specs/002-text-import/spec.md` already carries a `MODIFIED`
+`openspec/changes/archive/2026-08-26-lemmatization-pos/specs/002-text-import/spec.md` already carries a `MODIFIED`
 `REQ-002-007` that narrowed the guard to an enumerated allow-list. The block below is that block,
 carried forward **in full** and then amended — so that when both changes reconcile into
 `openspec/specs/002-text-import/spec.md` at archive time, the surviving requirement is complete rather

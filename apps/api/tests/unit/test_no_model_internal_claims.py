@@ -9,7 +9,7 @@ import pytest
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 _PRIMARY_DOCUMENTS = (
-    _REPOSITORY_ROOT / "openspec/changes/lemmatization-pos/design.md",
+    _REPOSITORY_ROOT / "openspec/specs/003-lemmatization-pos/spec.md",
     _REPOSITORY_ROOT / "docs/traceability-matrix.md",
 )
 _DOCS_DIRECTORY = _REPOSITORY_ROOT / "docs"

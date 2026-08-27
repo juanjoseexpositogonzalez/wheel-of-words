@@ -42,12 +42,12 @@ Specification-first: for each finding the delta spec states the invariant, the m
 | `apps/api/src/wheel_vocabulary/application/annotation/ports.py` | Modified | Document the `source_index == position` obligation (H4) |
 | new executable model-enumeration (H3) | New | Enumerates `attribute_ruler` rules + measured posteriors from the pinned `en_core_web_sm` |
 | `apps/api/src/wheel_vocabulary/api/schemas/annotation.v1.json` | Inspected | Keep byte-identical unless a spec change requires otherwise |
-| `openspec/changes/lemmatization-pos/specs/{002-text-import,003-lemmatization-pos}/spec.md`, `design.md` | Modified | Amend guard requirements; replace/remove §P1 prose claim |
+| `openspec/changes/archive/2026-08-26-lemmatization-pos/specs/{002-text-import,003-lemmatization-pos}/spec.md`, `design.md` | Modified | Amend guard requirements; replace/remove §P1 prose claim |
 | `docs/traceability-matrix.md` (Spanish) | Modified | Fix `REQ-003-004` row; add H1–H6 identifiers |
 
 ## Open Decisions (AGENTS.md §9 — record, do not silently resolve)
 
-1. **Delta-spec target**: SPEC-003 (`lemmatization-pos`) is not yet archived to baseline `openspec/specs/`. This change should amend the in-flight `openspec/changes/lemmatization-pos/specs/` deltas (recommended), not baseline. Confirm in the spec phase.
+1. **Delta-spec target**: SPEC-003 (`lemmatization-pos`) is not yet archived to baseline `openspec/specs/`. This change should amend the in-flight `openspec/changes/archive/2026-08-26-lemmatization-pos/specs/` deltas (recommended), not baseline. Confirm in the spec phase.
 2. **H6 direction**: strengthen `source_index` (needs an independent source of truth) vs. state the bounded guarantee accurately (default — the shipped adapter cannot exhibit the defect). Resolve in design.
 
 ## Risks

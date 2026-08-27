@@ -13,7 +13,7 @@ este archivo documenta EFECTOS observables, no el razonamiento de diseño que lo
    capability posterior la resuelve), se añade una entrada nueva que referencia y cierra la
    anterior — nunca se edita la entrada original para que parezca que nunca existió.
 3. Cada entrada indica: qué ocurre, por qué se aceptó, y qué requisito o ADR lo autoriza.
-4. Esta obligación es explícita en la especificación: `openspec/changes/lemmatization-pos/specs/003-lemmatization-pos/spec.md`
+4. Esta obligación es explícita en la especificación: `openspec/changes/archive/2026-08-26-lemmatization-pos/specs/003-lemmatization-pos/spec.md`
    §5 `AMB-2` cierra con «Record it as such in the release notes» — antes de este fichero, ningún
    artefacto del repositorio cumplía esa instrucción (`verify-report.md` WARNING-1).
 

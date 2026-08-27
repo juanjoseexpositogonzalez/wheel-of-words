@@ -125,6 +125,6 @@ Revisit this decision when either becomes true:
 - [`docs/product-vision.md` §11 — Riesgos y mitigaciones](../product-vision.md#11-riesgos-y-mitigaciones) — riesgo lingüístico and riesgo de rendimiento
 - [ADR-0005](0005-local-first.md) — local-first processing; no stated hardware floor for a single-user desktop app
 - [ADR-0006](0006-pos-per-occurrence.md) — POS assigned per occurrence, the granularity at which this gap is measured and disclosed
-- `openspec/changes/lemmatization-pos/design.md` §P1 (`pos_confidence` semantics, corrected under Judgment Day round 2 R4), §P2 (`_EXCLUDED_PIPES` rationale)
+- `openspec/changes/archive/2026-08-26-lemmatization-pos/design.md` §P1 (`pos_confidence` semantics, corrected under Judgment Day round 2 R4), §P2 (`_EXCLUDED_PIPES` rationale)
 - `apps/api/src/wheel_vocabulary/infrastructure/nlp/spacy_analyzer.py` (`_EXCLUDED_PIPES`, `_assert_decomposed_path_agrees_with_the_plain_pipeline`)
 - [`docs/decisions-log.md`](../decisions-log.md) — 2026-08-25 entry, superseded by this ADR as the authoritative `Ref`

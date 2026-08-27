@@ -98,7 +98,7 @@ as a passing test that records acceptance (G3).
 | `apps/api/src/.../application/annotation/ports.py` | Modify | `source_index == i` obligation, names `ANNOTATION_FAILED` |
 | `apps/api/tests/unit/test_annotation_ports.py` | Modify | Obligation-sentence guard; rejection-branch enumeration |
 | `apps/api/tests/unit/test_annotate_import.py` | Modify | G3 accepted-bound test and its covered-case control |
-| `openspec/changes/lemmatization-pos/design.md` | Modify | §P1 values deleted, predicate + citation retained |
+| `openspec/changes/archive/2026-08-26-lemmatization-pos/design.md` | Modify | §P1 values deleted, predicate + citation retained |
 | `docs/traceability-matrix.md` | Modify | `REQ-003-004` corrected; rows for `REQ-003H-001`…`006` |
 | `docs/glossary.md` | Modify | `source_index` term (Spanish) |
 | `apps/api/tests/unit/test_traceability.py` | Modify | Every cited test name must resolve against the suite |
