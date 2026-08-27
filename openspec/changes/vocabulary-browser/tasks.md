@@ -61,7 +61,7 @@ generator, or the traceability rows (small, ~15 lines, but omitted).
 `_CONFIDENCE_ACTION_PATTERN` — `"threshold|filter_by_confidence|min_confidence|sort_by_
 confidence"` — does **not** contain `mean_confidence`. AC-005-07's required mutation ("a
 `mean_confidence` property on the group shape... produces a violation") would not be caught by
-the existing pattern as shipped today. This is a real gap the design did not flag; task T27
+the existing pattern as shipped today. This is a real gap the design did not flag; task T19
 below extends the pattern before the mutation-check tests are written.
 
 ### Suggested Work Units
@@ -131,7 +131,7 @@ Focused test: `cd apps/api && uv run pytest tests/unit/test_vocabulary_repositor
 
 - T6 [TEST] Write a Hypothesis strategy over `(automatic, corrected)` `(lemma, pos)` pairs (`apps/api/tests/unit/test_vocabulary_repository_properties.py`), asserting the repository's per-occurrence effective resolution agrees with `domain.annotation.resolve_effective` (`:132`) on every generated case (AC-005-02 scenario 4). RED: repository does not exist.
 - T7 [TEST] Extend the same property test module: given generated seeded corrections, V3's group-by-group counts equal a naive Python `groupby` over `resolve_effective`-resolved values, value for value.
-- T8 [IMPL] Create `apps/api/src/wheel_vocabulary/infrastructure/persistence/vocabulary_repository.py`: `@dataclass(frozen=True, slots=True) VocabularyGroup(lemma: str | None, pos: str | None, occurrence_count: int)` and `SqlAlchemyVocabularyReadRepository.groups(book_id)` implementing design D1's leg A (raw `GROUP BY o.lemma, o.pos`) + leg B (corrected-occurrence delta) merged via `resolve_effective`, one `Session` for both legs. Existence check mirrors `annotation_repository.py::read`'s `session.get(Book, book_id) is None → return None` pattern.
+- T8 [IMPL] Create `apps/api/src/wheel_vocabulary/infrastructure/persistence/vocabulary_repository.py`: `@dataclass(frozen=True, slots=True) VocabularyGroup(lemma: str | None, pos: str | None, occurrence_count: int)` and `SqlAlchemyVocabularyReadRepository.groups(book_id)` implementing design D1's leg A (raw `GROUP BY o.lemma, o.pos`) + leg B (corrected-occurrence delta) merged via `resolve_effective`, one `Session` for both legs. Existence check mirrors `annotation_repository.py::read`'s `session.get(Book, book_id) is None → return None` pattern. **The returned sequence MUST carry design D4's total order `occurrence_count DESC, lemma, pos`, applied after the leg-A/leg-B merge, not inside leg A's SQL** — leg B moves rows between groups, so an order established before the merge is not the order returned. `NULL` sorts to a fixed, documented position in both key halves so the order is total, never partial (§2.1 G5, AC-005-01 scenario 3).
 - T9 [TEST] Extend `test_no_lemma_naming.py::_LEMMA_OWNING_FILES` with `"infrastructure/persistence/vocabulary_repository.py": frozenset({"lemma"})`.
 - T10 [TEST] Run T6/T7 green; run the full backend suite to confirm no regression in `annotation_repository.py`'s existing tests (untouched file).
 - T11 [REFACTOR] If leg A/leg B merge logic duplicates code across the two Hypothesis assertions, extract a shared `_naive_groups(...)` test helper — no production-code change.
@@ -157,7 +157,7 @@ Focused test: `cd apps/api && uv run pytest tests/unit/test_vocabulary_repositor
 Depends on: Phase 2.
 Focused test: `cd apps/api && uv run pytest tests/integration/test_vocabulary_repository.py -q`
 
-- T22 [TEST] Write `apps/api/tests/integration/test_vocabulary_repository.py`: homograph produces two groups with separate counts (AC-005-01); a seeded `ManualCorrection` row (inserted directly via the ORM — no writer exists yet, per REQ-005-002's "testable now" note) moves an occurrence between groups and can vacate a group entirely (AC-005-02 scenarios 1-3); an all-`NULL` import returns exactly one `(null, null)` group equal to the occurrence count (AC-005-03 scenario 1); a lemma with `NULL` POS gets its own bucket (AC-005-03 scenario 2); unknown `book_id` returns `None`; an existing import with zero occurrences returns `[]`, not `None` (AC-005-05 scenario 3).
+- T22 [TEST] Write `apps/api/tests/integration/test_vocabulary_repository.py`: homograph produces two groups with separate counts (AC-005-01); a seeded `ManualCorrection` row (inserted directly via the ORM — no writer exists yet, per REQ-005-002's "testable now" note) moves an occurrence between groups and can vacate a group entirely (AC-005-02 scenarios 1-3); an all-`NULL` import returns exactly one `(null, null)` group equal to the occurrence count (AC-005-03 scenario 1); a lemma with `NULL` POS gets its own bucket (AC-005-03 scenario 2); unknown `book_id` returns `None`; an existing import with zero occurrences returns `[]`, not `None` (AC-005-05 scenario 3); **two consecutive `groups(book_id)` calls with no intervening write return sequences equal element-for-element including order (AC-005-01 scenario 3)** — assert on the ordered sequence, never on a set or a sorted copy, or the test cannot fail on a reordering. Seed at least two groups sharing an `occurrence_count` so the tie-break on `lemma`/`pos` is exercised rather than accidentally satisfied by distinct counts.
 - T23 [IMPL] Fix any repository defect T22 surfaces (expected to be minimal — logic already proven by Phase 2's property tests).
 - T24 [TEST] Run T22 green; run `uv run pytest --cov=wheel_vocabulary --cov-report=term-missing` for `vocabulary_repository.py` and confirm ≥90% (`domain`/`application` bar — this file sits in `infrastructure`, so confirm it clears the global 80% floor at minimum and does not drag the run below Art. II).
 
@@ -183,7 +183,7 @@ Depends on: Phase 5.
 Focused test: `cd apps/api && uv run pytest tests/api/test_vocabulary_route.py -q`
 Runtime harness: `cd apps/api && uv run uvicorn wheel_vocabulary.api.main:create_app --factory & curl -s localhost:8000/api/v1/imports/1/vocabulary` (manual smoke; kill the server after)
 
-- T35 [TEST] Write `apps/api/tests/api/test_vocabulary_route.py` (mirrors `test_annotation_route.py`): `GET /api/v1/imports/{id}/vocabulary` returns 200 with the design's shape for a seeded import; unknown id → 404 `IMPORT_NOT_FOUND` (AC-005-05); an error body contains no textual form, lemma, stack trace, or path (REQ-003-019 inherited); `annotation.v1.json` byte-identical before/after (AC-005-04); served OpenAPI lists the new path alongside the two unchanged annotation operations.
+- T35 [TEST] Write `apps/api/tests/api/test_vocabulary_route.py` (mirrors `test_annotation_route.py`): `GET /api/v1/imports/{id}/vocabulary` returns 200 with the design's shape for a seeded import; unknown id → 404 `IMPORT_NOT_FOUND` (AC-005-05); an error body contains no textual form, lemma, stack trace, or path (REQ-003-019 inherited); `annotation.v1.json` byte-identical before/after (AC-005-04); served OpenAPI lists the new path alongside the two unchanged annotation operations; **two identical `GET` requests with no intervening write return equal response bodies including `groups` order (AC-005-01 scenario 3)** — compare the parsed `groups` list positionally, so serialization order is proved at the wire level and not only inside the repository.
 - T36 [IMPL] Create `apps/api/src/wheel_vocabulary/api/schemas/vocabulary.v1.json` (Draft 2020-12, mirrors `annotation.v1.json`'s shape): `id`, `group_count`, `total_occurrence_count`, `groups[]` with `lemma`/`pos`/`occurrence_count`.
 - T37 [TEST] Extend `test_no_lemma_naming.py`: add `"vocabulary.v1.json"` to `_EXPECTED_SCHEMA_FILES` (`:406`); add a `_SCHEMA_OWNERS["vocabulary.v1.json"]` entry (`:219-229`) with `OwningDefinition` scoped to the group shape, `exempt={"lemma"}`; extend `_OPENAPI_OWNERS` (`:230-236`) with a second `OwningDefinition` for the served `VocabularyGroupResponse` component.
 - T38 [IMPL] Create `apps/api/src/wheel_vocabulary/api/routes/vocabulary.py`: `GET /api/v1/imports/{import_id}/vocabulary`, thin adapter over `ReadVocabulary`, mirrors `read_import`/`read_annotation`'s shape (`X-Schema-Version` header, `ImportNotFoundError` on `None`).
@@ -196,7 +196,7 @@ Runtime harness: `cd apps/api && uv run uvicorn wheel_vocabulary.api.main:create
 Depends on: Phase 6 (AC-005-11 measures through the shipped endpoint, mirroring `test_import_bench.py`'s pattern).
 Focused test: `cd apps/api && uv run pytest tests/integration/test_vocabulary_bench.py -m bench -q`
 
-- T42 [IMPL] Write the numeric response-size and latency budget into this design document's §Benchmark section BEFORE any measurement runs (AC-005-11 scenario 1) — already satisfied by design.md's existing 389ms/1.97MiB figures; this task confirms no measurement-derived number is stated before its own budget line in the artifact.
+- T42 [DOC] Verify `design.md` §Response budget states the two numeric bounds (response body ≤ 8 MiB, latency ≤ 1500 ms p95) and that the section precedes §Benchmark in document order (AC-005-11 scenario 1). The bounds are derived from `test_import_bench.py`'s shipped 200 KB-20 MB range and from SPEC-002's ~3.4 s import cost, NOT from V3's own 389 ms/1.97 MiB results — a budget restated from the measurement it is meant to bound satisfies nothing. T44 asserts against these two numbers and no others.
 - T43 [TEST] Create `apps/api/tests/integration/_vocabulary_bench_corpus.py`: a synthetic occurrence-level generator producing a Zipfian lemma distribution (30k lemmas), a 12% homograph minority, 2% unannotated occurrences, and N seeded `manual_correction` rows — occurrence-level, unlike `_bench_corpus.py`'s ASCII-text generator, which cannot be reused as-is.
 - T44 [TEST] Write `apps/api/tests/integration/test_vocabulary_bench.py` (`@pytest.mark.bench`, mirrors `test_import_bench.py`'s deterministic-invariants-always-fail-CI / wall-clock-behind-`WHEEL_BENCH_STRICT` split): at 688,000 occurrences, measure group count, response body size, and latency; assert each against the stated budget (AC-005-11 scenario 2).
 - T45 [TEST] Extend T44 with the mutated-budget failure check (AC-005-11 scenario 3): lower the expected budget below the measured value, confirm the test fails.
@@ -212,8 +212,8 @@ Focused test: `cd apps/web && pnpm run test -- uposLabels`
 - T49 [IMPL] Modify `apps/web/src/components/AnnotationTable.tsx`: delete the moved `UPOS_LABELS`/`posLabel` definitions, import `posLabel` from `./uposLabels`. `AnnotationTable.test.tsx` MUST pass unchanged, byte-for-byte behavior (AC-005-10 scenario 4).
 - T50 [IMPL] Create `apps/web/src/types/vocabulary.ts`: `VocabularyGroup { lemma: string | null; pos: string | null; occurrence_count: number }`, `VocabularyResult { id: number; group_count: number; total_occurrence_count: number; groups: VocabularyGroup[] }` (mirrors `types/annotation.ts`).
 - T51 [IMPL] Create `apps/web/src/api/vocabulary.ts`: `getVocabulary(importId)` (mirrors `getAnnotation` in `api/annotation.ts`, single `GET`, no POST).
-- T52 [TEST] Extend `apps/web/tests/contracts/no-lemma-naming.test.ts::LEMMA_OWNING_FILES` (`:60-68`) with `"src/types/vocabulary.ts": new Set(["lemma"])` and `"src/components/VocabularyBrowser.tsx": new Set(["lemma"])`.
-- T53 [TEST] Extend `apps/web/tests/contracts/no-linguistic-rules.test.ts::FRONTEND_FEATURE_MODULES` (`:28-38`) with the four new/changed vocabulary files; extend `FEATURE_NAME_PATTERN` (`:40`) to also match `[Vv]ocab`.
+- T52 [TEST] Extend `apps/web/tests/contracts/no-lemma-naming.test.ts::LEMMA_OWNING_FILES` (`:60-68`) with `"src/types/vocabulary.ts": new Set(["lemma"])` **only**. Do NOT register `VocabularyBrowser.tsx` here — no task creates it until T56 in Phase 9, and these manifests are enumerated and checked, so an entry pointing at a missing file fails the guard. Its registration is T57.
+- T53 [TEST] Extend `apps/web/tests/contracts/no-linguistic-rules.test.ts::FRONTEND_FEATURE_MODULES` (`:28-38`) with **the three files this phase creates** — `src/types/vocabulary.ts`, `src/api/vocabulary.ts`, `src/components/uposLabels.ts`; extend `FEATURE_NAME_PATTERN` (`:40`) to also match `[Vv]ocab`. The component is added to this manifest by T57, not here.
 - T54 [TEST] Run T47 and the existing `AnnotationTable.test.tsx` green; run `pnpm run typecheck` and `pnpm run lint`.
 
 ## Phase 9 — VocabularyBrowser + wiring + E2E (WU9, ~235 lines)
@@ -224,7 +224,7 @@ Runtime harness: `cd apps/web && pnpm exec playwright test e2e/vocabulary.spec.t
 
 - T55 [TEST] Write `apps/web/tests/components/VocabularyBrowser.test.tsx` (mirrors `AnnotationTable.test.tsx`): a mocked response renders lemma/pos/count verbatim (AC-005-10 scenario 2); a `(null, null)` group, a `(lemma, null)` group, and a tagged group each carry a distinct text label (AC-005-03 scenario 4); an unmapped POS tag degrades to the raw tag, no blank cell (AC-005-10 scenario 3); zero interactive controls submit a correction (AC-005-08 scenario 5).
 - T56 [IMPL] Create `apps/web/src/components/VocabularyBrowser.tsx` (mirrors `AnnotationTable.tsx`'s shape): renders `result.groups` using `posLabel` from `uposLabels.ts`; no grouping, counting, lemmatization, tagging, normalization, or precedence logic (REQ-005-010); `NULL` buckets rendered with an explicit distinguishing label, no colour-only signal (N4, Art. IX.4).
-- T57 [TEST] Write `apps/web/tests/contracts/no-linguistic-rules.test.ts` assertion pass for `VocabularyBrowser.tsx` (covered by T53's manifest extension) — zero matches for grouping/lemmatization/tagging/normalization/precedence identifiers (AC-005-10 scenario 1).
+- T57 [TEST] Register the component in both frontend guard manifests now that T56 has created it: add `"src/components/VocabularyBrowser.tsx": new Set(["lemma"])` to `no-lemma-naming.test.ts::LEMMA_OWNING_FILES` (`:60-68`) and add the same path to `no-linguistic-rules.test.ts::FRONTEND_FEATURE_MODULES` (`:28-38`). Then run both guards: zero matches for grouping/lemmatization/tagging/normalization/precedence identifiers (AC-005-10 scenario 1). Registering before T56 would point a checked manifest at a file that does not exist — that is why these two entries are here and not in Phase 8.
 - T58 [IMPL] Modify `apps/web/src/pages/ImportPage.tsx`: add a "Ver vocabulario" trigger and state slice (mirrors the existing `handleAnnotate`/`AnnotateState` pattern, `:14-50`), calling `getVocabulary(result.id)` and rendering `<VocabularyBrowser>` on success.
 - T59 [TEST] Write `apps/web/e2e/vocabulary.spec.ts` (mirrors `annotation.spec.ts`, 25 lines): import → annotate → view vocabulary → grouped table with counts is visible.
 - T60 [TEST] Run T55/T57 green; run the E2E harness; run `pnpm run typecheck`, `pnpm run lint`, `pnpm run test:coverage`.
@@ -241,7 +241,11 @@ Depends on: every requirement's implementing phase having landed (this task can 
 ## Notes on requirement coverage
 
 Every requirement `REQ-005-001`…`REQ-005-011` maps to at least one task above:
-001→T8,T22 · 002→T6,T7,T22 · 003→T22,T55 · 004→T35,T41 · 005→T22,T35 · 006→**slice 2, not in this
-document** · 007→T18-T20 · 008→T12-T17 · 009→T1-T5,T22 · 010→T49,T55-T57 · 011→T42-T46.
+001→T8,T22,T35 · 002→T6,T7,T22 · 003→T22,T55 · 004→T35,T41 · 005→T22,T35 · 006→**slice 2, not in
+this document** · 007→T18-T20 · 008→T12-T17 · 009→T1-T5,T22 · 010→T49,T55-T57 · 011→T42-T46.
+
+`REQ-005-001` carries three tasks because its ordering-stability scenario is proved at two levels:
+T8 establishes the total order, T22 asserts it survives two repository reads, and T35 asserts it
+survives serialization across two HTTP requests.
 `docs/product-vision.md` roadmap item 5 stays incomplete until slice 2 (`REQ-005-006`) ships,
 per spec §1/§5 AMB-5 — not a gap in this task list.

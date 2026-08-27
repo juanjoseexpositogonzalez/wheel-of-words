@@ -8,6 +8,22 @@ precedence-resolved effective values (Decision B), computed at query time (P5). 
 bounded correction delta**, not a `COALESCE` grouping. `annotation_repository.py`,
 `AnnotationTable.tsx`, and `annotation.v1.json` are untouched.
 
+## Response budget (stated before measuring — `REQ-005-011`, `AC-005-11` scenario 1)
+
+These are the bounds this endpoint must clear at SPEC-002's ~688,000-occurrence ceiling. They are
+fixed here **before** any number below was produced, and are derived from prior art rather than from
+this design's own results:
+
+| Bound | Value | Where it comes from |
+|---|---|---|
+| Response body size | **≤ 8 MiB** | `test_import_bench.py` already bounds SPEC-002's occurrence-level `GET` body at 200 KB-20 MB at the same ceiling. A grouped result aggregates that stream, so it must land well inside the endpoint it summarises; 8 MiB is the midpoint of that shipped range |
+| Latency | **≤ 1500 ms p95** | The interaction is a user clicking through to a list view. SPEC-002's synchronous import already spends ~3.4 s at the ceiling and is accepted as a one-off; a read the user repeats gets a tighter bound, set at under half of it |
+| Group cardinality | **no bound** | Recorded as an observation, not a gate. It is an input to the pagination decision, not a pass/fail criterion |
+
+**If a measurement exceeds either bound, pagination is required** (`REQ-005-011`). The benchmark in
+`test_vocabulary_bench.py` asserts against these two numbers, and `AC-005-11` scenario 3 requires that
+lowering either below the measured value makes the test fail.
+
 ## Benchmark (measured, not estimated)
 
 688,000 occurrence rows, one book, Zipfian synthetic vocabulary (30k lemmas), each lemma bound to one
@@ -80,11 +96,19 @@ maintenance is not the term that matters there. Reported as unresolved, not as z
 
 ### D3 — No pagination
 
+Both bounds stated in §Response budget are cleared:
+
+| Bound | Budget | Measured | Verdict |
+|---|---|---|---|
+| Response body size | ≤ 8 MiB | **1.97 MiB** (2,063,621 bytes) | clears, 4.1x headroom |
+| Latency p95 | ≤ 1500 ms | **533 ms** | clears, 2.8x headroom |
+
 688,000 occurrences collapse to **34,827 groups (19.8:1)**; 28,705 distinct lemmas, 17 NULL-lemma
-groups, 43 NULL-POS groups. Whole-result JSON payload: **2,063,621 bytes (1.97 MiB)** — *smaller* than
-the endpoint already shipping at the same ceiling (`test_import_bench.py` bounds SPEC-002's GET body at
-200 KB-20 MB). Returning all groups matches `frequency_pairs` and clears proposal Q4's gate on measured
-evidence.
+groups, 43 NULL-POS groups. Neither bound is exceeded, so `REQ-005-011`'s pagination trigger does not
+fire and the endpoint returns every group, matching `frequency_pairs`.
+
+Had either bound been exceeded, pagination would be mandatory and this section would record which one
+and by how much. It is not a decision the measurement was allowed to justify after the fact.
 
 ### D4 — Confidence is structurally absent (C6)
 
