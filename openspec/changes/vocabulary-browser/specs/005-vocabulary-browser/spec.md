@@ -27,7 +27,7 @@ refer to `openspec/specs/002-text-import/spec.md`.
 | Test runner | `cd apps/api && uv run pytest` — strict TDD, zero-warning `filterwarnings` gate |
 | Depends on | `003-lemmatization-pos` (shipped): `occurrence.lemma`, `occurrence.pos`, `annotation_provenance`, `manual_correction` (schema only, no writer) |
 | Endpoint | `GET /api/v1/imports/{id}/vocabulary` (proposal Q6) |
-| State to preserve | `annotation.v1.json` byte-identical; `import.v1.json` byte-identical at the SHA-256 recorded at `SPEC-003 spec.md:37`; `GET`/`POST /api/v1/imports/{id}/annotation` behaviour, response body and error codes unchanged; `SqlAlchemyAnnotationReadRepository.read` (`annotation_repository.py:106`) unchanged; `apps/web/src/components/AnnotationTable.tsx` untouched |
+| State to preserve | `annotation.v1.json` byte-identical; `import.v1.json` byte-identical at the SHA-256 recorded at `SPEC-003 spec.md:37`; `GET`/`POST /api/v1/imports/{id}/annotation` behaviour, response body and error codes unchanged; `SqlAlchemyAnnotationReadRepository.read` (`annotation_repository.py:106`) unchanged; `apps/web/src/components/AnnotationTable.tsx` rendering, behaviour and tests unchanged — its label-map definition site MAY move (§5 `AMB-8`) |
 | Slice split | `REQ-005-006` (POS filter) is slice 2; every other requirement is slice 1. The capability is **not complete** until slice 2 ships — see §6 PV-3 |
 
 **What this capability is.** The one shipped read path over annotations
@@ -534,14 +534,17 @@ localization of a received UPOS tag into a readable label is permitted and is pr
 linguistic rule; the mapping MUST be total over the 17-tag set and an unmapped value MUST be rendered
 as the received tag rather than replaced by a guess or an empty cell. The view MUST be
 keyboard-navigable, MUST carry accessible labels, and MUST NOT depend on colour alone
-(Art. IX.1–4). `apps/web/src/components/AnnotationTable.tsx` MUST remain untouched.
+(Art. IX.1–4). `apps/web/src/components/AnnotationTable.tsx`'s rendering, behaviour and tests MUST
+remain unchanged; its UPOS label-map definition site MAY move to a shared module that both views
+import (§5 `AMB-8`). Duplicating the 17-tag map into a second table is FORBIDDEN.
 
 Acceptance: **AC-005-10** — Given the vocabulary view's sources, when they are searched for grouping,
 counting, lemmatization, tagging, normalization and precedence resolution, then there are zero
 matches; and given a mocked response, when the view renders, then each row shows the received lemma,
 POS and count verbatim; and given a mocked group whose POS the label map does not cover, then the raw
-tag is displayed and no cell is blank; and given `AnnotationTable.tsx`, when it is compared against
-its pre-change bytes, then it is byte-identical.
+tag is displayed and no cell is blank; and given `AnnotationTable.tsx` after any label-map
+extraction, when its existing test suite runs, then it passes unchanged and its rendered output is
+identical, and the repository holds exactly one UPOS label map rather than two.
 
 #### Scenario: No grouping or linguistic derivation client-side
 
@@ -561,11 +564,12 @@ its pre-change bytes, then it is byte-identical.
 - WHEN the row renders
 - THEN the received tag is displayed and the cell is not blank
 
-#### Scenario: The existing annotation table is untouched
+#### Scenario: The existing annotation table keeps its behaviour and the label map stays single
 
-- GIVEN `AnnotationTable.tsx`
-- WHEN it is compared against its pre-change bytes
-- THEN it is byte-identical
+- GIVEN `AnnotationTable.tsx` after any label-map extraction
+- WHEN its existing test suite runs
+- THEN it passes unchanged and its rendered output is identical
+- AND exactly one UPOS label map exists in the repository, not two
 
 ### Requirement: REQ-005-011 — The unpaginated result is bounded by a benchmark, not by assumption
 
@@ -656,6 +660,7 @@ Each item below was an ambiguity or a contradiction in the inputs. None was reso
 | **AMB-5** | **The POS filter ships in slice 2**, so the anchor's stated scope is only fully delivered at the second PR. | Accepted with the consequence stated: slice 1 delivers observable value (grouped counts, Art. III) and the capability is **incomplete** until `REQ-005-006` ships. Recorded in §1 and §6 PV-3 rather than implied by a task list. Delivery strategy is `ask-on-risk` and the forecast exceeds the 400-line review budget, so a human slicing decision is expected before apply (proposal §Vertical Slice). | **Accepted tradeoff, recorded** |
 | **AMB-6** | **Pagination.** No endpoint in this codebase paginates; `frequency_pairs` returns everything. The group count is far below the occurrence count but is still unbounded. | **Unpaginated by default, gated on a benchmark** (`REQ-005-011`). The budget is stated before the measurement, and the measurement is executable (`@pytest.mark.bench`), so "small enough" becomes falsifiable instead of assumed. | Accepted |
 | **AMB-7** | **Indexing.** The only occurrence index (`models.py:72-74`) covers neither `lemma` nor `pos`, and Decision B's join means a plain `(book_id, lemma, pos)` covering index does not fully serve effective-value grouping. | **Deferred to design, gated on the same benchmark** (`REQ-005-011`, §2.5 P3). An index MAY be added additively and reversibly; it is not a stored aggregate and does not violate P1. Index strategy is entangled with Decision B and MUST be measured, not assumed. | Accepted |
+| **AMB-8** | **`AnnotationTable.tsx` cannot be both byte-identical and the source of a shared label map.** The proposal states the file is untouched *and* that the new view reuses `UPOS_LABELS`. That const is non-exported at `AnnotationTable.tsx:37`, so both cannot hold. This specification first wrote the byte-identical reading as a normative MUST while the design resolved the same contradiction by extracting the map, leaving the two artifacts in direct conflict. | **Behaviour is preserved, not bytes.** `UPOS_LABELS`/`posLabel` move verbatim into a shared module both views import; rendering, behaviour and the existing test suite are unchanged, and only the definition site moves. Duplicating the 17-tag map is FORBIDDEN — two label tables drift, and the drift is silent. The artifacts that stay byte-exact are `annotation.v1.json` and `import.v1.json`, which are published contracts; a private frontend const is not. | **Closed. Registered and resolved per `AGENTS.md` §9, not changed silently** |
 
 ---
 
@@ -715,7 +720,7 @@ recorded in §1 — `sdd-design` and `sdd-tasks` own those.
 | V7 | Zero confidence-action identifiers across this capability's modules via the shared mechanism; no confidence parameter on the served operation; no confidence-derived group property; each of the three mutations (`min_confidence` parameter, `mean_confidence` property, `sort_by_confidence` helper) produces a violation with observed output in the docstring; the scan fails closed | AC-005-07 |
 | V8 | Zero write statements against `manual_correction` in this capability's modules; correction rows byte-identical after a vocabulary read; an insert and a delete each produce a violation with observed output in the docstring; the same statement outside the capability still violates; every frontend request is a `GET`; no control submits a correction | AC-005-08 |
 | V9 | No persisted lemma-keyed or `(lemma, POS)`-keyed aggregate row; the four existing tables carry exactly the SPEC-003 baseline columns; a correction written between two reads changes the second; any added migration upgrades and downgrades to exit `0` | AC-005-09 |
-| V10 | Zero matches for grouping, counting, lemmatization, tagging, normalization and precedence in the view's sources; received values render verbatim; an unmapped tag degrades to the raw tag; `AnnotationTable.tsx` byte-identical | AC-005-10 |
+| V10 | Zero matches for grouping, counting, lemmatization, tagging, normalization and precedence in the view's sources; received values render verbatim; an unmapped tag degrades to the raw tag; `AnnotationTable.tsx`'s suite passes unchanged with identical rendered output, and exactly one UPOS label map exists | AC-005-10 |
 | V11 | The design states a numeric budget before any measurement; the `@pytest.mark.bench` benchmark measures group count, response size and latency at the ~688,000-occurrence ceiling and asserts against that budget; a mutated budget fails; pagination exists only alongside a recorded exceeded budget | AC-005-11 |
 | V12 | Every fixture is synthetic or public domain; no book text is committed (Art. IV.1–2) | Art. IV compliance |
 | V13 | Coverage gates hold: `domain/` and `application/` at 90% or above, global at 80% or above (Art. II); linters and type checks clean; the zero-warning `filterwarnings` gate unchanged | Art. II compliance |
