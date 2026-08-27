@@ -8,21 +8,21 @@ precedence-resolved effective values (Decision B), computed at query time (P5). 
 bounded correction delta**, not a `COALESCE` grouping. `annotation_repository.py`,
 `AnnotationTable.tsx`, and `annotation.v1.json` are untouched.
 
-## Response budget (stated before measuring — `REQ-005-011`, `AC-005-11` scenario 1)
+## Response budget
 
-These are the bounds this endpoint must clear at SPEC-002's ~688,000-occurrence ceiling. They are
-fixed here **before** any number below was produced, and are derived from prior art rather than from
-this design's own results:
+The bounds this endpoint must clear at SPEC-002's ~688,000-occurrence ceiling. Each cites an anchor
+outside this design's own measurements, as `REQ-005-011` requires.
 
-| Bound | Value | Where it comes from |
+| Bound | Value | Anchor |
 |---|---|---|
-| Response body size | **≤ 8 MiB** | `test_import_bench.py` already bounds SPEC-002's occurrence-level `GET` body at 200 KB-20 MB at the same ceiling. A grouped result aggregates that stream, so it must land well inside the endpoint it summarises; 8 MiB is the midpoint of that shipped range |
-| Latency | **≤ 1500 ms p95** | The interaction is a user clicking through to a list view. SPEC-002's synchronous import already spends ~3.4 s at the ceiling and is accepted as a one-off; a read the user repeats gets a tighter bound, set at under half of it |
-| Group cardinality | **no bound** | Recorded as an observation, not a gate. It is an input to the pagination decision, not a pass/fail criterion |
+| Response body size | **≤ 4 MiB (4,194,304 bytes)** | **Derivation.** `max_import_size_bytes: int = 4_194_304` (`apps/api/src/wheel_vocabulary/infrastructure/settings.py:32`) is SPEC-002's import size ceiling — the largest file this system accepts. A summary of an import must not exceed the input that produced it, so the bound is that constant. The derivation is checkable: the bound equals the constant exactly, 4,194,304 = 4,194,304 |
+| Latency | **≤ 1000 ms p95** | **This is a judgment, not a derivation.** One second is the threshold for keeping a user's flow of thought uninterrupted, the standard interaction-design bound for a view the user opens repeatedly. What the judgment protects: a list view the user returns to must not feel like a wait. No arithmetic produces this number, and none is claimed |
 
 **If a measurement exceeds either bound, pagination is required** (`REQ-005-011`). The benchmark in
-`test_vocabulary_bench.py` asserts against these two numbers, and `AC-005-11` scenario 3 requires that
-lowering either below the measured value makes the test fail.
+`test_vocabulary_bench.py` asserts response body size and **p95** latency against exactly these two
+bounds and asserts nothing else; `AC-005-11` scenario 3 requires that lowering either below its
+measured value makes the test fail. Group cardinality carries no bound, so the benchmark records it as
+an observation and does not assert it — see D3.
 
 ## Benchmark (measured, not estimated)
 
@@ -78,7 +78,8 @@ arbitrary seeded corrections. This is a RED-first requirement, not a review note
 
 ### D2 — Index required: `ix_occurrence_book_lemma_pos (book_id, lemma, pos)`
 
-Measured 2589 ms → 222 ms on the aggregation leg (**11.6x**). Without it every strategy sits near 3 s.
+Measured 2589 ms p50 → 222 ms p50 on the aggregation leg (**11.6x**). Without it every strategy sits
+near 3 s.
 Column order matches the display sort and mirrors `ix_occurrence_book_norm_raw`'s covering-scan intent
 (`models.py:68-71`).
 
@@ -100,15 +101,18 @@ Both bounds stated in §Response budget are cleared:
 
 | Bound | Budget | Measured | Verdict |
 |---|---|---|---|
-| Response body size | ≤ 8 MiB | **1.97 MiB** (2,063,621 bytes) | clears, 4.1x headroom |
-| Latency p95 | ≤ 1500 ms | **533 ms** | clears, 2.8x headroom |
+| Response body size | ≤ 4 MiB (4,194,304 bytes) | **1.97 MiB** (2,063,621 bytes) | clears — 4,194,304 / 2,063,621 = **2.03x** headroom |
+| Latency p95 | ≤ 1000 ms p95 | **533 ms p95** | clears — 1000 / 533 = **1.88x** headroom |
 
-688,000 occurrences collapse to **34,827 groups (19.8:1)**; 28,705 distinct lemmas, 17 NULL-lemma
-groups, 43 NULL-POS groups. Neither bound is exceeded, so `REQ-005-011`'s pagination trigger does not
-fire and the endpoint returns every group, matching `frequency_pairs`.
+Neither bound is exceeded, so `REQ-005-011`'s pagination trigger does not fire and the endpoint
+returns every group, matching `frequency_pairs`.
 
-Had either bound been exceeded, pagination would be mandatory and this section would record which one
-and by how much. It is not a decision the measurement was allowed to justify after the fact.
+**Measured observations, not bounds.** 688,000 occurrences collapse to **34,827 groups** (19.8:1);
+28,705 distinct lemmas, 17 NULL-lemma groups, 43 NULL-POS groups. Group cardinality has no stated
+bound, so the benchmark reports these numbers and asserts nothing against them (`REQ-005-011`).
+
+Had either bound been exceeded, pagination would be mandatory and this section would record which
+bound and by how much.
 
 ### D4 — Confidence is structurally absent (C6)
 
@@ -116,8 +120,25 @@ The query joins `occurrence` and `manual_correction` only. `annotation_provenanc
 `pos_confidence`/`lemma_confidence` — is never joined, so confidence cannot reach this endpoint at all.
 Stronger than "nothing branches on it". Enforced by an AST test asserting
 `vocabulary_repository.py` never names `AnnotationProvenance`, mirroring
-`test_annotation_write_repository_isolation.py`. Result ordering is `occurrence_count DESC, lemma, pos`
-— frequency, never confidence.
+`test_annotation_write_repository_isolation.py`. The ordering that carries this prohibition into the
+returned sequence is D5.
+
+### D5 — Result ordering
+
+The returned sequence carries the total order **`occurrence_count DESC, lemma, pos`**.
+
+It is applied **after** the leg-A/leg-B merge (D1), not inside leg A's SQL. Leg B moves rows between
+groups, so an order established before the merge is not the order returned.
+
+`NULL` sorts **before** any string in both key halves, matching SQLite's ASC ordering and the physical
+order of `ix_occurrence_book_lemma_pos` (D2, which relies on the same property). That position is
+fixed and documented here, so a `NULL`-lemma group and a `NULL`-POS group each have one defined place
+among their tied peers and the order is total, never partial. `occurrence_count` alone is not a total
+order at this scale: 34,827 groups over a Zipfian distribution produce many ties, which `lemma` then
+`pos` break.
+
+The sort key is never a confidence value (SPEC-003 C6, spec §2.4 K1, D4) — it is frequency, then the
+group key itself.
 
 ## Data Flow
 
@@ -187,7 +208,7 @@ spell the word (published to OpenAPI). Frontend UI copy uses "Lema", never "Lemm
 | Property | **V3 ≡ naive Python grouping** under arbitrary corrections | Hypothesis (AGENTS.md §6) |
 | Integration | NULL-lemma/NULL-POS buckets visible; seeded corrections change groups; unknown id → `None` | pytest + SQLite |
 | Integration | `0004` upgrade/downgrade; `PRAGMA index_list('occurrence')` | mirrors `test_alembic_0003.py` |
-| Bench | 688k ceiling, group count, payload size | `@pytest.mark.bench`, non-gating (per `test_import_bench.py`) |
+| Bench | 688k ceiling: **asserts** body size and p95 latency against §Response budget; **records** group count | `@pytest.mark.bench`, non-gating (per `test_import_bench.py`) |
 | Structural | `vocabulary_repository.py` never names `AnnotationProvenance` (C6) | AST |
 | API | 200 shape, 404 unknown id, `annotation.v1.json` unchanged | TestClient |
 | E2E | Groups render with counts | Playwright |

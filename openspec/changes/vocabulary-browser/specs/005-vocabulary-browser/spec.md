@@ -571,53 +571,69 @@ identical, and the repository holds exactly one UPOS label map rather than two.
 - THEN it passes unchanged and its rendered output is identical
 - AND exactly one UPOS label map exists in the repository, not two
 
-### Requirement: REQ-005-011 — The unpaginated result is bounded by a benchmark, not by assumption
+### Requirement: REQ-005-011 — The unpaginated result is bounded by an externally anchored budget and an executable benchmark
 
 The endpoint SHALL return every group for the requested import, with no pagination control, matching
 `BookRepository.frequency_pairs`'s established shape (`book_repository.py:94-114`). That default is
-conditional: the design phase MUST measure the response at SPEC-002's ~688,000-occurrence ceiling
-(`SPEC-002 spec.md:213-215`) against a **stated** response-size and latency budget, and MUST add
-pagination if the measurement exceeds it. The budget MUST be written down before the measurement, not
-inferred from it.
+conditional: the design phase MUST state a numeric bound for response body size and a numeric bound
+for latency, MUST measure the response at SPEC-002's ~688,000-occurrence ceiling
+(`SPEC-002 spec.md:213-215`), and MUST add pagination if a measurement exceeds its bound.
+
+Each bound MUST cite an anchor **outside this capability's own measurements**, and that citation MUST
+be arithmetically checkable: a stated derivation that does not compute is a violation of this
+requirement, not a wording defect. A bound justified only by this capability's measurement clearing
+it is **FORBIDDEN**.
+
+Where a bound is a judgment rather than a derivation, the design MUST say so **in those words** and
+MUST name what the judgment protects. An honest judgment is permitted; a judgment presented as a
+derivation is not.
+
+The benchmark MUST assert against exactly the bounds the budget names, and MUST NOT assert against a
+quantity the budget leaves unbounded. A quantity the design reports without a bound MUST be recorded
+as an observation, never asserted. Lowering any named bound below its measured value MUST make the
+benchmark fail.
 
 The measurement MUST be an executable benchmark, marked as the repository already marks one
 (`@pytest.mark.bench`, `apps/api/tests/integration/test_import_bench.py`), and MUST NOT be replaced by
 an estimate in prose.
 
-Acceptance: **AC-005-11** — Given the design artifact, when it is read, then it states a numeric
-response-size and latency budget for this endpoint before stating any measurement; and given a
-synthetic import at the ~688,000-occurrence ceiling, when the benchmark runs, then it reports the
-measured group count, response size and latency, and asserts them against the stated budget; and
-given the benchmark with its expected budget mutated below the measured value, when it runs, then it
+Acceptance: **AC-005-11** — Given the design artifact's stated response-body and latency bounds, when
+each bound's cited anchor is recomputed, then every derivation computes to the bound it claims to
+produce, or the design names that bound a judgment in those words and states what it protects, and no
+bound cites this capability's own measurement as its justification; and given a synthetic import at
+the ~688,000-occurrence ceiling, when the benchmark runs, then it asserts the response body size and
+the latency against the bounds the budget names and asserts no quantity the budget leaves unbounded;
+and given the benchmark with a named bound mutated below its measured value, when it runs, then it
 fails; and given the shipped endpoint, when its parameters are enumerated, then either no pagination
 parameter exists and the benchmark passes, or a pagination parameter exists and the design records
-the exceeded budget that required it.
+the exceeded bound that required it.
 
-#### Scenario: The budget is stated before it is measured
+#### Scenario: Every bound's derivation is checkable and none is self-justified
 
-- GIVEN the design artifact
-- WHEN it is read
-- THEN it states a numeric response-size and latency budget before stating any measurement
+- GIVEN the design artifact's stated response-body and latency bounds
+- WHEN each bound's cited anchor is recomputed
+- THEN each derivation computes to the bound it claims to produce, or the design names that bound a judgment in those words and states what it protects
+- AND no bound is justified by this capability's own measurement clearing it
 
-#### Scenario: The ceiling is measured, not estimated
+#### Scenario: The benchmark asserts the named bounds and nothing unbounded
 
 - GIVEN a synthetic import at the ~688,000-occurrence ceiling
 - WHEN the benchmark runs
-- THEN it reports the measured group count, response size and latency
-- AND asserts them against the stated budget
+- THEN it asserts the response body size and the latency against the bounds the budget names
+- AND it asserts no quantity the budget leaves unbounded
 
 #### Scenario: The benchmark is not vacuous
 
-- GIVEN the benchmark with its expected budget mutated below the measured value
+- GIVEN the benchmark with a named bound mutated below its measured value
 - WHEN it runs
 - THEN it fails
 
-#### Scenario: Pagination exists only if the budget was exceeded
+#### Scenario: Pagination exists only if a bound was exceeded
 
 - GIVEN the shipped endpoint
 - WHEN its parameters are enumerated
 - THEN either no pagination parameter exists and the benchmark passes
-- OR a pagination parameter exists and the design records the exceeded budget that required it
+- OR a pagination parameter exists and the design records the exceeded bound that required it
 
 ---
 
@@ -658,9 +674,10 @@ Each item below was an ambiguity or a contradiction in the inputs. None was reso
 | **AMB-3** | **The isolation guard's rule differs between capabilities.** SPEC-003 R3 forbids the annotation write path from referencing `ManualCorrection` at all. `REQ-005-002` requires this capability's aggregate to read it. A single "no reference" guard applied to both would block Decision B. | **Not a contradiction — the two paths have different obligations.** The write path must not touch what it must not corrupt; the read path must read what precedence requires. The guard for this capability distinguishes **read from write** (`REQ-005-008`): `SELECT` permitted, `INSERT`/`UPDATE`/`DELETE` a violation. Exempting this capability's modules from the existing walk is FORBIDDEN (`SPEC-003 §3.4 W1`). | **Closed. The distinction is written into `REQ-005-008` rather than inferred** |
 | **AMB-4** | **The POS filter's subject.** "Filter by POS" could narrow which groups appear, or narrow which occurrences count inside a still-visible group. The two produce different counts for the same request. | **It narrows the group set; counts are unchanged by filtering** (`REQ-005-006`). Under Decision A, POS is half the group key, so filtering on it is a predicate over keys. Narrowing within a group would require a group to have a POS-heterogeneous membership, which Decision A eliminated. | **Closed. Follows from DEC-1** |
 | **AMB-5** | **The POS filter ships in slice 2**, so the anchor's stated scope is only fully delivered at the second PR. | Accepted with the consequence stated: slice 1 delivers observable value (grouped counts, Art. III) and the capability is **incomplete** until `REQ-005-006` ships. Recorded in §1 and §6 PV-3 rather than implied by a task list. Delivery strategy is `ask-on-risk` and the forecast exceeds the 400-line review budget, so a human slicing decision is expected before apply (proposal §Vertical Slice). | **Accepted tradeoff, recorded** |
-| **AMB-6** | **Pagination.** No endpoint in this codebase paginates; `frequency_pairs` returns everything. The group count is far below the occurrence count but is still unbounded. | **Unpaginated by default, gated on a benchmark** (`REQ-005-011`). The budget is stated before the measurement, and the measurement is executable (`@pytest.mark.bench`), so "small enough" becomes falsifiable instead of assumed. | Accepted |
+| **AMB-6** | **Pagination.** No endpoint in this codebase paginates; `frequency_pairs` returns everything. The group count is far below the occurrence count but is still unbounded. | **Unpaginated by default, gated on a benchmark** (`REQ-005-011`). Each bound cites an anchor outside this capability's own measurements, and the measurement is executable (`@pytest.mark.bench`), so "small enough" becomes falsifiable instead of assumed. `REQ-005-011` originally required the budget to be written down before the measurement; that clause was replaced — see `AMB-9`. | Accepted |
 | **AMB-7** | **Indexing.** The only occurrence index (`models.py:72-74`) covers neither `lemma` nor `pos`, and Decision B's join means a plain `(book_id, lemma, pos)` covering index does not fully serve effective-value grouping. | **Deferred to design, gated on the same benchmark** (`REQ-005-011`, §2.5 P3). An index MAY be added additively and reversibly; it is not a stored aggregate and does not violate P1. Index strategy is entangled with Decision B and MUST be measured, not assumed. | Accepted |
 | **AMB-8** | **`AnnotationTable.tsx` cannot be both byte-identical and the source of a shared label map.** The proposal states the file is untouched *and* that the new view reuses `UPOS_LABELS`. That const is non-exported at `AnnotationTable.tsx:37`, so both cannot hold. This specification first wrote the byte-identical reading as a normative MUST while the design resolved the same contradiction by extracting the map, leaving the two artifacts in direct conflict. | **Behaviour is preserved, not bytes.** `UPOS_LABELS`/`posLabel` move verbatim into a shared module both views import; rendering, behaviour and the existing test suite are unchanged, and only the definition site moves. Duplicating the 17-tag map is FORBIDDEN — two label tables drift, and the drift is silent. The artifacts that stay byte-exact are `annotation.v1.json` and `import.v1.json`, which are published contracts; a private frontend const is not. | **Closed. Registered and resolved per `AGENTS.md` §9, not changed silently** |
+| **AMB-9** | **`REQ-005-011` demanded a temporally-prior budget this change could not supply.** The original requirement read "The budget MUST be written down before the measurement, not inferred from it", and `AC-005-11` scenario 1 checked document order. The design phase had already benchmarked V3 by the time the budget was written, so the clause was unsatisfiable for this change: no artifact could truthfully claim a priority the work did not have. Satisfying it anyway produced a fabricated derivation — the design stated "8 MiB is the midpoint of that shipped range" for `test_import_bench.py`'s 200 KB-20 MB bound. That arithmetic does not compute: the midpoint of 200,000 and 20,000,000 bytes is 10,100,000 bytes (9.63 MiB), and the geometric mean is 2,000,000 bytes. 8 MiB is 8,388,608 bytes, 4.07x the measured 2,063,621 bytes — the bound was back-derived from the measurement and presented as prior art. | **The requirement is rewritten.** `REQ-005-011` now requires each bound to cite an anchor outside this capability's own measurements, requires that citation to be arithmetically checkable, forbids a bound justified only by its own measurement clearing it, requires a bound that is a judgment to say so in those words and name what it protects, and requires the benchmark to assert exactly the named bounds and to fail when one is lowered below its measured value. An auditable derivation and a mutation test are what the temporal clause was proxying for, and unlike document order both stay checkable after the fact. `design.md` §Response budget is restated on anchors that compute. | **Closed. Decided by the maintainer** |
 
 ---
 
@@ -721,7 +738,7 @@ recorded in §1 — `sdd-design` and `sdd-tasks` own those.
 | V8 | Zero write statements against `manual_correction` in this capability's modules; correction rows byte-identical after a vocabulary read; an insert and a delete each produce a violation with observed output in the docstring; the same statement outside the capability still violates; every frontend request is a `GET`; no control submits a correction | AC-005-08 |
 | V9 | No persisted lemma-keyed or `(lemma, POS)`-keyed aggregate row; the four existing tables carry exactly the SPEC-003 baseline columns; a correction written between two reads changes the second; any added migration upgrades and downgrades to exit `0` | AC-005-09 |
 | V10 | Zero matches for grouping, counting, lemmatization, tagging, normalization and precedence in the view's sources; received values render verbatim; an unmapped tag degrades to the raw tag; `AnnotationTable.tsx`'s suite passes unchanged with identical rendered output, and exactly one UPOS label map exists | AC-005-10 |
-| V11 | The design states a numeric budget before any measurement; the `@pytest.mark.bench` benchmark measures group count, response size and latency at the ~688,000-occurrence ceiling and asserts against that budget; a mutated budget fails; pagination exists only alongside a recorded exceeded budget | AC-005-11 |
+| V11 | Each stated bound cites an anchor outside this capability's measurements and its derivation recomputes to the bound, or is named a judgment in those words with what it protects; no bound is justified by its own measurement; the `@pytest.mark.bench` benchmark at the ~688,000-occurrence ceiling asserts response body size and latency against exactly those bounds and asserts no unbounded quantity; a bound mutated below its measured value fails; pagination exists only alongside a recorded exceeded bound | AC-005-11 |
 | V12 | Every fixture is synthetic or public domain; no book text is committed (Art. IV.1–2) | Art. IV compliance |
 | V13 | Coverage gates hold: `domain/` and `application/` at 90% or above, global at 80% or above (Art. II); linters and type checks clean; the zero-warning `filterwarnings` gate unchanged | Art. II compliance |
 
