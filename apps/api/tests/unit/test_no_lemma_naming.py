@@ -184,6 +184,11 @@ _LEMMA_OWNING_FILES: dict[str, frozenset[str]] = {
     "infrastructure/persistence/annotation_write_repository.py": frozenset(
         {"lemma", "lemma_confidence"}
     ),
+    # T9 — vocabulary-browser design §D1/§D5: the aggregation only ever
+    # names the bare, effective `lemma` (the read-model field and the
+    # `ManualCorrection.field` string literal); no compound lemma-shaped
+    # identifier (`automatic_lemma`, `lemma_confidence`, ...) is used here.
+    "infrastructure/persistence/vocabulary_repository.py": frozenset({"lemma"}),
     "infrastructure/nlp/spacy_analyzer.py": frozenset({"lemma", "lemma_confidence", "lemmatizer"}),
     "application/annotation/ports.py": frozenset({"lemma", "lemma_confidence"}),
     "application/annotation/use_cases.py": frozenset({"lemma", "lemma_confidence"}),

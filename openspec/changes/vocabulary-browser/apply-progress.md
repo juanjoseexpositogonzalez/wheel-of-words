@@ -89,3 +89,87 @@ None beyond the two deviations above.
 - Current work unit: WU1 — additive index migration
 - Boundary: starts from `main` (`00bf792`); ends with the migration + model index + their tests + guard-map maintenance + the pre-existing alembic-test regression fix. Rollback: `alembic downgrade -1`, delete `migrations/versions/0004_vocabulary_group_index.py`, revert the `models.py` index line, revert the guard-map and `test_alembic_0003.py` edits.
 - Estimated review budget impact: authored code diff (excluding pre-existing untracked planning docs committed separately) — see final report for exact line count.
+
+## Batch 2 — Phase 2 / WU2 (T6–T11)
+
+**Mode**: Strict TDD
+**Delivery**: chained, stacked-to-main
+**Branch**: `feat/vocabulary-browser-wu2-repository` (created off `main` @ `9c74152`)
+
+### Completed Tasks
+
+- [x] T6 [TEST] `apps/api/tests/unit/test_vocabulary_repository_properties.py` — Hypothesis property: repository's per-occurrence effective resolution agrees with `resolve_effective`.
+- [x] T7 [TEST] Same module — Hypothesis property: V3's group-by-group counts equal a naive Python groupby over `resolve_effective`-resolved values.
+- [x] T8 [IMPL] `apps/api/src/wheel_vocabulary/infrastructure/persistence/vocabulary_repository.py` — `VocabularyGroup` + `SqlAlchemyVocabularyReadRepository.groups()`, design D1's V3 hybrid (leg A raw `GROUP BY`, leg B correction delta, merged via `resolve_effective`), design D5's total order applied after the merge.
+- [x] T9 [TEST] Extended `test_no_lemma_naming.py::_LEMMA_OWNING_FILES` with `"infrastructure/persistence/vocabulary_repository.py": frozenset({"lemma"})`.
+- [x] T10 [TEST] T6/T7 green; full backend suite re-run, no regression.
+- [x] T11 [REFACTOR] Extracted shared `_naive_groups(...)` test helper, used by both T6 (one-spec call) and T7 (multi-spec call) — no production-code change.
+
+### Files Changed
+
+| File | Action | What Was Done |
+|------|--------|---------------|
+| `apps/api/src/wheel_vocabulary/infrastructure/persistence/vocabulary_repository.py` | Created | `VocabularyGroup` dataclass; `SqlAlchemyVocabularyReadRepository.groups(book_id)` — leg A (`GROUP BY Occurrence.lemma, Occurrence.pos`, index-ordered), leg B (correction delta bounded by correction count), merge via `resolve_effective` (the one place §2.5's precedence rule runs), `_sort_key`/`_ordered` applying design D5's total order (`occurrence_count DESC, lemma, pos`, `NULL` first in both halves) strictly after the merge. Existence check mirrors `annotation_repository.py::read`. Never references `AnnotationProvenance`; joins `occurrence` and `manual_correction` only (design D4). |
+| `apps/api/tests/unit/test_vocabulary_repository_properties.py` | Created | Two Hypothesis property tests (T6, T7) plus three example-based tests: the `NULL`-ordering landmine test (D5), unknown-`book_id` → `None`, and zero-occurrence → `[]`. Local `session_factory` fixture (SQLite, `tmp_path`), mirroring `test_annotation_models.py`'s precedent. `_seed_occurrences`/`_naive_groups` helpers seed `ManualCorrection` rows directly through the ORM (no writer exists yet, per `REQ-005-002`'s "testable now" note). |
+| `apps/api/tests/unit/test_no_lemma_naming.py` | Modified | `_LEMMA_OWNING_FILES` extended with `"infrastructure/persistence/vocabulary_repository.py": frozenset({"lemma"})` (T9). `_ALLOWED_LEMMA_SYMBOLS` unchanged — no new symbol was introduced, only a new owning file for the existing bare `"lemma"` entry. |
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| T6 | `tests/unit/test_vocabulary_repository_properties.py` | Unit (SQLite-backed, mirrors `test_annotation_models.py`) | ✅ 549/549 (pre-change baseline, full suite) | ✅ Written against a deliberately-wrong stub repository (`groups()` always returns `[]`) so the failure is a real assertion mismatch, not a `ModuleNotFoundError` — AGENTS.md §3 does not accept an import error as RED. Observed: `assert {} == {(None, None): 1}` (T7's property) and `assert [] == [VocabularyGroup(lemma='bb', ...)]` (ordering test) and `assert [] is None` (unknown-id test) — see RED evidence note below | ✅ 5/5 passed after implementing the real V3 hybrid | ✅ Hypothesis, `max_examples=50` per property — dozens of distinct `(automatic, corrected)` combinations per run, `None`/string on both sides | ✅ See T11 |
+| T7 | Same module | Unit (SQLite-backed) | ✅ Same | ✅ Same run (see RED evidence note) | ✅ Passed | ✅ Hypothesis, `max_examples=50`, `1-8` occurrences per generated example, including groups vacated entirely by corrections | ✅ See T11 |
+| T8 | Same module (ordering + existence tests) | Unit (SQLite-backed) | ✅ Same | ✅ Written before the ordering/existence logic existed — same RED run as T6/T7 (stub returned `[]` unconditionally, ordering test failed `assert [] == [VocabularyGroup(...), ...]`, unknown-id test failed `assert [] is None`) | ✅ Passed | ✅ 2 cases minimum (ordering: tie-break + `NULL`-first fixture with `NULL`-lemma and `NULL`-POS groups at the same count tier, deliberately forcing a `None`-vs-`str` comparison a naive `sorted()` would raise `TypeError` on; existence: unknown id vs. zero-occurrence import, both required so neither is conflated with the other per §2.3) | ➖ None needed beyond T11 |
+| T9 | `tests/unit/test_no_lemma_naming.py` | Unit | ✅ 39/39 passing pre-change (guard suite itself) | ✅ Ran the guard before extending `_LEMMA_OWNING_FILES`, observed a real violation: `infrastructure/persistence/vocabulary_repository.py:...` naming `"lemma"` (both the dataclass field and the `ManualCorrection.field` string literal) with no owning-file entry | ✅ 39/39 after extending `_LEMMA_OWNING_FILES` | ➖ Single (guard is structural, one behavior) | ➖ None needed |
+| T10 | Full suite | Integration | ✅ 549/549 baseline | N/A | ✅ 554/554 | N/A | N/A |
+| T11 | `tests/unit/test_vocabulary_repository_properties.py` | Unit | ✅ 5/5 green before refactor | N/A (refactor, not new behavior) | ✅ 5/5 still green after extracting `_naive_groups` | N/A | ✅ Both Hypothesis assertions now call the same helper; T6 as a one-spec call, T7 as a multi-spec call — no production-code change |
+
+**RED evidence note (T6/T7/T8).** All three tasks' new behavior was driven by ONE red run: `apps/api/tests/unit/test_vocabulary_repository_properties.py` was written in full against a deliberately-wrong stub `vocabulary_repository.py` (`SqlAlchemyVocabularyReadRepository.groups()` always returning `[]`, `VocabularyGroup` dataclass present so the import succeeds). This kept the failure a genuine assertion mismatch at the line invoking `repository.groups(...)`, never a `ModuleNotFoundError` at collection time — AGENTS.md §3 explicitly does not accept a syntax/import/fixture failure as RED. Observed failures, verbatim:
+- T7's property: `assert {} == {(None, None): 1}` (Hypothesis-shrunk to `specs=[(None, None, None, None)]`).
+- Ordering test (T8): `assert [] == [VocabularyGroup(lemma='bb', pos='NOUN', occurrence_count=2), ...]`.
+- Unknown-id test (T8): `assert [] is None`.
+- T6's property failed identically to T7's (same stub, same comparison shape) once the naive-groups extraction (T11) unified the assertion; before that extraction T6 failed as `assert [] == [VocabularyGroup(lemma=None, pos=None, occurrence_count=1)]`.
+- The zero-occurrence test passed trivially against the stub (both stub and real implementation return `[]` for that case) — not a driving RED on its own, triangulated by the other four failures in the same run.
+
+Then the real V3 hybrid was implemented (`_raw_group_counts` leg A, `_corrected_deltas` leg B, `_merge`, `_sort_key`/`_ordered`) and all 5 tests passed unmodified.
+
+### The `NULL`-ordering landmine (design flagged, this batch solved)
+
+Design D5 requires `NULL` to sort before any string in both key halves of `occurrence_count DESC, lemma, pos`, applied after the leg-A/leg-B merge — which happens in Python, where `None < "aa"` raises `TypeError` under default tuple comparison. `_sort_key` avoids ever comparing `None` against `str` directly: each key half is split into a presence flag (`key_half is not None`, `False` sorts before `True`) plus a filler string (`key_half or ""`) used only to break ties among *present* values. The filler is never returned to a caller — `VocabularyGroup.lemma`/`.pos` keep their real `None`/`""` values — so an empty-string value and a `NULL` value stay distinguishable on the wire per spec §2.3 N3; the filler only decides order, never identity.
+
+`test_the_returned_sequence_is_ordered_by_count_desc_then_lemma_then_pos_with_null_first` proves this: it seeds a `("bb", "NOUN")` group at count 2 and three count-1 groups — `(None, None)`, `(None, "VERB")`, `("aa", None)` — deliberately placing a `None`-lemma group and a string-lemma group (`"aa"`) at the *same* count tier, which is exactly the comparison a naive `sorted(groups, key=lambda g: (-g.occurrence_count, g.lemma, g.pos))` would raise `TypeError` on. The test asserts the full returned list positionally against a literal expected order (never a set or a sorted copy), so a stable-but-wrong order (e.g. insertion order) cannot pass it either.
+
+### Guard maps checked, not modified
+
+- `test_no_lemma_naming.py::_LEMMA_OWNING_FILES` — extended (T9, required).
+- `test_no_lemma_naming.py::_ALLOWED_LEMMA_SYMBOLS` — unchanged; no new lemma-shaped symbol was introduced by this batch (only the existing bare `"lemma"` gained a new owning file), so the guard's own self-check test (`test_the_allow_list_is_a_finite_enumeration_of_exact_lemma_symbols`) needed no edit.
+- `test_no_confidence_action_or_propn_filter.py::_EXPECTED_FILES` — **checked, not modified**. This is Phase 3 / WU3's task T18, out of this batch's scope. Verified it is not required for WU2 to pass: `_EXPECTED_FILES` is used only in a non-vacuity assertion (`scanned >= _EXPECTED_FILES`, a superset check) — adding `vocabulary_repository.py` to `scanned` without adding it to `_EXPECTED_FILES` does not fail that assertion. The actual confidence-action scan (`test_nothing_acts_on_confidence_anywhere_in_the_package`) walks every `*.py` under `_PACKAGE_ROOT` via `rglob`, regardless of `_EXPECTED_FILES`, so it already scans `vocabulary_repository.py` today — confirmed by running the full guard suite (39/39 passed) with the new repository file present and `_EXPECTED_FILES` untouched.
+
+### Deviations from Design
+
+None — implementation matches design D1 (V3 hybrid), D2 (relies on the WU1 index), D4 (no `AnnotationProvenance` reference), D5 (total order, applied post-merge) exactly. `VocabularyGroup`'s field names (`lemma`, `pos`, `occurrence_count`) match design's `## Interfaces` block verbatim.
+
+### Issues Found
+
+None.
+
+### Remaining Tasks (WU3+, not in this batch)
+
+- [ ] T12–T62 (Phases 3–10) — not started; out of WU2 scope.
+
+### Verification (batch 2)
+
+- Focused: `cd apps/api && uv run pytest tests/unit/test_vocabulary_repository_properties.py -q` → 5 passed
+- Guards: `cd apps/api && uv run pytest tests/unit/test_no_lemma_naming.py tests/unit/test_no_confidence_action_or_propn_filter.py -q` → 39 passed
+- Full suite + coverage: `cd apps/api && uv run pytest --cov=wheel_vocabulary --cov-fail-under=80` → 554 passed, 100.00% coverage
+- Lint: `cd apps/api && uv run ruff check .` → All checks passed
+- Format: `cd apps/api && uv run ruff format --check .` → 116 files already formatted
+- Typecheck: `cd apps/api && uv run mypy src/wheel_vocabulary` → Success: no issues found in 48 source files
+- Baseline (before this batch, re-confirmed by re-run before any edit): 549 tests passing, 100.00% coverage
+
+### Workload / PR Boundary
+
+- Mode: chained PR slice (stacked-to-main)
+- Current work unit: WU2 — vocabulary repository core (V3 hybrid) + Hypothesis equivalence proof
+- Boundary: starts from `feat/vocabulary-browser-wu1-index-migration`'s tip (branched at `main` @ `9c74152`, which already carries the WU1 index migration); ends with `vocabulary_repository.py` + its property test file + the one guard-map extension. Rollback: delete `apps/api/src/wheel_vocabulary/infrastructure/persistence/vocabulary_repository.py` and `apps/api/tests/unit/test_vocabulary_repository_properties.py`; revert the `test_no_lemma_naming.py::_LEMMA_OWNING_FILES` entry.
+- Estimated review budget impact: 449 authored lines added (263 new test file + 181 new implementation file + 5-line guard-map extension), against the tasks.md estimate of ~270 — 1.66x. The implementation file itself (181 lines) is close to a typical "repository + dataclass" comparable; the overrun is concentrated in the test file, consistent with this repo's established density for Hypothesis property-test modules (design's own forecast note: `test_annotate_import_properties.py` is 553 lines for a comparable precedent).
