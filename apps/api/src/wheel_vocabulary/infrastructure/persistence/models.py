@@ -77,9 +77,14 @@ class Occurrence(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    # No standalone index here: `ix_occurrence_book_norm_raw` below starts with
-    # `book_id`, so it already serves single-column lookups without a second
-    # index doubling the write cost at scale (design §6.1).
+    # No standalone `book_id` index: both composite indexes above lead with
+    # `book_id` (`ix_occurrence_book_norm_raw`, `ix_occurrence_book_lemma_pos`),
+    # so either already serves single-column lookups without a third index.
+    # Honestly: every insert on this table now maintains two B-trees instead
+    # of one. Design §D2 measured the read benefit this second index buys
+    # (2589 ms → 222 ms p50 on the aggregation leg); its write-cost
+    # measurement did not converge across three attempts and is recorded as
+    # unresolved, not as negligible.
     book_id: Mapped[int] = mapped_column(ForeignKey("book.id", ondelete="CASCADE"), nullable=False)
     raw_text: Mapped[str] = mapped_column(nullable=False)
     normalized_text: Mapped[str] = mapped_column(nullable=False)
