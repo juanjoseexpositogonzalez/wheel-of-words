@@ -12,7 +12,7 @@
 - [x] T2 [MIGRATION] `apps/api/migrations/versions/0004_vocabulary_group_index.py`.
 - [x] T3 [TEST] Extended `test_no_lemma_naming.py::_LEMMA_OWNING_FILES` (plus a required allow-list extension — see Deviations).
 - [x] T4 [IMPL] `Occurrence.__table_args__` — added `ix_occurrence_book_lemma_pos`.
-- [x] T5 [TEST] T1 green; runtime harness (`alembic upgrade head` + `alembic downgrade -1`) both exit 0.
+- [x] T5 [TEST] T1 green; runtime harness (`alembic upgrade head` + `alembic downgrade -1` + `alembic upgrade head`) all three exit 0.
 
 ### Files Changed
 
@@ -20,7 +20,7 @@
 |------|--------|---------------|
 | `apps/api/migrations/versions/0004_vocabulary_group_index.py` | Created | `revision="0004_vocabulary_group_index"`, `down_revision="0003_annotation"`; additive `op.create_index`/`op.drop_index` on `ix_occurrence_book_lemma_pos`. |
 | `apps/api/src/wheel_vocabulary/infrastructure/persistence/models.py` | Modified | Added `Index("ix_occurrence_book_lemma_pos", "book_id", "lemma", "pos")` to `Occurrence.__table_args__`. |
-| `apps/api/tests/integration/test_alembic_0004.py` | Created, then modified | Originally created navigating by `head`/`-1` (RED observed in that form — see RED evidence note below). Adversarial review found relative navigation defective for this file too, for the same reason already documented for `test_alembic_0003.py`; pinned both `command.upgrade`/`command.downgrade` calls to explicit revision strings (`0004_vocabulary_group_index`/`0003_annotation`) and verified GREEN (RED for the pinned form not re-observed — see note). Two tests: upgrade adds the index / downgrade removes it and restores `alembic_version`; downgrade touches no other schema object. |
+| `apps/api/tests/integration/test_alembic_0004.py` | Created, then modified | Originally created navigating by `head`/`-1` (RED observed in that form — see RED evidence note below). Adversarial review found relative navigation defective for this file too, for the same reason already documented for `test_alembic_0003.py`; pinned both `command.upgrade`/`command.downgrade` calls to explicit revision strings (`0004_vocabulary_group_index`/`0003_annotation`) and verified GREEN (RED for the pinned form not re-observed — see note). Three tests: upgrade adds the index / downgrade removes it and restores `alembic_version`; downgrade touches no other schema object; the migrated index's reflected columns match `Occurrence.__table__.indexes` in `models.py`. |
 | `apps/api/tests/unit/test_no_lemma_naming.py` | Modified | `_LEMMA_OWNING_FILES` extended for `models.py` and the new migration; `_ALLOWED_LEMMA_SYMBOLS` extended with the exact index-name literal; the allow-list self-check test updated to match. |
 | `apps/api/tests/integration/test_alembic_0003.py` | Modified | Pinned `test_upgrade_adds_lemma_provenance_and_correction` to explicit revision strings (`0003_annotation`/`0002_book_occurrence`) instead of `head`/`-1` — see Deviations. |
 
@@ -28,11 +28,11 @@
 
 | Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
 |------|-----------|-------|------------|-----|-------|-------------|----------|
-| T1 | `tests/integration/test_alembic_0004.py` | Integration | ✅ 546/546 (pre-existing baseline, full suite) | ⚠️ Observed only against the test's original (unpinned) form — see RED evidence note below | ✅ 2/2 passed after T2+T4 | ✅ 2 cases (upgrade/downgrade positive; downgrade-touches-nothing-else negative) | ➖ None needed |
+| T1 | `tests/integration/test_alembic_0004.py` | Integration | ✅ 546/546 (pre-existing baseline, full suite) | ⚠️ Observed only against the test's original (unpinned) form — see RED evidence note below | ✅ 3/3 passed after T2+T4 | ✅ 3 cases (upgrade/downgrade positive; downgrade-touches-nothing-else negative; migrated-index-matches-declarative-model cross-check) | ➖ None needed |
 | T2 | N/A (migration, not test) | — | N/A | — | — | — | — |
 | T3 | `tests/unit/test_no_lemma_naming.py` | Unit | ✅ 32/33 passing pre-change (1 pre-existing pass, guard test itself) | ✅ Ran guard, observed real failure: 3 violations for `ix_occurrence_book_lemma_pos`/`lemma` literals in the new migration before the allow-list extension | ✅ 33/33 after extending `_LEMMA_OWNING_FILES` + `_ALLOWED_LEMMA_SYMBOLS` + the self-check test | ➖ Single (guard is structural, one behavior) | ➖ None needed |
 | T4 | Covered by T1's integration test | — | ✅ | ✅ (T1's RED covered this) | ✅ | ➖ Covered by T1 | ➖ None needed |
-| T5 | Full suite + runtime harness | Integration | ✅ 546/546 baseline | N/A | ✅ 548/548 | N/A | N/A |
+| T5 | Full suite + runtime harness | Integration | ✅ 546/546 baseline | N/A | ✅ 549/549 | N/A | N/A |
 
 **RED evidence note (T1).** The RED above was observed against the test's
 original form, which navigated by `head`/`-1` and failed with
@@ -52,9 +52,9 @@ this evidence trail is meant to demonstrate.
 
 ### Test Summary
 
-- **Total tests written**: 2 (new file) + 1 modified (pre-existing regression fix, not new)
-- **Total tests passing**: 548/548 (baseline 546 + 2 new)
-- **Layers used**: Integration (2 new + 1 fixed)
+- **Total tests written**: 3 (new file) + 1 modified (pre-existing regression fix, not new)
+- **Total tests passing**: 549/549 (baseline 546 + 3 new)
+- **Layers used**: Integration (3 new + 1 fixed)
 - **Approval tests**: None — no refactoring tasks in this batch
 - **Pure functions created**: 0 (migration + declarative index only)
 
@@ -73,10 +73,10 @@ None beyond the two deviations above.
 
 ### Verification (batch 1)
 
-- Focused: `cd apps/api && uv run pytest tests/integration/test_alembic_0004.py -q` → 2 passed
+- Focused: `cd apps/api && uv run pytest tests/integration/test_alembic_0004.py -q` → 3 passed
 - Guard: `cd apps/api && uv run pytest tests/unit/test_no_lemma_naming.py -q` → 33 passed
 - Runtime harness: `cd apps/api && uv run alembic upgrade head && uv run alembic downgrade -1 && uv run alembic upgrade head` → all three exit 0
-- Full suite + coverage: `cd apps/api && uv run pytest --cov=wheel_vocabulary --cov-fail-under=80` → 548 passed, 100.00% coverage
+- Full suite + coverage: `cd apps/api && uv run pytest --cov=wheel_vocabulary --cov-fail-under=80` → 549 passed, 100.00% coverage
 - Lint: `cd apps/api && uv run ruff check .` → All checks passed
 - Format: `cd apps/api && uv run ruff format --check .` → 114 files already formatted
 - Typecheck: `cd apps/api && uv run mypy src/wheel_vocabulary` → Success: no issues found in 47 source files

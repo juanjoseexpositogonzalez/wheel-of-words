@@ -82,9 +82,10 @@ class Occurrence(Base):
     # so either already serves single-column lookups without a third index.
     # Honestly: every insert on this table now maintains two B-trees instead
     # of one. Design §D2 measured the read benefit this second index buys
-    # (2589 ms → 222 ms p50 on the aggregation leg); its write-cost
-    # measurement did not converge across three attempts and is recorded as
-    # unresolved, not as negligible.
+    # (2589 ms → 222 ms p50 on the aggregation leg). Of its two write costs,
+    # disk is converged and quantified (+14.1 MiB on a 110.5 MiB annotated
+    # database, +13%; index build 1.25 s); import/annotate time did not
+    # converge across three attempts and is recorded as unresolved.
     book_id: Mapped[int] = mapped_column(ForeignKey("book.id", ondelete="CASCADE"), nullable=False)
     raw_text: Mapped[str] = mapped_column(nullable=False)
     normalized_text: Mapped[str] = mapped_column(nullable=False)
