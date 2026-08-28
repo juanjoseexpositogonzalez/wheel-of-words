@@ -114,10 +114,11 @@ def test_migrated_index_matches_the_declarative_model(
     alembic_config: Config,
     managed_engine: Callable[[Engine], Engine],
 ) -> None:
-    """A migrated database and a fresh `Base.metadata.create_all()` must
-    produce the same index: `Occurrence.__table_args__` in `models.py` and
-    this migration must declare `ix_occurrence_book_lemma_pos` with the exact
-    same ordered columns. Drift in either direction — the migration changing
+    """Reflecting the migrated database must match the declarative model:
+    `inspect(engine).get_indexes("occurrence")` on a database upgraded to
+    `0004_vocabulary_group_index`, compared against `Occurrence.__table__
+    .indexes` in `models.py`, must agree on `ix_occurrence_book_lemma_pos`'s
+    exact ordered columns. Drift in either direction — the migration changing
     without the model, or the model changing without the migration — must
     fail here, not surface later as a silent scan-order regression between a
     fresh install and an upgraded one.
