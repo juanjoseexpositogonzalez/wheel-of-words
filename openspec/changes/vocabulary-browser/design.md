@@ -72,9 +72,44 @@ Two non-performance reasons V1/V2 lose, either sufficient on its own:
    correction that clears a value, `COALESCE` silently falls through to the automatic value while
    `resolve_effective` returns the correction. V3 has no such coupling.
 
-**Correctness obligation.** V3's equivalence is non-obvious. Both legs MUST run in one `Session` (one
-snapshot), and a Hypothesis property test MUST assert V3 ≡ naive per-occurrence Python grouping over
-arbitrary seeded corrections. This is a RED-first requirement, not a review note.
+**Correctness obligation.** V3's equivalence is non-obvious. A Hypothesis property test MUST assert
+V3 ≡ naive per-occurrence Python grouping over arbitrary seeded corrections. This is a RED-first
+requirement, not a review note. Both legs MUST also observe one database snapshot — the obligation
+D1a carries, because this design stated it without naming a journal mode under which it is
+satisfiable.
+
+### D1a — Snapshot isolation across the two legs: unsatisfied, outside WU2
+
+Sharing one `Session` does not give the two legs one snapshot. pysqlite's legacy transactional mode
+emits `BEGIN` before `INSERT`, `UPDATE` and `DELETE` and never before a plain `SELECT`, so each leg
+runs in its own implicit transaction. An `UPDATE` committing between the legs made a group present in
+both the pre-write and the post-write consistent state disappear from the result, and produced a
+group present in neither.
+
+Two fixes were implemented and both were rejected by re-judgment:
+
+| Round | Change | Measured outcome |
+|---|---|---|
+| 1 | `connect`/`begin` event listeners on `create_engine_from_url` | Every session, write sessions included, opens a deferred transaction. `SqlAlchemyBookRepository.delete()` opens with `session.get(Book, book_id)` — a `SELECT`, taking SHARED — then issues its `DELETE`s, so it needs a SHARED→RESERVED promotion inside its own session, and SQLite does not run the busy handler for that promotion. `delete()` went from returning `True` in 1.08 s to raising `OperationalError: database is locked` in 0.19 s. Reverted; `engine.py` is byte-identical to `ac5b4b9` |
+| 2 | `exec_driver_sql("BEGIN")` as the first statement inside `groups()` | Closes the torn read, and holds SHARED for the method's whole span. At 700,000 occurrences and 120,000 corrections `groups()` runs 6.4–9.6 s, past the 5 s pysqlite busy timeout `engine.py` never overrides. Measured on byte-identical database copies, 2/2 runs each: `groups(A)` succeeded in 9.648 s while `delete(B)` — an unrelated book — raised `OperationalError: database is locked` at 5.279 s; with only that one line removed, `delete(B)` returned `True` at 1.113 s. SQLite locks the whole file, so an unrelated book buys nothing |
+
+Both rounds failed the same way because under SQLite's rollback journal, holding a read snapshot and
+committing concurrently are mutually exclusive. Under `PRAGMA journal_mode=WAL` the round-2
+implementation returned the correct snapshot and the interleaved writer committed in 0.001 s.
+
+`create_engine_from_url` (`infrastructure/persistence/engine.py:14-16`) passes no `journal_mode` and
+no `busy_timeout`, so every session runs on the rollback journal with pysqlite's 5 s default timeout.
+Which journal mode this system runs under is an open decision — see §Open Questions. Snapshot
+isolation is therefore outside WU2's scope and becomes its own work unit carrying that decision,
+including the regression test that proves the snapshot rather than the locking. The round-2
+implementation and its test are preserved on `feat/vocabulary-read-snapshot-isolation` at `ed7e9f3`,
+stacked on `ac5b4b9`; that commit message records that it is not ready to merge and enumerates four
+defects two independent judges each confirmed.
+
+What WU2 shipped at `ac5b4b9` is the sequential behaviour: one `Session`, two legs, correct groups
+for a read with no interleaved committed write. `vocabulary_repository.py`'s module docstring calls
+that one snapshot. It is not one, and the file is not modified here — the claim is recorded as a
+known defect in `apply-progress.md` §Batch 2 rather than left unstated.
 
 ### D2 — Index required: `ix_occurrence_book_lemma_pos (book_id, lemma, pos)`
 
@@ -247,6 +282,13 @@ A+B. Delivery strategy is `ask-on-risk`, so this needs a human decision before a
 
 - [ ] Slicing: accept the 3-PR chain above, or a 2-PR backend/frontend split at ~760/~290? Requires a
       human decision (`ask-on-risk`, budget exceeded either way).
+- [ ] Journal mode (D1a). D1's one-snapshot obligation is satisfiable under
+      `PRAGMA journal_mode=WAL` — measured: correct snapshot, interleaved writer committing in
+      0.001 s — and not under the rollback journal `create_engine_from_url` leaves in place. WAL is
+      the only mode measured to satisfy it; nothing else has been measured, and WAL's own cost on
+      the annotate write path (156–281 s at the ceiling, D2) has not been measured either. Choosing
+      the mode changes every session in the process, not only this read, so it is a decision for the
+      snapshot-isolation work unit and not for WU2.
 
 ## Deviation From Proposal
 

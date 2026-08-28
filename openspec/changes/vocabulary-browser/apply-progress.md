@@ -147,15 +147,21 @@ Design D5 requires `NULL` to sort before any string in both key halves of `occur
 
 ### Deviations from Design
 
-None — implementation matches design D1 (V3 hybrid), D2 (relies on the WU1 index), D4 (no `AnnotationProvenance` reference), D5 (total order, applied post-merge) exactly. `VocabularyGroup`'s field names (`lemma`, `pos`, `occurrence_count`) match design's `## Interfaces` block verbatim.
+The implementation matches design D2 (relies on the WU1 index), D4 (no `AnnotationProvenance` reference) and D5 (total order, applied post-merge). `VocabularyGroup`'s field names (`lemma`, `pos`, `occurrence_count`) match design's `## Interfaces` block verbatim. Two records below correct what this section originally claimed.
+
+1. **D1's one-snapshot obligation is not met (corrects "None" in the original record).** D1 required both legs to run in one `Session` (one snapshot); the shipped `groups()` runs both legs in one `Session` and gets two snapshots. pysqlite's legacy transactional mode emits `BEGIN` before `INSERT`, `UPDATE` and `DELETE` and never before a plain `SELECT`, so each leg runs in its own implicit transaction. Measurements, the two rejected fix rounds, and the journal-mode premise D1 never named are recorded in `design.md` §D1a; the scope move is `tasks.md` §Snapshot isolation carved out of WU2 (WU2b) and spec §5 `AMB-10`. What this batch shipped is the sequential behaviour the `AC-005` scenarios specify — each names a read with no interleaved committed write, and the five tests in this batch exercise exactly that.
+2. **Traceability rows outstanding for T1–T11.** AGENTS.md §10 and `docs/definition-of-done.md` §Puerta de trazabilidad make the `docs/traceability-matrix.md` row a per-task condition of done. `tasks.md` defers all eleven `REQ-005` rows to T61/T62 in Phase 10, and that deferral predates this batch and stands. The `[x]` marks in Phases 1 and 2 therefore record green tests, lint, type check and format — not a met definition of done. `docs/traceability-matrix.md` holds zero `REQ-005` rows today. Recorded here and at both phase headers in `tasks.md`, so the deferral is visible where completion is claimed.
 
 ### Issues Found
 
-None.
+1. **Torn read across the two legs.** An `UPDATE` committing between leg A and leg B made a group present in both the pre-write and the post-write consistent state disappear from the result, and produced a group present in neither. Found by adversarial dual-judge review of `ac5b4b9`, after this batch was recorded. Two fix rounds were implemented and both were rejected by re-judgment — see `design.md` §D1a for the measurements. Owned by WU2b; `engine.py` and `vocabulary_repository.py` are unmodified from `ac5b4b9`, and the round-2 implementation with its test is preserved on `feat/vocabulary-read-snapshot-isolation` at `ed7e9f3`, whose commit message enumerates four defects two independent judges each confirmed.
+2. **`vocabulary_repository.py`'s module docstring states a snapshot the runtime does not provide.** Its opening paragraph reads "Two legs run inside ONE `Session` — one snapshot, a correctness obligation design D1 states explicitly". The `Session` claim is accurate; the snapshot claim is not. The file is not edited by this specification change, so the wrong claim is recorded here rather than left unstated (AGENTS.md §10: no known defect hidden). Correcting it is WU2b's, alongside the fix the docstring would then describe.
 
-### Remaining Tasks (WU3+, not in this batch)
+### Remaining Tasks (WU2b+, not in this batch)
 
+- [ ] WU2b (Phase 2b) — snapshot isolation; no task IDs yet, blocked on the open journal-mode decision (`design.md` §Open Questions).
 - [ ] T12–T62 (Phases 3–10) — not started; out of WU2 scope.
+- [ ] T61/T62 — the eleven `REQ-005` traceability rows, outstanding for T1–T11 as well as for every later phase (see Deviations 2).
 
 ### Verification (batch 2)
 
