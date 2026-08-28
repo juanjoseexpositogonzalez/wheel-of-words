@@ -15,7 +15,7 @@ are actual `wc -l` counts as of this session.
 | This estimate vs. design | **~2.1x** |
 | 400-line budget risk | **High** |
 | Chained PRs recommended | **Yes** |
-| Suggested split | 10 work units, see below — no single unit stays observable AND under 400 alone |
+| Suggested split | 11 work units, see below — no single unit stays observable AND under 400 alone. WU2b was carved out of WU2 after apply; see §Snapshot isolation carved out of WU2 |
 | Delivery strategy | `ask-on-risk` |
 | Chain strategy | **pending — human decision required** (Stacked-to-main recommended; Feature Branch Chain as alternative) |
 
@@ -69,7 +69,8 @@ below extends the pattern before the mutation-check tests are written.
 | Unit | Goal | Est. lines | Observable | Rollback boundary |
 |------|------|-----------|------------|-------------------|
 | WU1 | Additive index migration + reversibility proof | ~140 | No | `alembic downgrade -1`; delete `0004_*.py`, revert `models.py` index line |
-| WU2 | Repository core query (V3 hybrid) + Hypothesis equivalence proof | ~270 | No | Delete `vocabulary_repository.py` and its property test |
+| WU2 | Repository core query (V3 hybrid) + Hypothesis equivalence proof, sequential reads only | ~270 | No | Delete `vocabulary_repository.py` and its property test |
+| WU2b | Snapshot isolation across the two legs + the journal-mode decision | unestimated | No | Revert the journal-mode setting and the `BEGIN`; delete the snapshot regression test |
 | WU3 | Two structural absence guards (no-`AnnotationProvenance`, read/write split) + confidence-guard fix | ~390 | No | Delete the two new guard test files; revert the pattern/`_EXPECTED_FILES` edit |
 | WU4 | Repository integration tests (NULL buckets, corrections, unknown/empty) | ~200 | No | Delete the integration test file |
 | WU5 | Application layer (port + use case) + DTOs + their tests | ~285 | No | Delete `application/vocabulary/`, `api/dtos/vocabulary.py`, their tests |
@@ -80,6 +81,34 @@ below extends the pattern before the mutation-check tests are written.
 | WU10 | Traceability matrix rows | ~15 | No | Revert matrix rows |
 
 Focused test commands and runtime harness per unit are listed under each phase below.
+
+### Snapshot isolation carved out of WU2
+
+WU2 shipped at `ac5b4b9` and an adversarial dual-judge review found that its two legs do not observe
+one database snapshot. T8 below required "one `Session` for both legs", quoting design D1; sharing a
+`Session` does not produce a snapshot, because pysqlite emits `BEGIN` only before `INSERT`, `UPDATE`
+and `DELETE` and never before a plain `SELECT`. Two fixes were implemented and both were rejected by
+re-judgment — an engine-level listener pair that broke `SqlAlchemyBookRepository.delete()`, and a
+read-scoped `BEGIN` that starves unrelated writers past the 5 s pysqlite busy timeout. The
+measurements and the query-level detail are in `design.md` §D1a; the round-2 implementation and its
+test are preserved on `feat/vocabulary-read-snapshot-isolation` at `ed7e9f3`.
+
+WU2b owns the fix. It is unestimated because its size depends on the journal-mode decision, which is
+open (`design.md` §Open Questions): under `PRAGMA journal_mode=WAL` the round-2 implementation
+already returns the correct snapshot with the interleaved writer committing in 0.001 s, and the mode
+applies to every session in the process, not to this read alone. WU2b's task list is written once
+that decision is made. Two obligations are already fixed regardless of which mode is chosen:
+
+- The regression test MUST assert the returned groups, not the locking. Reverting the fix must fail
+  it on a group comparison; a test that fails first on `OperationalError` proves mutual exclusion and
+  never reaches the corruption.
+- The interleaved write MUST commit. The preserved test's writer is rolled back, so the post-run
+  database dump still reads `[(1,'alpha'), (2,'beta')]` while the test's name and docstring claim a
+  committed write.
+
+No `REQ-005` requirement covers this — see spec §5 `AMB-10`. WU2b closes an obligation that lives in
+the design, and every `AC-005` scenario stays verifiable without it because each names a read with no
+interleaved committed write.
 
 ### Honest answer on the 400-line floor
 
@@ -118,6 +147,13 @@ exception` for a different grouping).
 Focused test: `cd apps/api && uv run pytest tests/integration/test_alembic_0004.py -q`
 Runtime harness: `cd apps/api && uv run alembic upgrade head && uv run alembic downgrade -1` (both must exit 0)
 
+**Completion condition outstanding for every task below.** AGENTS.md §10 and
+`docs/definition-of-done.md` §Puerta de trazabilidad both make the `docs/traceability-matrix.md` row
+a per-task condition of done. This document defers all eleven `REQ-005` rows to T61/T62 in Phase 10,
+and that deferral stands. A `[x]` below therefore records that the task's tests, lint, type check and
+format are green — not that its definition of done is met. `docs/traceability-matrix.md` holds zero
+`REQ-005` rows today.
+
 - [x] T1 [TEST] Write `apps/api/tests/integration/test_alembic_0004.py` — mirrors `test_alembic_0003.py`: upgrade adds `ix_occurrence_book_lemma_pos` on `occurrence(book_id, lemma, pos)` (`PRAGMA index_list`); downgrade removes it and returns `alembic_version` to `0003_annotation`. RED: file/revision does not exist.
 - [x] T2 [MIGRATION] Create `apps/api/migrations/versions/0004_vocabulary_group_index.py`: `revision="0004_vocabulary_group_index"`, `down_revision="0003_annotation"`; `upgrade()` → `op.create_index("ix_occurrence_book_lemma_pos", "occurrence", ["book_id", "lemma", "pos"])`; `downgrade()` → `op.drop_index(...)`.
 - [x] T3 [TEST] Extend `apps/api/tests/unit/test_no_lemma_naming.py::_LEMMA_OWNING_FILES` (`:169-190`) with `"migrations/versions/0004_vocabulary_group_index.py": frozenset({"lemma"})` — the migration's column-list literal `"lemma"` would otherwise fail the existing lemma-naming guard. **Deviation**: also required adding the exact index-name literal `"ix_occurrence_book_lemma_pos"` to `_ALLOWED_LEMMA_SYMBOLS` and its owning-file entries (`models.py`, `0004_vocabulary_group_index.py`) — `_FORBIDDEN` is a substring match, not word-bounded, so the index name itself (not just the bare `"lemma"` column-list literal) trips the guard. See apply-progress for detail.
@@ -129,12 +165,39 @@ Runtime harness: `cd apps/api && uv run alembic upgrade head && uv run alembic d
 Depends on: Phase 1.
 Focused test: `cd apps/api && uv run pytest tests/unit/test_vocabulary_repository_properties.py -q`
 
+**Completion condition outstanding for every task below**, on the same terms as Phase 1: the eleven
+`REQ-005` matrix rows are deferred to T61/T62, so a `[x]` here records green tests, lint, type check
+and format, not a met definition of done.
+
+**Scope carved out after apply.** Snapshot isolation across the two legs left this phase and became
+WU2b — see §Snapshot isolation carved out of WU2 and `design.md` §D1a. T8's "one `Session` for both
+legs" is shipped and is not one snapshot.
+
 - [x] T6 [TEST] Write a Hypothesis strategy over `(automatic, corrected)` `(lemma, pos)` pairs (`apps/api/tests/unit/test_vocabulary_repository_properties.py`), asserting the repository's per-occurrence effective resolution agrees with `domain.annotation.resolve_effective` (`:132`) on every generated case (AC-005-02 scenario 4). RED: repository does not exist.
 - [x] T7 [TEST] Extend the same property test module: given generated seeded corrections, V3's group-by-group counts equal a naive Python `groupby` over `resolve_effective`-resolved values, value for value.
-- [x] T8 [IMPL] Create `apps/api/src/wheel_vocabulary/infrastructure/persistence/vocabulary_repository.py`: `@dataclass(frozen=True, slots=True) VocabularyGroup(lemma: str | None, pos: str | None, occurrence_count: int)` and `SqlAlchemyVocabularyReadRepository.groups(book_id)` implementing design D1's leg A (raw `GROUP BY o.lemma, o.pos`) + leg B (corrected-occurrence delta) merged via `resolve_effective`, one `Session` for both legs. Existence check mirrors `annotation_repository.py::read`'s `session.get(Book, book_id) is None → return None` pattern. **The returned sequence MUST carry design D5's total order `occurrence_count DESC, lemma, pos`, applied after the leg-A/leg-B merge, not inside leg A's SQL** — leg B moves rows between groups, so an order established before the merge is not the order returned. `NULL` sorts before any string in both key halves (design D5), so the order is total, never partial (§2.1 G5, AC-005-01 scenario 3).
+- [x] T8 [IMPL] Create `apps/api/src/wheel_vocabulary/infrastructure/persistence/vocabulary_repository.py`: `@dataclass(frozen=True, slots=True) VocabularyGroup(lemma: str | None, pos: str | None, occurrence_count: int)` and `SqlAlchemyVocabularyReadRepository.groups(book_id)` implementing design D1's leg A (raw `GROUP BY o.lemma, o.pos`) + leg B (corrected-occurrence delta) merged via `resolve_effective`, one `Session` for both legs. Existence check mirrors `annotation_repository.py::read`'s `session.get(Book, book_id) is None → return None` pattern. **The returned sequence MUST carry design D5's total order `occurrence_count DESC, lemma, pos`, applied after the leg-A/leg-B merge, not inside leg A's SQL** — leg B moves rows between groups, so an order established before the merge is not the order returned. `NULL` sorts before any string in both key halves (design D5), so the order is total, never partial (§2.1 G5, AC-005-01 scenario 3). **Post-apply correction**: "one `Session` for both legs" is shipped and does not produce one snapshot — pysqlite opens no transaction for a `SELECT`, so each leg reads independently. The snapshot obligation moved to WU2b; what T8 delivers is the sequential behaviour every `AC-005` scenario specifies.
 - [x] T9 [TEST] Extend `test_no_lemma_naming.py::_LEMMA_OWNING_FILES` with `"infrastructure/persistence/vocabulary_repository.py": frozenset({"lemma"})`.
 - [x] T10 [TEST] Run T6/T7 green; run the full backend suite to confirm no regression in `annotation_repository.py`'s existing tests (untouched file).
 - [x] T11 [REFACTOR] If leg A/leg B merge logic duplicates code across the two Hypothesis assertions, extract a shared `_naive_groups(...)` test helper — no production-code change.
+
+## Phase 2b — Snapshot isolation (WU2b, unestimated)
+
+Depends on: Phase 2. **Blocked on an open decision, so this phase carries no task IDs yet.** The
+journal mode is unchosen (`design.md` §Open Questions), and it decides whether the fix is one engine
+setting, a read-scoped transaction, or both — which in turn decides the tasks, their order and their
+size. Numbering tasks now would record a plan that has not been made.
+
+What is already fixed, and what any future task list must satisfy:
+
+- The fix must not starve unrelated writers. Round 2's read-scoped `BEGIN` made `delete()` of an
+  unrelated book raise `OperationalError: database is locked` at 5.279 s where the control returned
+  `True` at 1.113 s (`design.md` §D1a).
+- The regression test must assert the returned groups, and its interleaved write must commit. The
+  preserved test at `ed7e9f3` does neither.
+- `vocabulary_repository.py`'s module docstring and `groups()`'s docstring both describe a snapshot
+  and a blocked writer. Both must match whatever this phase ships.
+
+Preserved work: `feat/vocabulary-read-snapshot-isolation` @ `ed7e9f3`, stacked on `ac5b4b9`.
 
 ## Phase 3 — Structural absence guards (WU3, ~390 lines)
 
@@ -243,6 +306,12 @@ Depends on: every requirement's implementing phase having landed (this task can 
 Every requirement `REQ-005-001`…`REQ-005-011` maps to at least one task above:
 001→T8,T22,T35 · 002→T6,T7,T22 · 003→T22,T55 · 004→T35,T41 · 005→T22,T35 · 006→**slice 2, not in
 this document** · 007→T18-T20 · 008→T12-T17 · 009→T1-T5,T22 · 010→T49,T55-T57 · 011→T42-T46.
+
+WU2b maps to no requirement, and that is the finding spec §5 `AMB-10` registers: the one-snapshot
+obligation lives in `design.md` D1, never in a `REQ-005` requirement, and §7 excludes transaction
+boundaries from the specification's scope. Every `AC-005` scenario names a read with no interleaved
+committed write, so none of them is weakened by WU2b being outstanding, and none of them would catch
+the torn read either.
 
 `REQ-005-001` carries three tasks because its ordering-stability scenario is proved at two levels:
 T8 establishes the total order, T22 asserts it survives two repository reads, and T35 asserts it
