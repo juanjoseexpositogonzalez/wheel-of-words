@@ -2,11 +2,16 @@
 
 A call is a write when its callee names a write verb — `insert`, `update`,
 `delete`, `add`, `add_all`, `merge`, `bulk_insert_mappings`,
-`bulk_update_mappings` — and `ManualCorrection` (its bare name, or a
-module-local `from ... import ManualCorrection as X` alias) appears
-anywhere in that call expression: an argument, a keyword argument, or the
-receiver chain. The receiver's identity, type, or import origin is never
-inspected — `delete(...)`, `sa.delete(...)`, `session.delete(...)`,
+`bulk_update_mappings`, matched either on the callee's own bare identifier
+or, since round 8, through `_WRITE_VERB_ALIASES` (a write verb imported
+under any local name, from any module: `from anywhere import delete as d`
+makes `d` resolve to the canonical verb `delete`) — and `ManualCorrection`
+(its bare name, a module-local `from ... import ManualCorrection as X`
+alias, or, since round 8, a name bound in exactly one assignment hop to a
+fresh `ManualCorrection(...)` construction) appears anywhere in that call
+expression: an argument, a keyword argument, or the receiver chain. The
+receiver's identity, type, or import origin is never inspected —
+`delete(...)`, `sa.delete(...)`, `session.delete(...)`,
 `anything.delete(...)` all match on the callee's bare name or final
 attribute alone
 (`test_a_write_call_is_caught_regardless_of_receiver_name`). Walking the
@@ -23,14 +28,31 @@ requires knowing what the receiver is, only more AST. `select(...)` reads
 stay permitted because `select` is not a write verb (REQ-005-002,
 `test_select_and_attribute_reads_are_permitted`).
 
-Also flags raw SQL text matching `insert into`/`update`/`delete from
-manual_correction` (case-insensitive, `+`-folded, deduplicated so a
-folded chain is not also counted through its own sub-expressions), in
-EVERY string literal including module, class, and function docstrings —
-a docstring is runtime-reachable through `__doc__` (SPEC-003 §3.2 E3;
-`session.execute(text(__doc__))` would otherwise read past a prose
-exemption), so no position is exempt from the scan
-(`test_a_docstring_containing_the_forbidden_fragment_is_flagged`).
+Also flags raw SQL text matching `insert into`/`update`/`delete
+from`/`replace into`/`truncate table manual_correction` (case-insensitive,
+`+`-folded, deduplicated so a folded chain is not also counted through its
+own sub-expressions), in EVERY string literal including module, class, and
+function docstrings — a docstring is runtime-reachable through `__doc__`
+(SPEC-003 §3.2 E3; `session.execute(text(__doc__))` would otherwise read
+past a prose exemption), so no position is exempt from the scan
+(`test_a_docstring_containing_the_forbidden_fragment_is_flagged`). Since
+round 8, each of the five verb-forms above is matched by a whitespace-
+tolerant regex, not a fixed substring: any run of whitespace between the
+verb keyword and the table name (double space, a newline) is accepted, and
+an optional surrounding quote character (`"`, `'`, backtick) plus an
+optional `schema.` prefix between the verb and `manual_correction` is
+accepted too, so `DELETE  FROM manual_correction`, `DELETE\\nFROM
+manual_correction`, `DELETE FROM "manual_correction"` and `DELETE FROM
+main.manual_correction` are all caught
+(`test_the_raw_sql_adjacency_gaps_named_in_the_brief_are_now_closed`).
+Dynamic SQL-text assembly — `%`-format substitution, `str.join`, and an
+f-string with an interpolated `{...}` placeholder — stays a documented,
+unclosed gap: none of these resolve to a literal string in the AST alone
+(`test_dynamic_sql_assembly_is_a_documented_gap`). A literal-only f-string
+(no `{...}` placeholder) was never actually a gap — Python's own parser
+folds it to a plain string constant that the existing literal walk already
+finds, with no round-8 change required
+(`test_a_placeholder_free_f_string_was_already_caught_before_round_8`).
 
 Scans every `.py` file under `wheel_vocabulary` and every migration (both
 `rglob`, no naming convention), exempting `book_repository.py`'s
@@ -41,40 +63,62 @@ Known accepted over-approximations, not narrowed — the callee name and
 the `ManualCorrection` name are both matched textually, never resolved to
 what they actually refer to:
 
-* Any callable literally named a write verb is flagged regardless of
-  what it is — a `cache` object's `add`/`delete` methods, or a
-  locally-defined function literally named `delete`, all match identically
-  to a real ORM call
+* Any callable literally named a write verb (bare, or resolved through
+  `_WRITE_VERB_ALIASES`) is flagged regardless of what it is — a `cache`
+  object's `add`/`delete` methods, or a locally-defined function literally
+  named `delete`, all match identically to a real ORM call
   (`test_no_receiver_or_origin_is_verified_a_known_over_approximation`).
+  Renaming an UNRELATED import to a write-verb name (`from module import
+  unrelated_func as delete`) is flagged the same way, through this same
+  bare-identifier path, not through the alias map — `unrelated_func` is
+  not a write verb, so it never enters `_WRITE_VERB_ALIASES` at all
+  (`test_renaming_an_unrelated_import_to_a_write_verb_name_is_an_over_approximation`).
 * A class literally named `ManualCorrection`, imported from ANY module,
   matches identically to the tracked model — its import path is never
   checked (`test_an_unrelated_class_genuinely_named_manual_correction_is_flagged`).
-  Contrast with a DIFFERENT class merely aliased to a similar-looking
-  name, which stays unflagged
+  The same holds for a DIFFERENT class aliased to that exact spelling
+  (`from anywhere import Occurrence as ManualCorrection`): the bare
+  string `"ManualCorrection"` is always in the matched-name set
+  unconditionally, so this import is flagged too, identically
+  (`test_an_import_aliasing_a_different_class_to_the_exact_name_is_flagged`).
+  Contrast with a DIFFERENT class aliased to a similar-LOOKING but
+  non-identical name, which stays unflagged
   (`test_an_unrelated_class_aliased_to_a_similar_name_is_not_flagged`).
 * Class-alias resolution is not flow-sensitive: an alias, once imported,
   is treated as `ManualCorrection` even after being rebound to something
   else (`test_a_rebound_class_alias_is_still_treated_as_manual_correction`).
-* The raw-SQL substring match is not exhaustive — `REPLACE INTO`, extra
-  whitespace, and a quoted table name all evade the three tracked
-  fragments verbatim (`test_raw_sql_adjacency_gaps_are_not_exhaustive`).
+* The one-hop binding tracker (below) inherits the same non-flow-
+  sensitivity and the same textual-only class-alias matching; it adds no
+  new precision to either.
 
 Known gaps, not closed this round:
 
-* `_call_names_manual_correction` walks only the call expression itself —
-  it does not track what a plain `Name` argument was bound to earlier in
-  the file. `correction = ManualCorrection(...)` followed by
-  `session.add(correction)` on a later line evades detection; only
-  inline construction and direct class references are caught
-  (`test_a_binding_constructed_elsewhere_then_passed_is_a_known_gap`).
-  Left open deliberately rather than adding a binding tracker: a prior
-  tracker's receiver-origin claims were the exact defect three Judgment
-  Day rounds escalated on.
-* A write verb imported under a renamed binding — `from sqlalchemy import
-  delete as sa_delete` then `sa_delete(ManualCorrection)` — evades
-  detection: the callee's bare name is matched textually (`sa_delete`,
-  not `delete`), and no import is resolved to canonicalise it
-  (`test_a_renamed_write_verb_import_is_a_known_gap`).
+* Dynamic SQL-text assembly — `%`-format, `str.join`, and interpolated
+  f-strings — is not resolved to a literal string, so a raw-SQL write
+  assembled through any of them evades the scan
+  (`test_dynamic_sql_assembly_is_a_documented_gap`).
+* A write verb imported under a renamed binding is CLOSED as of round 8
+  (see above); what remains open is the SAME class of gap one level
+  deeper — a write verb reached through a REBOUND local name
+  (`d = delete` after `from sqlalchemy import delete`, then `d(...)`) is
+  not resolved, because `_WRITE_VERB_ALIASES` reads only `ast.ImportFrom`
+  nodes, never a plain `ast.Assign` the way the ManualCorrection-name
+  tracker does. Not pinned by a test this round — recorded here only.
+* The one-hop binding tracker (`_one_hop_bindings`) follows EXACTLY ONE
+  assignment hop from a fresh `ManualCorrection(...)` construction to a
+  plain `ast.Name` target, and no further: `correction =
+  ManualCorrection(...)` then `alias = correction` then
+  `session.add(alias)` evades detection, because `alias`'s own right-hand
+  side is a plain `Name`, not a fresh construction — the SECOND hop is
+  never walked
+  (`test_a_second_assignment_hop_is_the_documented_uncovered_boundary`).
+* Tuple/list unpacking assignment targets (`a, b = ManualCorrection(...),
+  None`) and `for` loop targets are never tracked by the one-hop binding
+  tracker, even where a per-element or per-iteration match with the
+  right-hand side would be structurally possible — a deliberate scope
+  decision, not an oversight
+  (`test_tuple_unpacking_targets_are_a_documented_uncovered_boundary`,
+  `test_a_for_loop_target_is_a_documented_uncovered_boundary`).
 
 REQ-005-008, AC-005-08.
 """
@@ -82,6 +126,7 @@ REQ-005-008, AC-005-08.
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import Path
 
 import pytest
@@ -128,7 +173,40 @@ _FORBIDDEN_RAW_SQL = (
     "insert into manual_correction",
     "update manual_correction",
     "delete from manual_correction",
+    "replace into manual_correction",
+    "truncate table manual_correction",
 )
+
+# One whitespace-tolerant, quote-tolerant, schema-prefix-tolerant regex per
+# forbidden fragment above, keyed identically so `_FORBIDDEN_RAW_SQL` stays
+# the single list a mutation drops an element from. `\s+` accepts a double
+# space or a newline between the verb keyword and the object reference;
+# `["'`]?` accepts an optional surrounding quote character; `(?:\w+\.)?`
+# accepts an optional `schema.` prefix. No trailing boundary is required
+# after `manual_correction` — like the substring match it replaces, a
+# longer table name that merely starts with `manual_correction` (e.g. a
+# hypothetical `manual_correction_backup`) still matches; this widening is
+# unchanged from before round 8, not a new over-approximation. Dynamic
+# assembly — `%`-format, `str.join`, an interpolated f-string — is NOT
+# resolved by this regex or by anything else in this module; see the
+# module docstring's Known-gaps section.
+_RAW_SQL_PATTERNS: dict[str, re.Pattern[str]] = {
+    "insert into manual_correction": re.compile(
+        r"insert\s+into\s+[\"'`]?(?:\w+\.)?[\"'`]?manual_correction", re.IGNORECASE
+    ),
+    "update manual_correction": re.compile(
+        r"update\s+[\"'`]?(?:\w+\.)?[\"'`]?manual_correction", re.IGNORECASE
+    ),
+    "delete from manual_correction": re.compile(
+        r"delete\s+from\s+[\"'`]?(?:\w+\.)?[\"'`]?manual_correction", re.IGNORECASE
+    ),
+    "replace into manual_correction": re.compile(
+        r"replace\s+into\s+[\"'`]?(?:\w+\.)?[\"'`]?manual_correction", re.IGNORECASE
+    ),
+    "truncate table manual_correction": re.compile(
+        r"truncate\s+table\s+[\"'`]?(?:\w+\.)?[\"'`]?manual_correction", re.IGNORECASE
+    ),
+}
 
 
 def _folded_string(node: ast.AST) -> str | None:
@@ -164,15 +242,49 @@ def _string_literals(tree: ast.AST) -> list[str]:
     return literals
 
 
+def _write_verb_aliases(tree: ast.AST) -> dict[str, str]:
+    """Local names bound to a write verb through `from ... import X as Y`
+    (or the bare `from ... import X`, where `Y` is `X` itself), keyed on
+    the imported symbol's ORIGINAL name being a write verb — the module
+    the import comes from is never inspected. `from sqlalchemy import
+    delete as sa_delete` maps `sa_delete` to the canonical verb `delete`;
+    `from anywhere import delete as d` maps `d` to `delete` identically,
+    because only `alias.name` (the name as written at the import site) is
+    checked against `_WRITE_VERBS`, never `node.module`. An import whose
+    ORIGINAL name is NOT a write verb never enters this map, even if its
+    local alias happens to spell one (`from module import unrelated_func
+    as delete`) — that call is still flagged, but through the existing
+    bare-identifier path in `_call_write_verb`, not through this map."""
+    return {
+        alias.asname or alias.name: alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+        if alias.name in _WRITE_VERBS
+    }
+
+
 def _manual_correction_aliases(tree: ast.AST) -> frozenset[str]:
-    """Names bound to the `ManualCorrection` class: its bare name, always,
-    plus any `from ... import ManualCorrection as X` alias. No module is
-    required to match — `ManualCorrection`'s real import path is never
-    checked, so a class of the same name imported from an unrelated
-    module is treated identically to the tracked model (a known
-    over-approximation, pinned below). Only `import X as ManualCorrection`
-    binds a DIFFERENT class to this name; that is not the relation this
-    function collects, so it cannot make an unrelated class match."""
+    """Names treated as naming the `ManualCorrection` class. ALWAYS
+    includes the bare string `"ManualCorrection"` unconditionally,
+    regardless of what that name actually resolves to in `tree` — a
+    completely UNRELATED class imported under that exact spelling
+    (`from anywhere import Occurrence as ManualCorrection`) is an
+    `ImportFrom` whose local name is spelled `ManualCorrection`, and it
+    is flagged identically to the real model, because this function never
+    inspects what a name is bound to, only its literal spelling (a known
+    over-approximation, pinned by
+    `test_an_import_aliasing_a_different_class_to_the_exact_name_is_flagged`).
+    Contrast with `from anywhere import Occurrence as ManualCorrectionLike`:
+    the LOCAL spelling there is `ManualCorrectionLike`, not
+    `ManualCorrection`, so it stays unmatched
+    (`test_an_unrelated_class_aliased_to_a_similar_name_is_not_flagged`).
+    Also includes every local name the real `ManualCorrection` symbol
+    (imported from ANY module, origin never checked) is itself aliased
+    to, via `from ... import ManualCorrection as X` — this is a SEPARATE
+    addition to the set, not a gate on the bare string above, which is
+    seeded regardless of whether this second form of import exists at
+    all."""
     aliases = {
         alias.asname
         for node in ast.walk(tree)
@@ -183,59 +295,114 @@ def _manual_correction_aliases(tree: ast.AST) -> frozenset[str]:
     return frozenset({"ManualCorrection", *aliases})
 
 
-def _names_manual_correction(node: ast.AST, class_aliases: frozenset[str]) -> bool:
-    """True for a `Name` bound to `ManualCorrection` (bare or aliased), or
-    an `Attribute` access ending in the bare class name."""
+def _one_hop_bindings(tree: ast.AST, class_aliases: frozenset[str]) -> frozenset[str]:
+    """Names bound, in EXACTLY ONE assignment hop, to a fresh
+    `ManualCorrection(...)` construction — `ast.Assign`, `ast.AnnAssign`
+    and `ast.NamedExpr` targets whose right-hand side is directly a call
+    naming `ManualCorrection` (bare or import-aliased). Only a single,
+    plain `ast.Name` target is tracked: `a = b = ManualCorrection(...)`
+    binds both `a` and `b`, because each is its own plain-`Name` target
+    on the SAME one-hop assignment, not a second hop off the other.
+    Tuple/list unpacking targets (`a, b = ManualCorrection(...), None`)
+    and `for` loop targets are NEVER tracked, even where a per-element or
+    per-iteration match would be structurally possible — a deliberate
+    scope decision to avoid a partial pairwise resolver
+    (`test_tuple_unpacking_targets_are_a_documented_uncovered_boundary`,
+    `test_a_for_loop_target_is_a_documented_uncovered_boundary`). A
+    SECOND hop — `alias = correction`, where `correction` is already
+    one-hop bound — is never followed: only the assignment's own
+    right-hand side is inspected, never a name looked up transitively
+    through this same map
+    (`test_a_second_assignment_hop_is_the_documented_uncovered_boundary`)."""
+    bindings: set[str] = set()
+
+    def _register(target: ast.expr, value: ast.expr) -> None:
+        if (
+            isinstance(target, ast.Name)
+            and isinstance(value, ast.Call)
+            and _names_manual_correction(value.func, class_aliases)
+        ):
+            bindings.add(target.id)
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for assign_target in node.targets:
+                _register(assign_target, node.value)
+        elif isinstance(node, (ast.AnnAssign, ast.NamedExpr)) and node.value is not None:
+            _register(node.target, node.value)
+
+    return frozenset(bindings)
+
+
+def _names_manual_correction(node: ast.AST, resolved_names: frozenset[str]) -> bool:
+    """True for a `Name` whose identifier is in `resolved_names` — a set
+    that may be import-derived class aliases alone, or that plus one-hop
+    binding names, depending on what the caller passes — or an
+    `Attribute` access ending in the bare class name."""
     if isinstance(node, ast.Name):
-        return node.id in class_aliases
+        return node.id in resolved_names
     return isinstance(node, ast.Attribute) and node.attr == "ManualCorrection"
 
 
-def _call_write_verb(call: ast.Call) -> str | None:
+def _call_write_verb(call: ast.Call, verb_aliases: dict[str, str]) -> str | None:
     """The write verb `call`'s callee names, or `None`. A bare `Name`
-    callee matches only its own literal identifier (`delete(...)`); an
+    callee matches its own literal identifier (`delete(...)`) directly
+    against `_WRITE_VERBS`, or, failing that, resolves through
+    `verb_aliases` (`sa_delete(...)` after `from sqlalchemy import delete
+    as sa_delete`) to the canonical verb it was imported as. An
     `Attribute` callee matches its final attribute regardless of the
     receiver (`session.delete(...)`, `sa.delete(...)`, `anything.delete(...)`
     all match on `.attr` alone) — the receiver's identity, type or origin
-    is never inspected."""
+    is never inspected, and `verb_aliases` is never consulted for an
+    `Attribute` callee, because an attribute access cannot itself be the
+    target of an import alias."""
     func = call.func
     if isinstance(func, ast.Name):
-        return func.id if func.id in _WRITE_VERBS else None
+        if func.id in _WRITE_VERBS:
+            return func.id
+        return verb_aliases.get(func.id)
     if isinstance(func, ast.Attribute):
         return func.attr if func.attr in _WRITE_VERBS else None
     return None
 
 
-def _call_names_manual_correction(call: ast.Call, class_aliases: frozenset[str]) -> bool:
-    """True if `ManualCorrection` (bare or aliased) appears anywhere
-    inside `call` — positional/keyword arguments, or the receiver chain.
-    Walking the whole call, not just its argument list, is what makes
-    `session.query(ManualCorrection).delete()` match: the outer callee is
-    `delete`, and `ManualCorrection` is an argument of the nested
-    `query()` call inside the receiver, not of `delete()` itself."""
-    return any(_names_manual_correction(node, class_aliases) for node in ast.walk(call))
+def _call_names_manual_correction(call: ast.Call, resolved_names: frozenset[str]) -> bool:
+    """True if a name in `resolved_names` (class aliases, one-hop
+    bindings, or both — the caller decides which set to pass) appears
+    anywhere inside `call` — positional/keyword arguments, or the
+    receiver chain. Walking the whole call, not just its argument list,
+    is what makes `session.query(ManualCorrection).delete()` match: the
+    outer callee is `delete`, and `ManualCorrection` is an argument of
+    the nested `query()` call inside the receiver, not of `delete()`
+    itself."""
+    return any(_names_manual_correction(node, resolved_names) for node in ast.walk(call))
 
 
 def _detect_writes(source: str, label: str) -> list[str]:
     """Every write targeting `manual_correction` in `source`: a call whose
-    callee names a write verb and whose call expression names
-    `ManualCorrection` anywhere (argument, keyword, or receiver chain), or
-    raw SQL text naming the table after an INSERT/UPDATE/DELETE keyword
-    (case-insensitive, `+`-folded, no position exempt)."""
+    callee names a write verb (bare, or resolved through
+    `_write_verb_aliases`) and whose call expression names
+    `ManualCorrection` anywhere (argument, keyword, receiver chain, or a
+    name one-hop bound to a fresh `ManualCorrection(...)` construction),
+    or raw SQL text naming the table after an
+    INSERT/UPDATE/DELETE/REPLACE/TRUNCATE keyword (case-insensitive,
+    whitespace-, quote- and schema-prefix-tolerant, `+`-folded, no
+    position exempt)."""
     tree = ast.parse(source, filename=label)
     class_aliases = _manual_correction_aliases(tree)
+    resolved_names = class_aliases | _one_hop_bindings(tree, class_aliases)
+    verb_aliases = _write_verb_aliases(tree)
     violations: list[str] = []
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
-            verb = _call_write_verb(node)
-            if verb is not None and _call_names_manual_correction(node, class_aliases):
+            verb = _call_write_verb(node, verb_aliases)
+            if verb is not None and _call_names_manual_correction(node, resolved_names):
                 violations.append(f"{label}:{node.lineno} {verb}(ManualCorrection)")
 
     for literal in _string_literals(tree):
-        lower = literal.lower()
         for fragment in _FORBIDDEN_RAW_SQL:
-            if fragment in lower:
+            if _RAW_SQL_PATTERNS[fragment].search(literal):
                 violations.append(f"{label} raw SQL fragment {fragment!r}")
 
     return violations
@@ -419,14 +586,20 @@ def test_writes_appended_to_the_vocabulary_repository_are_caught() -> None:
     the real `vocabulary_repository.py` source.
 
     MUTATION CHECK: ran `_detect_writes` against each mutated source.
+    `vocabulary_repository.py` is 181 lines and ends with a trailing
+    newline, so the appended `"\\n" + statement + "\\n"` lands the
+    statement on line 183 (one blank line from the append, then the
+    statement) — re-derived by execution against THIS round's file, not
+    copied from a prior round's recorded output, which had drifted to
+    :184 without the file ever changing length.
 
     insert::
 
-    ['infrastructure/persistence/vocabulary_repository.py:184 insert(ManualCorrection)']
+    ['infrastructure/persistence/vocabulary_repository.py:183 insert(ManualCorrection)']
 
     delete::
 
-    ['infrastructure/persistence/vocabulary_repository.py:184 delete(ManualCorrection)']
+    ['infrastructure/persistence/vocabulary_repository.py:183 delete(ManualCorrection)']
     """
     path = _PACKAGE_ROOT / "infrastructure" / "persistence" / "vocabulary_repository.py"
     original = path.read_text(encoding="utf-8")
@@ -473,13 +646,59 @@ def test_a_write_call_is_caught_regardless_of_receiver_name(source: str) -> None
 
 
 @pytest.mark.unit
-def test_a_renamed_write_verb_import_is_a_known_gap() -> None:
-    """KNOWN GAP: a write verb imported under a renamed binding evades
-    detection — the callee's bare name is matched textually (`sa_delete`,
-    not `delete`), and no import is resolved to canonicalise it."""
+def test_a_renamed_write_verb_import_is_now_caught() -> None:
+    """CLOSED (round 8): `_write_verb_aliases` is keyed on the imported
+    symbol's ORIGINAL name being a write verb, never on which module it
+    came from — `from sqlalchemy import delete as sa_delete` maps
+    `sa_delete` to the canonical verb `delete`, so
+    `sa_delete(ManualCorrection)` is now caught, reported under its
+    canonical name."""
     source = "from sqlalchemy import delete as sa_delete\nsa_delete(ManualCorrection)\n"
 
-    assert _detect_writes(source, "synthetic.py") == []
+    assert _detect_writes(source, "synthetic.py") == ["synthetic.py:2 delete(ManualCorrection)"]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    # Hardcoded, not `sorted(_WRITE_VERBS)`: the parametrize list must stay
+    # fixed independently of the constant under test (see
+    # `test_every_write_verb_is_caught_bare`'s identical rationale).
+    "verb",
+    [
+        "add",
+        "add_all",
+        "bulk_insert_mappings",
+        "bulk_update_mappings",
+        "delete",
+        "insert",
+        "merge",
+        "update",
+    ],
+)
+def test_every_write_verb_is_caught_under_a_renamed_import(verb: str) -> None:
+    """MUTATION CHECK: each of the 8 write verbs, imported under an
+    unrelated local alias from an arbitrary (non-`sqlalchemy`) module, is
+    still caught — origin is never checked, only the imported symbol's
+    original spelling. Dropping any single element from `_WRITE_VERBS`
+    makes exactly its own parametrized case here return `[]`, the same as
+    it does for the bare-name mutation matrix."""
+    source = f"from anywhere import {verb} as renamed_verb\nrenamed_verb(ManualCorrection)\n"
+
+    assert _detect_writes(source, "synthetic.py") == [f"synthetic.py:2 {verb}(ManualCorrection)"]
+
+
+@pytest.mark.unit
+def test_renaming_an_unrelated_import_to_a_write_verb_name_is_an_over_approximation() -> None:
+    """The alias map is keyed on the ORIGINAL imported name, not the
+    local alias: `from module import unrelated_func as delete` does NOT
+    enter `_write_verb_aliases` — `unrelated_func` is not a write verb —
+    but the call is still flagged, because the local name `delete`
+    matches `_WRITE_VERBS` directly through the pre-existing bare-name
+    path, the same over-approximation `cache.delete(...)` and a
+    locally-defined `delete` function already exercise."""
+    source = "from module import unrelated_func as delete\ndelete(ManualCorrection)\n"
+
+    assert _detect_writes(source, "synthetic.py") == ["synthetic.py:2 delete(ManualCorrection)"]
 
 
 @pytest.mark.unit
@@ -559,32 +778,87 @@ def test_table_attribute_write_is_now_caught() -> None:
         ("insert into manual_correction", "INSERT INTO manual_correction VALUES (1)"),
         ("update manual_correction", "UPDATE manual_correction SET field=1"),
         ("delete from manual_correction", "DELETE FROM manual_correction WHERE 1=1"),
+        ("replace into manual_correction", "REPLACE INTO manual_correction VALUES (1)"),
+        ("truncate table manual_correction", "TRUNCATE TABLE manual_correction"),
     ],
-    ids=["insert", "update", "delete"],
+    # Hardcoded, not derived from `_FORBIDDEN_RAW_SQL`: the parametrize list
+    # must stay fixed independently of the constant under test, or dropping
+    # an element from `_FORBIDDEN_RAW_SQL` would also drop its own
+    # parametrized case from collection instead of failing it.
+    ids=["insert", "update", "delete", "replace", "truncate"],
 )
 def test_every_raw_sql_fragment_is_caught(fragment: str, sql: str) -> None:
-    """MUTATION CHECK: `_FORBIDDEN_RAW_SQL` has 3 elements; dropping any
+    """MUTATION CHECK: `_FORBIDDEN_RAW_SQL` has 5 elements; dropping any
     single one makes exactly its own parametrized case return `[]`. Ran
     the matrix with each element removed in turn and confirmed only that
-    element's case failed, the other 2 stayed green."""
+    element's case failed, the other 4 stayed green."""
     violations = _detect_writes(f'text("{sql}")\n', "synthetic.py")
 
     assert violations == [f"synthetic.py raw SQL fragment {fragment!r}"]
 
 
 @pytest.mark.unit
-def test_raw_sql_adjacency_gaps_are_not_exhaustive() -> None:
-    """KNOWN GAP, not exhaustive: `REPLACE INTO`, extra whitespace, and a
-    quoted table name all reach `manual_correction` without matching one of
-    the three tracked fragments verbatim."""
-    sources = (
-        'text("REPLACE INTO manual_correction VALUES (1)")\n',
-        'text("INSERT  INTO manual_correction VALUES (1)")\n',
-        "text('DELETE FROM \"manual_correction\" WHERE 1=1')\n",
-    )
+@pytest.mark.parametrize(
+    ("fragment", "source"),
+    [
+        ("delete from manual_correction", 'text("DELETE  FROM manual_correction VALUES (1)")\n'),
+        ("delete from manual_correction", 'text("DELETE\\nFROM manual_correction")\n'),
+        (
+            "delete from manual_correction",
+            "text('DELETE FROM \"manual_correction\" WHERE 1=1')\n",
+        ),
+        ("delete from manual_correction", 'text("DELETE FROM main.manual_correction")\n'),
+        (
+            "replace into manual_correction",
+            'text("REPLACE INTO manual_correction VALUES (1)")\n',
+        ),
+        ("truncate table manual_correction", 'text("TRUNCATE TABLE manual_correction")\n'),
+    ],
+    ids=["double space", "newline", "quoted", "schema-qualified", "replace into", "truncate table"],
+)
+def test_the_raw_sql_adjacency_gaps_named_in_the_brief_are_now_closed(
+    fragment: str, source: str
+) -> None:
+    """CLOSED (round 8): all six variants named in the round-8 brief —
+    double space, a newline, a quoted table name, a `main.`-qualified
+    table name, `REPLACE INTO`, and `TRUNCATE TABLE` — were verified by
+    execution to return `[]` against the pre-round-8 detector; each now
+    produces exactly one violation against the shipped
+    `_RAW_SQL_PATTERNS` regex."""
+    assert _detect_writes(source, "synthetic.py") == [f"synthetic.py raw SQL fragment {fragment!r}"]
 
-    for source in sources:
-        assert _detect_writes(source, "synthetic.py") == [], source
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "source",
+    [
+        'text("DELETE FROM %s" % "manual_correction")\n',
+        'text(" ".join(["DELETE", "FROM", "manual_correction"]))\n',
+        'text(f"DELETE FROM {table_name}")\n',
+    ],
+    ids=["percent-format", "str.join", "interpolated f-string"],
+)
+def test_dynamic_sql_assembly_is_a_documented_gap(source: str) -> None:
+    """KNOWN GAP, not closed this round: none of `%`-format substitution,
+    `str.join`, or an f-string with an interpolated `{...}` placeholder
+    resolves to a literal string constant in the AST — closing any of
+    them would require simulating runtime string semantics, the same
+    category of complexity this module's docstring already declines for
+    the binding tracker and the write-verb alias map."""
+    assert _detect_writes(source, "synthetic.py") == []
+
+
+@pytest.mark.unit
+def test_a_placeholder_free_f_string_was_already_caught_before_round_8() -> None:
+    """NOT a round-8 change: an f-string with no `{...}` placeholder
+    compiles to a plain `ast.Constant` string value inside the
+    `ast.JoinedStr` wrapper (verified against this project's Python
+    version), and `_string_literals`'s `ast.walk` already finds that
+    inner constant regardless of the wrapper — confirmed against the
+    pre-round-8 detector before this round began, unchanged since."""
+    assert _detect_writes('text(f"DELETE FROM manual_correction")\n', "synthetic.py") == [
+        "synthetic.py raw SQL fragment 'delete from manual_correction'"
+    ]
 
 
 # --------------------------------------------------------------------------
@@ -610,10 +884,11 @@ def test_a_write_call_through_a_class_alias_is_caught() -> None:
 @pytest.mark.unit
 def test_an_unrelated_class_aliased_to_a_similar_name_is_not_flagged() -> None:
     """False-positive control for the class-alias mechanism: importing a
-    DIFFERENT class under a name that merely looks related is never
-    mistaken for `ManualCorrection` — only `from ... import
-    ManualCorrection as X` binds `X` to the tracked class, and this
-    import binds a different one entirely."""
+    DIFFERENT class under a name that merely LOOKS related (a different
+    spelling, `ManualCorrectionLike`) is never mistaken for
+    `ManualCorrection` — the bare-string seed only matches the EXACT
+    spelling `ManualCorrection`, and this import's local name is spelled
+    differently."""
     source = (
         "from wheel_vocabulary.infrastructure.persistence.models "
         "import Occurrence as ManualCorrectionLike\n"
@@ -621,6 +896,21 @@ def test_an_unrelated_class_aliased_to_a_similar_name_is_not_flagged() -> None:
     )
 
     assert _detect_writes(source, "synthetic.py") == []
+
+
+@pytest.mark.unit
+def test_an_import_aliasing_a_different_class_to_the_exact_name_is_flagged() -> None:
+    """KNOWN ACCEPTED OVER-APPROXIMATION, corrects a prior docstring claim
+    that this could not happen: `from elsewhere import Occurrence as
+    ManualCorrection` is an `ImportFrom` whose LOCAL name is spelled
+    exactly `ManualCorrection`. `_manual_correction_aliases` never checks
+    what that name resolves to — it seeds its returned set with the bare
+    string `"ManualCorrection"` unconditionally — so this import is
+    flagged identically to a real `ManualCorrection` reference, contrary
+    to what an earlier revision of this module's docstring asserted."""
+    source = "from elsewhere import Occurrence as ManualCorrection\ndelete(ManualCorrection)\n"
+
+    assert _detect_writes(source, "synthetic.py") == ["synthetic.py:2 delete(ManualCorrection)"]
 
 
 @pytest.mark.unit
@@ -732,14 +1022,73 @@ def test_a_rebound_class_alias_is_still_treated_as_manual_correction() -> None:
 
 
 @pytest.mark.unit
-def test_a_binding_constructed_elsewhere_then_passed_is_a_known_gap() -> None:
-    """KNOWN GAP, not closed this round: `_call_names_manual_correction`
-    walks only the call expression itself — it does not track what a
-    plain `Name` argument was bound to earlier in the file. A
-    `ManualCorrection` built on one line and passed by name on a later
-    line evades detection; only inline construction
-    (`session.add(ManualCorrection(...))`) and direct class references
-    are caught."""
+def test_a_binding_constructed_elsewhere_then_passed_is_now_caught() -> None:
+    """CLOSED (round 8): the one-hop binding tracker resolves
+    `correction = ManualCorrection(...)` followed by
+    `session.add(correction)` on a later line — `correction`'s own
+    right-hand side is a direct `ManualCorrection` construction, so it
+    enters the resolved-name set exactly like a class alias."""
     source = "correction = ManualCorrection(occurrence_id=1)\nsession.add(correction)\n"
+
+    assert _detect_writes(source, "synthetic.py") == ["synthetic.py:2 add(ManualCorrection)"]
+
+
+@pytest.mark.unit
+def test_an_annotated_assignment_binding_is_caught() -> None:
+    """`ast.AnnAssign` is tracked the same way as `ast.Assign`."""
+    source = "correction: object = ManualCorrection(occurrence_id=1)\nsession.add(correction)\n"
+
+    assert _detect_writes(source, "synthetic.py") == ["synthetic.py:2 add(ManualCorrection)"]
+
+
+@pytest.mark.unit
+def test_a_walrus_binding_is_caught() -> None:
+    """`ast.NamedExpr` (`:=`) is tracked the same way as `ast.Assign`."""
+    source = "if (correction := ManualCorrection(occurrence_id=1)):\n    session.add(correction)\n"
+
+    assert _detect_writes(source, "synthetic.py") == ["synthetic.py:2 add(ManualCorrection)"]
+
+
+@pytest.mark.unit
+def test_a_chained_assignment_binds_every_plain_name_target() -> None:
+    """`a = b = ManualCorrection(...)` is ONE assignment with two plain
+    `Name` targets sharing the same one-hop right-hand side; both enter
+    the resolved-name set, not just the first."""
+    source = "a = b = ManualCorrection(occurrence_id=1)\nsession.add(b)\n"
+
+    assert _detect_writes(source, "synthetic.py") == ["synthetic.py:2 add(ManualCorrection)"]
+
+
+@pytest.mark.unit
+def test_a_second_assignment_hop_is_the_documented_uncovered_boundary() -> None:
+    """KNOWN GAP, pinned boundary: the tracker follows EXACTLY ONE
+    assignment hop. `alias = correction`, where `correction` is already
+    one-hop bound to a `ManualCorrection(...)` construction, is a SECOND
+    hop — `alias`'s own right-hand side is a plain `Name`, not a fresh
+    construction — and evades detection, exactly as the module docstring
+    and `_one_hop_bindings`'s own docstring state."""
+    source = (
+        "correction = ManualCorrection(occurrence_id=1)\nalias = correction\nsession.add(alias)\n"
+    )
+
+    assert _detect_writes(source, "synthetic.py") == []
+
+
+@pytest.mark.unit
+def test_tuple_unpacking_targets_are_a_documented_uncovered_boundary() -> None:
+    """Deliberate scope decision, not an oversight: a tuple/list unpacking
+    assignment target is never tracked, even where a per-element match
+    with the right-hand side would be structurally possible."""
+    source = "a, b = ManualCorrection(occurrence_id=1), None\nsession.add(a)\n"
+
+    assert _detect_writes(source, "synthetic.py") == []
+
+
+@pytest.mark.unit
+def test_a_for_loop_target_is_a_documented_uncovered_boundary() -> None:
+    """Deliberate scope decision: a `for` loop target is never tracked,
+    even when the iterable is a literal list of `ManualCorrection`
+    constructions visible in the same expression."""
+    source = "for correction in [ManualCorrection(occurrence_id=1)]:\n    session.add(correction)\n"
 
     assert _detect_writes(source, "synthetic.py") == []
