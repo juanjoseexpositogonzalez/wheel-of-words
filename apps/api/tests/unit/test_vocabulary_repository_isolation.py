@@ -121,9 +121,7 @@ def test_the_vocabulary_repository_never_references_annotation_provenance() -> N
 @pytest.mark.unit
 def test_an_annotation_provenance_import_would_be_caught() -> None:
     """Direct mutation check, run synthetically so it never touches production code."""
-    source = (
-        "from wheel_vocabulary.infrastructure.persistence.models import AnnotationProvenance\n"
-    )
+    source = "from wheel_vocabulary.infrastructure.persistence.models import AnnotationProvenance\n"
 
     violations = _references_to(source, "synthetic.py", "AnnotationProvenance")
 

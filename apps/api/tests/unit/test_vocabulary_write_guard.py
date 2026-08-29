@@ -149,7 +149,9 @@ def _detect_writes(source: str, label: str) -> list[str]:
             func_name = (
                 node.func.id
                 if isinstance(node.func, ast.Name)
-                else node.func.attr if isinstance(node.func, ast.Attribute) else "?"
+                else node.func.attr
+                if isinstance(node.func, ast.Attribute)
+                else "?"
             )
             violations.append(f"{label}:{line} ORM write call {func_name}(ManualCorrection)")
 
@@ -213,8 +215,8 @@ def test_no_vocabulary_module_writes_to_manual_correction() -> None:
         )
     ]
 
-    assert not violations, (
-        "a vocabulary module writes to manual_correction:\n" + "\n".join(violations)
+    assert not violations, "a vocabulary module writes to manual_correction:\n" + "\n".join(
+        violations
     )
 
 

@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 from wheel_vocabulary.infrastructure.persistence.models import (
     Book,
@@ -26,11 +25,7 @@ from wheel_vocabulary.infrastructure.persistence.vocabulary_repository import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-    from pathlib import Path
-
-    from sqlalchemy import Engine
-    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.orm import Session, sessionmaker
 
 
 @pytest.mark.integration
@@ -67,9 +62,7 @@ def test_vocabulary_read_leaves_manual_correction_unchanged(
 
     # Every column value byte-identical.
     assert after == before, (
-        "manual_correction rows changed during vocabulary read:\n"
-        f"before: {before}\n"
-        f"after:  {after}"
+        f"manual_correction rows changed during vocabulary read:\nbefore: {before}\nafter:  {after}"
     )
 
 
@@ -177,7 +170,9 @@ def _seed_corpus_without_corrections(session_factory: sessionmaker[Session]) -> 
         return book_id
 
 
-def _read_all_corrections(session_factory: sessionmaker[Session]) -> list[tuple[int, str, str, str]]:
+def _read_all_corrections(
+    session_factory: sessionmaker[Session],
+) -> list[tuple[int, str, str, str]]:
     """Read every manual_correction row as a comparable tuple.
 
     Returns `(occurrence_id, field, corrected_value, corrected_at_iso)` tuples
