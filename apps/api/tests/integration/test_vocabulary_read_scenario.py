@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from wheel_vocabulary.infrastructure.persistence.models import (
     Book,
@@ -91,6 +91,68 @@ def test_vocabulary_read_does_not_add_corrections_when_none_seeded(
 
     assert after == before
     assert len(after) == 0
+
+
+@pytest.mark.integration
+def test_read_all_corrections_detects_a_delete_then_reinsert(
+    annotation_session_factory: sessionmaker[Session],
+) -> None:
+    """AC-005-08 requires BYTE-IDENTICAL rows, not merely value-equal ones.
+
+    `_read_all_corrections` orders by `ManualCorrection.id` but, before this
+    fix, did not include `id` in the compared tuple — so deleting a
+    correction row and inserting a value-identical replacement (a new `id`,
+    every other column unchanged) compared equal. That silently defeats the
+    byte-identity claim the two scenario tests above make: they would pass
+    just as happily if the read path deleted and recreated every correction
+    row, as long as the column values landed back the same.
+
+    An explicit `id=` on the replacement row (rather than relying on
+    autoincrement) makes the new identity deterministic — SQLite's ROWID
+    reuse would otherwise hand the now-empty table back `id=1`, hiding the
+    very defect this test proves.
+
+    RED before the fix: `after == before` even though the underlying row was
+    deleted and replaced by a different row::
+
+        AssertionError: the correction row was deleted and reinserted under
+        a new id, but _read_all_corrections reported no difference:
+        before: [(1, 'lemma', 'see', '2026-01-02T00:00:00')]
+        after:  [(1, 'lemma', 'see', '2026-01-02T00:00:00')]
+    """
+    book_id = _seed_corpus_with_correction(annotation_session_factory)
+    before = _read_all_corrections(annotation_session_factory)
+
+    with annotation_session_factory() as session:
+        original_id, occurrence_id, field, corrected_value, corrected_at = session.execute(
+            select(
+                ManualCorrection.id,
+                ManualCorrection.occurrence_id,
+                ManualCorrection.field,
+                ManualCorrection.corrected_value,
+                ManualCorrection.corrected_at,
+            )
+        ).one()
+        session.execute(delete(ManualCorrection))
+        session.add(
+            ManualCorrection(
+                id=original_id + 1000,
+                occurrence_id=occurrence_id,
+                field=field,
+                corrected_value=corrected_value,
+                corrected_at=corrected_at,
+            )
+        )
+        session.commit()
+
+    after = _read_all_corrections(annotation_session_factory)
+
+    assert after != before, (
+        "the correction row was deleted and reinserted under a new id, "
+        "but _read_all_corrections reported no difference:\n"
+        f"before: {before}\nafter:  {after}"
+    )
+    assert book_id  # the seeded book id is only needed to build the fixture
 
 
 def _seed_corpus_with_correction(session_factory: sessionmaker[Session]) -> int:
@@ -172,15 +234,24 @@ def _seed_corpus_without_corrections(session_factory: sessionmaker[Session]) -> 
 
 def _read_all_corrections(
     session_factory: sessionmaker[Session],
-) -> list[tuple[int, str, str, str]]:
+) -> list[tuple[int, int, str, str, str]]:
     """Read every manual_correction row as a comparable tuple.
 
-    Returns `(occurrence_id, field, corrected_value, corrected_at_iso)` tuples
-    so the assertion compares values, not ORM object identity.
+    Returns `(id, occurrence_id, field, corrected_value, corrected_at_iso)`
+    tuples so the assertion compares values, not ORM object identity.
+
+    `id` is part of the compared tuple (Judgment Day round 1, JD-W3-5): a
+    delete of one correction row followed by the insert of a value-identical
+    replacement produces a NEW `id`, and AC-005-08 requires byte-identical
+    rows, not merely value-equal ones. Without `id` in the tuple, that
+    delete-then-reinsert compared equal and the scenario tests above would
+    not have caught it — see
+    `test_read_all_corrections_detects_a_delete_then_reinsert` below.
     """
     with session_factory() as session:
         rows = session.execute(
             select(
+                ManualCorrection.id,
                 ManualCorrection.occurrence_id,
                 ManualCorrection.field,
                 ManualCorrection.corrected_value,
@@ -188,6 +259,6 @@ def _read_all_corrections(
             ).order_by(ManualCorrection.id)
         ).all()
         return [
-            (occurrence_id, field, corrected_value, corrected_at.isoformat())
-            for occurrence_id, field, corrected_value, corrected_at in rows
+            (row_id, occurrence_id, field, corrected_value, corrected_at.isoformat())
+            for row_id, occurrence_id, field, corrected_value, corrected_at in rows
         ]
