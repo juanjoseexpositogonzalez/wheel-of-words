@@ -8,14 +8,14 @@ are actual `wc -l` counts as of this session.
 
 | Field | Value |
 |-------|-------|
-| Estimated changed lines (slice 1, this document's scope) | **≥2,535** (sum of the per-unit estimates in the Suggested Work Units table below; WU2b is excluded because it is unestimated pending the journal-mode decision, so the true total is higher. The prior ~2,270-2,335 figure predates the WU3→WU3a/WU3b/WU3c split and is stale) |
+| Estimated changed lines (slice 1, this document's scope) | **~2,270-2,335** (range from two independent groupings below) |
 | Proposal's own estimate | ~400-430 |
 | Design's own estimate | ~1,080 |
-| This estimate vs. proposal | **~5.9x** |
-| This estimate vs. design | **~2.3x** |
+| This estimate vs. proposal | **~5.3x** |
+| This estimate vs. design | **~2.1x** |
 | 400-line budget risk | **High** |
 | Chained PRs recommended | **Yes** |
-| Suggested split | 13 work units, see below — no single unit stays observable AND under 400 alone. Two further splits happened after apply: WU2b was carved out of WU2 (see §Snapshot isolation carved out of WU2), and WU3 was shrunk and split into WU3a/WU3b/WU3c after Judgment Day escalated it three rounds over prose claims the tests did not pin (see Phase 3a's split note) |
+| Suggested split | 11 work units, see below — no single unit stays observable AND under 400 alone. WU2b was carved out of WU2 after apply (see §Snapshot isolation carved out of WU2). WU3 was briefly shrunk and split into WU3a/WU3b/WU3c after Judgment Day round 4 on the premise that an AST pass cannot verify a `Session` receiver; round 6 falsified that premise and the split was withdrawn — see Phase 3's split-and-withdrawal note |
 | Delivery strategy | `ask-on-risk` |
 | Chain strategy | **pending — human decision required** (Stacked-to-main recommended; Feature Branch Chain as alternative) |
 
@@ -71,9 +71,7 @@ below extends the pattern before the mutation-check tests are written.
 | WU1 | Additive index migration + reversibility proof | ~140 | No | `alembic downgrade -1`; delete `0004_*.py`, revert `models.py` index line |
 | WU2 | Repository core query (V3 hybrid) + Hypothesis equivalence proof, sequential reads only | ~270 | No | Delete `vocabulary_repository.py` and its property test |
 | WU2b | Snapshot isolation across the two legs + the journal-mode decision | unestimated | No | Revert the journal-mode setting and the `BEGIN`; delete the snapshot regression test |
-| WU3a | Structural guards: no-`AnnotationProvenance`, Core-write/raw-SQL read/write split, confidence-guard fix | ~390 | No | Delete the three new guard test files; revert the pattern/`_EXPECTED_FILES` edit |
-| WU3b | Runtime write-absence harness: every capability operation leaves `manual_correction` byte-identical | ~120 | No | Delete the harness test file |
-| WU3c | AST hardening: `sqlalchemy` submodule imports + whitespace-normalised raw-SQL matching | ~80 | No | Revert the two detector helpers and their tests |
+| WU3 | Two structural absence guards (no-`AnnotationProvenance`, read/write split) + confidence-guard fix | ~390 | No | Delete the two new guard test files; revert the pattern/`_EXPECTED_FILES` edit |
 | WU4 | Repository integration tests (NULL buckets, corrections, unknown/empty) | ~200 | No | Delete the integration test file |
 | WU5 | Application layer (port + use case) + DTOs + their tests | ~285 | No | Delete `application/vocabulary/`, `api/dtos/vocabulary.py`, their tests |
 | WU6 | Route + schema + wiring + API tests | ~400 | **Yes** (HTTP/OpenAPI, no UI yet) | Remove router registration in `main.py`; delete route/schema/DTO files |
@@ -120,10 +118,9 @@ first HTTP-observable unit (endpoint reachable, verifiable by `curl`/OpenAPI) an
 is a comfortable ~235. Every unit strictly under 400 (WU1, WU2, WU4, WU5, WU7, WU8, WU10) is
 backend-internal or non-shipped-surface work with no observable output by itself. The floor
 for *a single fully-observable slice* (repository → route → frontend, WU2+WU5+WU6+WU9) is
-~1,190 lines — well above 400. Thirteen work units is the finest useful split found; splitting WU6
-further (e.g. route+schema separate from API tests) is possible but adds PRs without changing the
-fundamental floor. Phase 3a/3b/3c already are that same kind of further split, applied to the
-original WU3 after Judgment Day round 4 (see Phase 3a's split note).
+~1,190 lines — well above 400. Eleven work units is the finest useful split found; splitting WU6
+or WU3 further (e.g. route+schema separate from API tests) is possible but adds PRs without
+changing the fundamental floor.
 
 ### Chain strategy — human decision required
 
@@ -202,126 +199,36 @@ What is already fixed, and what any future task list must satisfy:
 
 Preserved work: `feat/vocabulary-read-snapshot-isolation` @ `ed7e9f3`, stacked on `ac5b4b9`.
 
-## Phase 3a — Structural absence guards (WU3a, ~390 lines)
+## Phase 3 — Structural absence guards (WU3, ~390 lines)
 
-**Split note.** This phase was WU3 until Judgment Day escalated it three times. Round 4 shrank the
-write guard from 1437 lines to 465 by dropping every detection branch whose claims could not be
-proven, which left real coverage outside it. Rather than grow one module back toward the size that
-failed, the remaining coverage is split into Phase 3b (runtime write-absence, covers the dropped ORM
-idioms) and Phase 3c (detector hardening, closes the two documented under-approximations). Each is
-small enough to judge on its own.
+**Split-and-withdrawal note.** This phase briefly split into WU3a/WU3b/WU3c after Judgment Day
+round 4 shrank the write guard from 1437 lines to 465 by dropping every ORM-instance detection
+branch whose claims could not be proven. The split's premise, registered as spec §5 AMB-11, was
+that an AST pass over untyped Python cannot verify a receiver is a `Session`, so ORM-instance forms
+needed a second mechanism — Phase 3b's runtime `before_cursor_execute` listener — to be covered at
+all, with Phase 3c closing two remaining detector gaps. **Judgment Day round 6 falsified that
+premise in one paragraph**: `session.add(ManualCorrection(...))`,
+`session.query(ManualCorrection).delete()`, and every other ORM-instance idiom carries
+`ManualCorrection` in its own AST — a detector can flag on callee name plus `ManualCorrection`
+appearing anywhere in the call expression, including the receiver chain, and never ask what the
+receiver is. Detection was rewritten on exactly that rule (T13/T16 below), closing every form the
+split existed to cover. Phase 3b and Phase 3c are withdrawn, their T21a-T21g tasks deleted, and
+spec §5 no longer carries AMB-11 — `spec.md` is reverted to its pre-AMB-11 text (AC-005-08 and its
+scenario 1 read exactly as they did before this split, byte-for-byte against `b874f62`).
 
 Depends on: Phase 2.
 Focused test: `cd apps/api && uv run pytest tests/unit/test_vocabulary_repository_isolation.py tests/unit/test_vocabulary_write_guard.py tests/unit/test_no_confidence_action_or_propn_filter.py -q`
 
 - [x] T12 [TEST] Write `apps/api/tests/unit/test_vocabulary_repository_isolation.py`: AST-walk `vocabulary_repository.py` and assert it never names `AnnotationProvenance` (D4/C6) — narrower than `test_annotation_write_repository_isolation.py`, one forbidden name, one mutation check (temporarily import `AnnotationProvenance`, observe the failure, revert), one non-vacuity assertion. RED: repository does not join provenance yet, so this test is vacuous until T8 lands — sequence after T8, before archiving Phase 3. **Correction (Judgment Day round 1, JD-W3-3)**: the shipped module's docstring claimed "the same coverage as `test_annotation_write_repository_isolation.py::_references_to`" — false; the sibling has a SECOND call site checking the snake_case persisted table name (`annotation_provenance`), and this guard had only the CamelCase class-name check, so `text("SELECT pos_confidence FROM annotation_provenance")`, reflection, and a `Base.metadata.tables[...]` subscript all passed undetected. Added the second call site, a docstring exemption for the module's own legitimate use of the table name in prose (mirroring the sibling's reviewed-docstring pin), and corrected the false coverage claim. **Correction (Judgment Day round 2, JD-W3-10 + Judge B suspect)**: the table-name mutation check's recorded output, `['vocabulary_repository.py:46 string literal 'annotation_provenance'']`, was not producible by any Python `repr` (the inner quotes clash with the outer ones) — recorded the actual verbatim output instead. Separately, the docstring-exemption comment pinned "Two legs run inside ONE `Session` — one snapshot" as the "REVIEWED" text without qualifying that the claim itself is KNOWN FALSE (carved out to WU2b, see Phase 2b below) — reworded the comment to state the pin fixes the text AS OF this review point, not that its claims hold.
-- [x] T13 [TEST] Write `apps/api/tests/unit/test_vocabulary_write_guard.py` — the REQ-005-008 guard that MUST differ from `test_annotation_write_repository_isolation.py`: it permits `select(ManualCorrection...)`/`ManualCorrection.field` reads and forbids only `insert(ManualCorrection)`, `update(ManualCorrection)`, `delete(ManualCorrection)` SQLAlchemy calls and raw `INSERT/UPDATE/DELETE ... manual_correction` SQL text, scanned across every module this capability introduces. Do NOT reuse or extend the existing no-reference guard, and do NOT exempt this capability's modules from it (SPEC-003 §3.4 W1) — this is a distinct, narrower rule (AMB-3). **Rewritten a fourth time (round 4, this work unit)**, after rounds 1-3 accumulated into a 1437-line module (146 of them one module docstring) that escalated three straight Judgment Day rounds over prose claims the tests did not pin, never over the detection logic itself — six judge passes confirmed the scan was genuinely unfiltered. The file was deleted and rewritten to 465 lines with a 20-line module docstring, aiming for every remaining prose sentence to carry a test that would fail if it stopped being true. **Correction (Judgment Day round 5, tasks.md finding)**: that aim was claimed as achieved and was not — Judge A's audit found `_WRITE_FUNCS`'s `"update"` element and `_FORBIDDEN_RAW_SQL`'s `"update manual_correction"` entry were named in the module docstring, REQ-005-008 and AC-005-08, but pinned by no test; removing both left the 25-test suite green (JD-A1). The claim is deleted rather than reasserted — round 5 closed this specific gap (two new pinning tests, mutation-verified) but a per-sentence audit of every remaining claim was not repeated exhaustively enough to re-assert "every". Detection is now a closed list of two forms — a `sqlalchemy` `insert`/`update`/`delete` call (import- and module-alias resolved) carrying `ManualCorrection` as an argument, and a case-insensitive raw-SQL substring/`+`-folded scan — dropping every ORM-instance idiom (`session.add`/`.merge`/`.delete`, `Query.delete`/`.update`, bulk mappings, `__table__` writes) and the local-binding tracker that generated round 3's receiver-origin false claims; `test_orm_instance_idioms_are_out_of_scope` now pins that exclusion directly. `_scanned_modules` still walks the package and migrations root unconditionally, `rglob` on BOTH roots (round 3 used `glob` on migrations while claiming full recursion). `_EXEMPT_WRITE_MODULES` still names exactly `book_repository.py`'s `DeleteImport` cascade delete, applied at `_write_violations` aggregation, never by excluding the module from the walk — `test_the_scan_reaches_every_expected_module`'s anchor set includes it, proving the walk still reaches it. Round 3's naming-convention invariant (`"vocabulary" in label.lower()`) is deleted rather than repeated: it re-tested the exact convention the round-3 rewrite had just removed from the scan, and the file's own sibling test used a token-free module as its counter-example — the invariant refuted itself. The replacement, `test_the_exempt_set_is_exactly_book_repository`, asserts set equality only: any addition requires editing that assertion, which forces review, not a claim that exemption is impossible.
-- [x] T14 [TEST] Extend T13's module with the required mutation check (AC-005-08 scenario 3): an insert against `ManualCorrection`, then a delete against it, each appended in turn to the vocabulary repository, each asserted to produce a violation with the observed failure text recorded in the test docstring. **Rewritten (round 4)**: `test_writes_appended_to_the_vocabulary_repository_are_caught` appends both mutations to the REAL `vocabulary_repository.py` source (181 lines today) and records both verbatim outputs — `infrastructure/persistence/vocabulary_repository.py:184 sqlalchemy insert(ManualCorrection)` / `...184 sqlalchemy delete(ManualCorrection)` — re-run against this rewrite's detector, not carried forward from round 3's differently-shaped output (round 3 recorded `ORM write call insert(ManualCorrection)` against a synthetic-only fixture and never re-ran the real-file variant it declared itself to be).
+- [x] T13 [TEST] Write `apps/api/tests/unit/test_vocabulary_write_guard.py` — the REQ-005-008 guard that MUST differ from `test_annotation_write_repository_isolation.py`: it permits `select(ManualCorrection...)`/`ManualCorrection.field` reads and forbids only `insert(ManualCorrection)`, `update(ManualCorrection)`, `delete(ManualCorrection)` SQLAlchemy calls and raw `INSERT/UPDATE/DELETE ... manual_correction` SQL text, scanned across every module this capability introduces. Do NOT reuse or extend the existing no-reference guard, and do NOT exempt this capability's modules from it (SPEC-003 §3.4 W1) — this is a distinct, narrower rule (AMB-3). **Rewritten a fourth time (round 4, this work unit)**, after rounds 1-3 accumulated into a 1437-line module (146 of them one module docstring) that escalated three straight Judgment Day rounds over prose claims the tests did not pin, never over the detection logic itself — six judge passes confirmed the scan was genuinely unfiltered. The file was deleted and rewritten to 465 lines with a 20-line module docstring, aiming for every remaining prose sentence to carry a test that would fail if it stopped being true. **Correction (Judgment Day round 5, tasks.md finding)**: that aim was claimed as achieved and was not — Judge A's audit found `_WRITE_FUNCS`'s `"update"` element and `_FORBIDDEN_RAW_SQL`'s `"update manual_correction"` entry were named in the module docstring, REQ-005-008 and AC-005-08, but pinned by no test; removing both left the 25-test suite green (JD-A1). The claim is deleted rather than reasserted — round 5 closed this specific gap (two new pinning tests, mutation-verified) but a per-sentence audit of every remaining claim was not repeated exhaustively enough to re-assert "every". Detection is now a closed list of two forms — a `sqlalchemy` `insert`/`update`/`delete` call (import- and module-alias resolved) carrying `ManualCorrection` as an argument, and a case-insensitive raw-SQL substring/`+`-folded scan — dropping every ORM-instance idiom (`session.add`/`.merge`/`.delete`, `Query.delete`/`.update`, bulk mappings, `__table__` writes) and the local-binding tracker that generated round 3's receiver-origin false claims; `test_orm_instance_idioms_are_out_of_scope` now pins that exclusion directly. `_scanned_modules` still walks the package and migrations root unconditionally, `rglob` on BOTH roots (round 3 used `glob` on migrations while claiming full recursion). `_EXEMPT_WRITE_MODULES` still names exactly `book_repository.py`'s `DeleteImport` cascade delete, applied at `_write_violations` aggregation, never by excluding the module from the walk — `test_the_scan_reaches_every_expected_module`'s anchor set includes it, proving the walk still reaches it. Round 3's naming-convention invariant (`"vocabulary" in label.lower()`) is deleted rather than repeated: it re-tested the exact convention the round-3 rewrite had just removed from the scan, and the file's own sibling test used a token-free module as its counter-example — the invariant refuted itself. The replacement, `test_the_exempt_set_is_exactly_book_repository`, asserts set equality only: any addition requires editing that assertion, which forces review, not a claim that exemption is impossible. **Correction (Judgment Day round 6, tasks.md and spec.md finding).** The premise the round-4 rewrite and the Phase 3b/3c split rested on — that an AST pass cannot verify a `Session` receiver, so ORM-instance forms cannot be structurally detected — was false: detection does not need to verify the receiver at all. The detector was rewritten a fifth time (T16 below) on a callee-name-plus-argument rule: any call whose callee names a write verb and whose call expression names `ManualCorrection` anywhere, receiver included, is flagged — `session.add(ManualCorrection(...))`, `session.query(ManualCorrection).delete()`, and `ManualCorrection.__table__.delete()` are now all caught (`test_session_receiver_idioms_are_now_caught`, `test_table_attribute_write_is_now_caught`). The stale citation this text previously carried — `test_orm_instance_idioms_are_out_of_scope`, itself already renamed once to `test_session_receiver_idioms_are_out_of_scope` without this task being updated to match — is corrected here rather than left dangling: neither test exists any more; both asserted these idioms were OUT of scope, and that assertion is now false. REQ-005-008 is fully discharged by T12-T17 again; Phase 3b and Phase 3c are withdrawn — see this phase's split-and-withdrawal note above.
+- [x] T14 [TEST] Extend T13's module with the required mutation check (AC-005-08 scenario 3): an insert against `ManualCorrection`, then a delete against it, each appended in turn to the vocabulary repository, each asserted to produce a violation with the observed failure text recorded in the test docstring. **Rewritten (round 4)**: `test_writes_appended_to_the_vocabulary_repository_are_caught` appends both mutations to the REAL `vocabulary_repository.py` source (181 lines today) and records both verbatim outputs — `infrastructure/persistence/vocabulary_repository.py:183 insert(ManualCorrection)` / `...183 delete(ManualCorrection)` — re-run against this rewrite's detector, not carried forward from round 3's differently-shaped output (round 3 recorded `ORM write call insert(ManualCorrection)` against a synthetic-only fixture and never re-ran the real-file variant it declared itself to be).
 - [x] T15 [TEST] Extend T13's module with the boundary control (AC-005-08 scenario 4/M3): the same forbidden write statement placed in a module OUTSIDE this capability still produces a violation. **Rewritten (round 4)**: `test_the_exemption_boundary_holds_through_write_violations` and `test_emptying_the_exempt_set_fails_through_write_violations` both call `_write_violations` — never `_detect_writes` directly — because Judgment Day round 3 (Judge B) proved a prior boundary control bypassed aggregation entirely and would have passed against a mutant that suppressed the whole default scan.
-- [x] T16 [IMPL] Implement the write-detector in `test_vocabulary_write_guard.py` itself (test-only code, no production module): AST `ast.Call` matching on `insert`/`update`/`delete` imported from `sqlalchemy` with a `ManualCorrection` argument (import- and module-alias resolved), plus a substring scan over string/`BinOp`-folded literals for `insert into manual_correction`/`update manual_correction`/`delete from manual_correction` (case-insensitive). **Rewritten (round 4, this work unit)**: the detector is now exactly the two forms above — `_sqlalchemy_write_call` plus the raw-SQL substring/`+`-fold scan (`_folded_string`, `_string_literals`). Removed entirely: `_instance_add_call`, `_instance_delete_call`, `_query_write_call`, `_bulk_mapping_call`, `_table_write_call`, `_receiver_name`, and `_manual_correction_bindings` (the local-binding tracker) — all carried unmodified through rounds 1-3 and all named by judges as the source of unverifiable receiver-origin claims. Their removal, combined with the file's full replacement (49 old tests → 25 new tests), moves the backend suite from 617 to 593 passing tests total — a decrease is the correct outcome here, not a regression. The "Known gaps" section is reduced to the raw-SQL adjacency limits alone (`REPLACE INTO`, whitespace, quoting), stated as non-exhaustive, pinned by one parametrized test (`test_raw_sql_adjacency_gaps_are_not_exhaustive`); no other gap catalogue is claimed. **Correction (Judgment Day round 5, JD-A4)**: `_names_manual_correction` matched only the literal identifier `ManualCorrection`, so `from ... import ManualCorrection as MC` then `delete(MC)` evaded detection entirely (a third under-approximation, assigned to no phase until this correction) — Judge B rendered its SQL as `DELETE FROM manual_correction`. Fixed in place, in this same phase, by the same mechanism already used for `sqlalchemy` write-function aliases: `_manual_correction_aliases` collects `from ... import ManualCorrection as X` bindings and `_names_manual_correction` now matches any of them, plus a control proving an unrelated class aliased to a similar-looking name is not mistaken for it. Also fixed in the same round, same mechanism-reuse principle: a `+`-folded raw-SQL chain was reported once per sub-expression (three times for a two-`+` chain) instead of once, and the raw-SQL scan walked docstrings as if they were executable SQL, flagging ordinary prose — both closed with tests (`test_a_folded_chain_is_reported_once_not_once_per_sub_expression`, `test_a_docstring_mentioning_manual_correction_is_not_a_violation`). One over-approximation was found and left deliberately unfixed: name resolution is not flow-sensitive, so a parameter shadowing an imported write name, or a later rebinding, is still reported as a write — pinned as an accepted known gap (`test_a_shadowed_or_rebound_name_is_a_known_over_approximation`), not narrowed, because narrowing it means re-adding the local-binding/receiver-origin tracking that rounds 1-3 already proved unverifiable.
+- [x] T16 [IMPL] Implement the write-detector in `test_vocabulary_write_guard.py` itself (test-only code, no production module): AST `ast.Call` matching on `insert`/`update`/`delete` imported from `sqlalchemy` with a `ManualCorrection` argument (import- and module-alias resolved), plus a substring scan over string/`BinOp`-folded literals for `insert into manual_correction`/`update manual_correction`/`delete from manual_correction` (case-insensitive). **Rewritten (round 4, this work unit)**: the detector is now exactly the two forms above — `_sqlalchemy_write_call` plus the raw-SQL substring/`+`-fold scan (`_folded_string`, `_string_literals`). Removed entirely: `_instance_add_call`, `_instance_delete_call`, `_query_write_call`, `_bulk_mapping_call`, `_table_write_call`, `_receiver_name`, and `_manual_correction_bindings` (the local-binding tracker) — all carried unmodified through rounds 1-3 and all named by judges as the source of unverifiable receiver-origin claims. Their removal, combined with the file's full replacement (49 old tests → 25 new tests), moves the backend suite from 617 to 593 passing tests total — a decrease is the correct outcome here, not a regression. The "Known gaps" section is reduced to the raw-SQL adjacency limits alone (`REPLACE INTO`, whitespace, quoting), stated as non-exhaustive, pinned by one parametrized test (`test_raw_sql_adjacency_gaps_are_not_exhaustive`); no other gap catalogue is claimed. **Correction (Judgment Day round 5, JD-A4)**: `_names_manual_correction` matched only the literal identifier `ManualCorrection`, so `from ... import ManualCorrection as MC` then `delete(MC)` evaded detection entirely (a third under-approximation, assigned to no phase until this correction) — Judge B rendered its SQL as `DELETE FROM manual_correction`. Fixed in place, in this same phase, by the same mechanism already used for `sqlalchemy` write-function aliases: `_manual_correction_aliases` collects `from ... import ManualCorrection as X` bindings and `_names_manual_correction` now matches any of them, plus a control proving an unrelated class aliased to a similar-looking name is not mistaken for it. Also fixed in the same round, same mechanism-reuse principle: a `+`-folded raw-SQL chain was reported once per sub-expression (three times for a two-`+` chain) instead of once, and the raw-SQL scan walked docstrings as if they were executable SQL, flagging ordinary prose — both closed with tests (`test_a_folded_chain_is_reported_once_not_once_per_sub_expression`, `test_a_docstring_mentioning_manual_correction_is_not_a_violation`). One over-approximation was found and left deliberately unfixed: name resolution is not flow-sensitive, so a parameter shadowing an imported write name, or a later rebinding, is still reported as a write — pinned as an accepted known gap (`test_a_shadowed_or_rebound_name_is_a_known_over_approximation`), not narrowed, because narrowing it means re-adding the local-binding/receiver-origin tracking that rounds 1-3 already proved unverifiable. **Correction (Judgment Day round 6).** The detector is rewritten a fifth time on the rule described in T13's round-6 correction: `_call_write_verb` matches the callee's bare name or final attribute against `_WRITE_VERBS` (`insert`, `update`, `delete`, `add`, `add_all`, `merge`, `bulk_insert_mappings`, `bulk_update_mappings`) with no receiver check at all, and `_call_names_manual_correction` walks the whole call expression — not just its argument list — for `ManualCorrection` or a tracked class alias. The `sqlalchemy`-import/module-alias origin-resolution helpers (`_sqlalchemy_call_aliases`, `_sqlalchemy_module_aliases`) are deleted rather than left unused, because origin is never checked; a write verb imported under a renamed binding (`from sqlalchemy import delete as sa_delete`) is a new, documented gap this drops (`test_a_renamed_write_verb_import_is_a_known_gap`) — the file moves from 34 collected tests to 49. Round 5's docstring exclusion from the raw-SQL scan is also removed (SPEC-003 §3.2 E3: a docstring is runtime-reachable through `__doc__`, and excluding it let `session.execute(text(__doc__))` read past the exemption) — `test_a_docstring_mentioning_manual_correction_is_not_a_violation` is replaced by `test_a_docstring_containing_the_forbidden_fragment_is_flagged`, which pins the opposite outcome. `test_a_shadowed_or_rebound_name_is_a_known_over_approximation` is replaced by `test_no_receiver_or_origin_is_verified_a_known_over_approximation`, `test_an_unrelated_class_genuinely_named_manual_correction_is_flagged`, and `test_a_rebound_class_alias_is_still_treated_as_manual_correction` — the old test's framing ('a parameter shadows an IMPORTED write name') no longer applies once no import is ever resolved. One new known gap is added and pinned, not silently absorbed: `session.add(correction)` where `correction` was built on an earlier line is not tracked (`test_a_binding_constructed_elsewhere_then_passed_is_a_known_gap`) — a one-hop binding tracker was considered and deliberately not built, to avoid re-introducing the kind of tracking machinery three Judgment Day rounds already found unreliable.
 - [x] T17 [TEST] Write the vocabulary-repository read scenario (AC-005-08 scenario 2): seed a `ManualCorrection` row, run `groups()`, assert `manual_correction` row count and bytes are unchanged afterwards. **Correction (Judgment Day round 1, JD-W3-5)**: `_read_all_corrections` ordered by `ManualCorrection.id` but did not include `id` in the compared tuple, so a delete of a correction row followed by the insert of a value-identical replacement (a new `id`, every other column unchanged) compared equal — defeating AC-005-08's byte-identical-rows requirement. Added `id` to the compared tuple and a regression test (`test_read_all_corrections_detects_a_delete_then_reinsert`) proving the helper now detects exactly this case.
 - [x] T18 [TEST] Extend `apps/api/tests/unit/test_no_confidence_action_or_propn_filter.py::_EXPECTED_FILES` (`:37-45`) with `infrastructure/persistence/vocabulary_repository.py`, `application/vocabulary/use_cases.py`, `api/routes/vocabulary.py` — non-vacuity, no code change yet. **Deferred**: the guard asserts `scanned >= _EXPECTED_FILES` (non-vacuity over files that actually exist), so `application/vocabulary/use_cases.py` and `api/routes/vocabulary.py` were confirmed absent, added temporarily to reproduce the failure (`AssertionError: ... Extra items in the right set`), then removed. Only `infrastructure/persistence/vocabulary_repository.py` was added now. Add the other two when T27 (WU5) and T38 (WU6) ship them.
 - [x] T19 [IMPL] Extend `_CONFIDENCE_ACTION_PATTERN` (`:35`) to add `mean_confidence` (see forecast note above — the current pattern does not catch it). Verify `pos_confidence`/`lemma_confidence` identifiers package-wide still pass (the added term is a distinct substring, no false positive).
 - [x] T20 [TEST] Add three synthetic mutation-check tests to the same module mirroring `test_a_confidence_threshold_helper_would_be_caught`: a `min_confidence` query-parameter-shaped identifier, a `mean_confidence` property-shaped identifier, and a `sort_by_confidence` helper — each in turn asserted to violate (AC-005-07 scenario 4). **Correction (Judgment Day round 1, JD-W3-4)**: the `min_confidence` check's handler body echoed the parameter (`return min_confidence`), so it passed via the pre-existing `ast.Name` branch and never actually exercised the parameter-declaration position AC-005-07 sc.4 is about (the served OpenAPI parameter list, present whether or not the handler body reads the parameter back). `def list_groups(min_confidence: float = 0.0) -> None: return None` — a handler that declares the parameter without echoing it — returned `[]` against the shipped detector. Extended `_confidence_action_violations` to inspect `ast.arg` (and `ast.Attribute`) and rewrote the test to use a non-echoing handler, which now genuinely requires the `ast.arg` branch to pass.
 - [x] T21 [TEST] Run all of Phase 3 green; run the full backend suite once to confirm the confidence-pattern extension does not break any existing test. **Note (Judgment Day round 1)**: "green" at T21 did not mean "correct" — five of the six defects corrected above (JD-W3-1 through JD-W3-6, excluding JD-W3-4 which sits in Phase 3.2) were present in code that passed this exact Phase 3 run; the guards were vacuous or falsely scoped in ways their own tests could not detect. See T12/T13/T14/T16/T17 above for the specific corrections.
-
-## Phase 3b — Runtime write-absence harness (WU3b, ~120 lines)
-
-Depends on: Phase 3a.
-
-WU3a's detector is a closed list of two source forms: a `sqlalchemy` `insert`/`update`/`delete`
-call carrying `ManualCorrection`, and raw SQL text naming the table. Four ORM-instance idioms —
-`session.add`, `.merge`, `.delete`, `Query.delete`/`.update`, bulk mappings — were removed in round
-4 and are out of that guard's scope, because an AST pass cannot establish that a receiver is a
-`Session`. Three Judgment Day rounds escalated on claims that it could.
-
-**Correction (Judgment Day round 5, tasks.md finding).** `ManualCorrection.__table__.delete()` was
-listed alongside the four idioms above through round 4, with the same "cannot establish a `Session`
-receiver" justification. That justification does not apply to it: `__table__` writes have no
-`Session` receiver to infer at all — `ManualCorrection.__table__.delete()` is an attribute chain
-ending in `.delete()` on the class object itself, structurally the same shape as the `sqlalchemy`
-module-alias check the detector already has (`sa.delete(...)` where `sa` resolves to a tracked
-module alias). Judge B rendered its SQL as `DELETE FROM manual_correction`, confirming it is a real
-write. Phase 3c owns closing it (T21f below), not Phase 3b, because it needs no receiver-type
-inference — only more AST, the same reason Phase 3c already owns the submodule-import and raw-SQL
-adjacency gaps.
-
-Those idioms are still writes REQ-005-008 forbids. This phase was originally specified as
-before/after snapshot comparison — seed a correction, run the operation, re-read, assert equality.
-`test_vocabulary_read_scenario.py` (T17) already proves that shape works for one operation.
-
-**Redesign (Judgment Day round 5).** Judge B proved snapshot comparison defeats itself: a write
-followed by a restoration or rollback leaves before and after equal even though a write happened.
-The proof ran two `UPDATE` statements against a seeded correction, restored the original value,
-committed, and confirmed the before/after snapshots matched byte-for-byte while the statement trace
-contained both writes. A harness built only on final-state comparison would pass against exactly
-the write-then-restore pattern REQ-005-008 must forbid, silently.
-
-**This phase now specifies statement-level observation instead of, or rather in addition to,**
-snapshot comparison: attach a SQLAlchemy `before_cursor_execute` event listener for the duration of
-each operation under test, record every statement it issues, and assert that none is an `INSERT`,
-`UPDATE` or `DELETE` against `manual_correction`. This observes what was *executed*, not what
-*survived* — it catches write-then-restore, and it is idiom-independent: it sees the SQL text
-regardless of whether the statement was built by `session.add`, a `sqlalchemy` Core call, or raw
-text, because by the time `before_cursor_execute` fires, SQLAlchemy has already compiled it to SQL.
-The final-state (snapshot) comparison is KEPT as an additional assertion, not replaced — a
-mismatched final state is still a genuine finding on its own, and dropping it would lose the one
-shape T17 already proved. **Phase 3b is specified, not implemented, in this round** — no production
-or test code for it ships here; T21a-T21c below describe the harness the next round builds.
-
-WU3b generalises the harness from one operation to every public operation this capability exposes,
-so WU5's use case and WU6's route are covered when they land instead of needing their own bespoke
-check.
-
-- T21a [TEST] Write `apps/api/tests/integration/test_vocabulary_write_absence.py`: a parametrised
-  harness over every public operation this capability exposes. For each — seed an import with at
-  least one `ManualCorrection` row; attach a `before_cursor_execute` event listener scoped to the
-  engine/connection for the duration of the operation and record every statement text it is given;
-  separately, snapshot every column of every correction row including `id`; run the operation;
-  detach the listener; re-read and assert the snapshot is unchanged element-for-element and row
-  count unchanged (KEPT, does not replace the statement check); assert none of the recorded
-  statements is an `INSERT`, `UPDATE` or `DELETE` naming `manual_correction` (the new, primary
-  check). Today the parameter set is `groups()`; the file MUST fail if an operation is added to the
-  capability without an entry, so derive the set from the capability's public surface rather than a
-  hand-written list, or assert the list against that surface.
-- T21b [TEST] Add two mutation checks that prove the harness can fail, each recording the observed
-  failure output verbatim in the test docstring (SPEC-003 §3.3 M1): (1) inject a write into the
-  operation under test (a `session.add(ManualCorrection(...))` — precisely an idiom WU3a's
-  structural guard cannot see) and confirm the statement-level check reports it; (2) inject a write
-  immediately followed by its own exact restoration and a commit — Judge B's write-then-restore
-  shape — and confirm the statement-level check still reports it even though the snapshot comparison
-  alone would not.
-- T21c [TEST] Run Phase 3b green; run the full backend suite.
-
-## Phase 3c — Detector hardening (WU3c, ~80 lines)
-
-Depends on: Phase 3a. Independent of Phase 3b.
-
-**Correction (Judgment Day round 5, tasks.md finding).** This intro previously said "WU3a
-documents two under-approximations as known and non-exhaustive." That was wrong: the shipped guard
-documents exactly one (the raw-SQL adjacency limits, pinned by
-`test_raw_sql_adjacency_gaps_are_not_exhaustive`, per T16's own text). The submodule-import
-restriction below is a second, real under-approximation, but it is **not documented anywhere in the
-shipped guard** — no test names it, no docstring line states it. This phase closes one documented
-gap and one undocumented one; neither requires receiver inference, so neither carries the risk that
-sank rounds 1-3.
-
-- T21d [TEST] RED then close the submodule-import gap: `from sqlalchemy.sql import delete` and
-  `from sqlalchemy.sql.expression import insert` currently evade alias resolution because the
-  collector requires `node.module == "sqlalchemy"` exactly. Both are documented SQLAlchemy import
-  paths, so a real Core write through either passes today, silently — this gap has no pinning test
-  today, unlike the raw-SQL adjacency gap.
-- T21e [TEST] RED then close the raw-SQL adjacency gap: match against whitespace-normalised text
-  rather than fixed substrings, so `DELETE  FROM manual_correction` (double space) and
-  `DELETE\nFROM manual_correction` are caught. Add `REPLACE INTO` and `TRUNCATE` as forbidden forms.
-  Whatever remains uncovered after this stays listed as a known gap, still without a completeness
-  claim.
-- T21f [TEST] RED then close the `__table__` gap (see Phase 3b's round-5 correction above):
-  `ManualCorrection.__table__.delete()` / `.insert()`/`.update()` is an attribute chain ending in a
-  write method on the class's `__table__`, not a `Session`-receiver call — extend the structural
-  detector to match it, resolved through the same class-alias mechanism JD-A4 added to WU3a
-  (`_manual_correction_aliases`).
-- T21g [TEST] Run Phase 3c green; run the full backend suite.
 
 ## Phase 4 — Repository integration tests (WU4, ~200 lines)
 
@@ -413,15 +320,16 @@ Depends on: every requirement's implementing phase having landed (this task can 
 
 Every requirement `REQ-005-001`…`REQ-005-011` maps to at least one task above:
 001→T8,T22,T35 · 002→T6,T7,T22 · 003→T22,T55 · 004→T35,T41 · 005→T22,T35 · 006→**slice 2, not in
-this document** · 007→T18-T20 · 008→T12-T17,T21a-T21g · 009→T1-T5,T22 · 010→T49,T55-T57 ·
+this document** · 007→T18-T20 · 008→T12-T17 · 009→T1-T5,T22 · 010→T49,T55-T57 ·
 011→T42-T46.
 
-**Correction (Judgment Day round 5, tasks.md finding).** `008→T12-T17` previously stood alone,
-with every one of T12-T17 checked `[x]` — read next to nothing else, that implies REQ-005-008 is
-fully discharged by finished work. It is not: Phase 3b (T21a-T21c, unstarted) and Phase 3c
-(T21d-T21g, unstarted) both cover forms REQ-005-008 forbids — the ORM-instance idioms and the
-`__table__` write — that the shipped guard does not detect (spec §5 AMB-11). REQ-005-008 stays open
-until T21a-T21g land, not just T12-T17.
+**Correction (Judgment Day round 5, tasks.md finding), withdrawn by round 6.** Round 5 split
+`008→T12-T17` into `008→T12-T17,T21a-T21g`, on the finding that Phase 3b (runtime observation) and
+Phase 3c (detector hardening) both covered forms — the ORM-instance idioms and the `__table__`
+write — the then-shipped guard did not detect (spec §5 AMB-11). Round 6 closed those forms inside
+T12-T17 itself, by rewriting the detector on a rule that never inspects the receiver (see Phase 3's
+split-and-withdrawal note and T13's round-6 correction). REQ-005-008 is fully discharged by T12-T17
+again; there is no `T21a-T21g` for this map to cite.
 
 WU2b maps to no requirement, and that is the finding spec §5 `AMB-10` registers: the one-snapshot
 obligation lives in `design.md` D1, never in a `REQ-005` requirement, and §7 excludes transaction
