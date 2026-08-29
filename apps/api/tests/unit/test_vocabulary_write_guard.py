@@ -25,9 +25,14 @@ This is a purely structural, non-flow-sensitive AST pass: callee and class names
 textually, never resolved to what they refer to at runtime. Its accepted over-approximations and
 known gaps are registered in this capability's spec, §5, rows AMB-3 and AMB-15
 (`openspec/changes/vocabulary-browser/specs/005-vocabulary-browser/spec.md`) — this module is the
-authoritative record of the detector's coverage and its bounds (AC-005-08 scenario 1, round 12);
-every mechanism and every bound is pinned by at least one named test below, cited by name in the
-row.
+authoritative record of the detector's coverage and its bounds (AC-005-08 scenario 1). Every
+mechanism and every bound is pinned by at least one named test below; not every one of those tests
+is cited by name in the AMB-15 row itself, but every test the row DOES cite, together with every
+mechanism-pinning test this module tags MUTATION CHECK, is named in
+`_MECHANISM_AND_BOUND_PINNING_TESTS` (round 13), whose own guard test —
+`test_every_named_pinning_test_still_exists_in_this_module` — fails, by name, if any anchored test
+is deleted. That guard cannot detect a name being removed FROM the anchor instead of the test it
+names being deleted; see the guard's own docstring for why no test can.
 
 REQ-005-008, AC-005-08.
 """
@@ -1312,3 +1317,109 @@ def test_a_module_qualified_manual_correction_reference_requires_the_attribute_a
     source = "delete(models.ManualCorrection)\n"
 
     assert _detect_writes(source, "synthetic.py") == ["synthetic.py:1 delete(ManualCorrection)"]
+
+
+# --------------------------------------------------------------------------
+# Round 13 (Judgment Day): a name-existence anchor for the tests AC-005-08
+# scenario 1 depends on, and an explicit statement of what it cannot do.
+# --------------------------------------------------------------------------
+
+# Membership (AC-005-08 scenario 1, §5 AMB-15): the union of (a) every test
+# §5 AMB-15 (`spec.md`) cites by exact name — the module's documented
+# bounds and over-approximations — and (b) every test in this module
+# tagged "MUTATION CHECK" in its own docstring — this module's established
+# marker for a mechanism proven load-bearing by executing its pinned
+# mutation and observing red. Zero names overlap between (a) and (b) as of
+# round 13. A test that demonstrates a positive case with no recorded
+# mutation run, and that AMB-15 does not cite, is deliberately NOT in this
+# set — adding it would not change what the guard below actually proves
+# (see its docstring), and round 13's scope is one constant, one test, and
+# prose, not a new detection mechanism or a broader anchor.
+_MECHANISM_AND_BOUND_PINNING_TESTS = frozenset(
+    {
+        # (a) Cited by exact name in §5 AMB-15.
+        "test_a_folded_chain_is_reported_once_not_once_per_sub_expression",
+        "test_a_for_loop_target_is_a_documented_uncovered_boundary",
+        "test_a_fully_quoted_schema_and_table_name_is_a_documented_gap",
+        "test_a_non_name_assignment_target_is_a_documented_uncovered_boundary",
+        "test_a_rebound_class_alias_is_still_treated_as_manual_correction",
+        "test_a_rebound_write_verb_is_a_documented_uncovered_boundary",
+        "test_a_second_assignment_hop_is_the_documented_uncovered_boundary",
+        "test_an_import_aliasing_a_different_class_to_the_exact_name_is_flagged",
+        "test_an_unrelated_class_genuinely_named_manual_correction_is_flagged",
+        "test_dynamic_sql_assembly_is_a_documented_gap",
+        "test_no_receiver_or_origin_is_verified_a_known_over_approximation",
+        "test_prose_matching_the_tolerant_raw_sql_regex_is_flagged_a_known_over_approximation",
+        "test_renaming_an_unrelated_import_to_a_write_verb_name_is_an_over_approximation",
+        "test_the_one_hop_tracker_leaks_across_lexical_scopes_a_known_over_approximation",
+        "test_the_raw_sql_adjacency_gaps_named_in_the_brief_are_now_closed",
+        "test_tuple_unpacking_targets_are_a_documented_uncovered_boundary",
+        # (b) Tagged MUTATION CHECK in this module, not cited by name in
+        # the §5 AMB-15 row above.
+        "test_the_exemption_hides_a_genuine_write",
+        "test_emptying_the_exempt_set_fails_through_write_violations",
+        "test_writes_appended_to_the_vocabulary_repository_are_caught",
+        "test_every_write_verb_is_caught_under_a_renamed_import",
+        "test_every_write_verb_is_caught_bare",
+        "test_every_raw_sql_fragment_is_caught",
+        "test_a_docstring_containing_the_forbidden_fragment_is_flagged",
+        "test_the_two_quote_slots_in_the_raw_sql_regex_are_independently_pinned",
+        "test_every_tolerance_component_is_independently_pinned_per_pattern",
+        "test_a_fragment_split_across_a_plus_concatenation_requires_the_fold_arm",
+        "test_a_module_qualified_manual_correction_reference_requires_the_attribute_arm",
+    }
+)
+
+
+@pytest.mark.unit
+def test_every_named_pinning_test_still_exists_in_this_module() -> None:
+    """AC-005-08 scenario 1, closing the half of the gap round 12's wording
+    left open (§5 AMB-15): deleting
+    `test_a_module_qualified_manual_correction_reference_requires_the_attribute_arm`
+    AND applying the mutation it pins together left the 108-test file (the
+    deleted test plus the other 107) fully green — round 12's scenario
+    text called that combination 'a failure of this scenario', but nothing
+    made it one. This test is that enforcement, for every name in
+    `_MECHANISM_AND_BOUND_PINNING_TESTS`: each must still exist as a
+    module-level `test_*` callable, read through `globals()` at CALL time
+    (not at import or collection time), so a deleted `def test_x(...):` is
+    simply absent from this module's namespace by the time pytest runs
+    this assertion — regardless of where in the file this guard itself is
+    defined.
+
+    WHAT THIS DOES NOT DO, stated plainly, not implied: this closes ONE
+    half of the gap. Deleting a named test now fails this test, by name,
+    with the deleted test's own name in the assertion message. It does
+    NOT close the other half. Removing a name FROM
+    `_MECHANISM_AND_BOUND_PINNING_TESTS` — instead of deleting the test
+    that name points at — shrinks this test's own membership along with
+    the removal, so the pair (delete the test, delete its name from this
+    set) passes this guard exactly as it did before round 13. No
+    construct in this file, or in Python, closes that: the anchor is
+    itself an editable module-level constant, and any guard checking IT
+    is either this same regress one level up, or a human reading a diff.
+    This anchor moves the failure mode from silent (round 12's
+    demonstration: 107 passed, zero red) to a visible one-line diff on a
+    named constant, in a reviewed pull request — deleting a test's name
+    from `_MECHANISM_AND_BOUND_PINNING_TESTS` without also deleting the
+    test is visible in that diff alone. The regress closes by review, not
+    by code, and this docstring makes no claim to the contrary.
+
+    NOT VACUOUS (round 13 evidence, this Judgment Day report; each
+    mutation was applied to an in-memory copy, run, and reverted from a
+    byte snapshot verified by hash — never via git):
+    - `_MECHANISM_AND_BOUND_PINNING_TESTS` emptied: this test passes
+      trivially, an empty set has no missing member — expected of a
+      subset-of-existing-names check on an empty set, not a defect.
+    - `_MECHANISM_AND_BOUND_PINNING_TESTS` naming a test that does not
+      exist (`"test_this_does_not_exist"`, added alongside the real 27):
+      fails with `pinning test(s) named in the anchor no longer exist:
+      ['test_this_does_not_exist']`, so the assertion is reachable and
+      reports the exact offending name(s), not merely a tautology.
+    """
+    existing_test_names = {
+        name for name, value in globals().items() if name.startswith("test_") and callable(value)
+    }
+    missing = _MECHANISM_AND_BOUND_PINNING_TESTS - existing_test_names
+
+    assert not missing, f"pinning test(s) named in the anchor no longer exist: {sorted(missing)}"
