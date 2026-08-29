@@ -1,198 +1,147 @@
-"""Structural guard — no code path in this capability writes a ManualCorrection row (REQ-005-008).
+"""Structural guard — no code path in this capability writes a `ManualCorrection` row (REQ-005-008).
 
 This guard is DISTINCT from `test_annotation_write_repository_isolation.py`
-and NARROWER (AMB-3): the annotation write path must not *reference*
-`ManualCorrection` at all (SPEC-003 R3), but this capability's aggregate
-query MUST *read* `manual_correction` to satisfy REQ-005-002. Its guard
-therefore distinguishes read from write: a `SELECT` is permitted, an
-`INSERT`, `UPDATE` or `DELETE` is a violation.
+and narrower: that guard forbids the annotation write path from referencing
+`ManualCorrection` at all (SPEC-003 R3). This capability's aggregate query
+must *read* `manual_correction` to resolve effective values (REQ-005-002),
+so this guard distinguishes read from write instead: a `SELECT` is
+permitted, an `INSERT`, `UPDATE` or `DELETE` is a violation. It never flags
+`select(ManualCorrection...)` or a `ManualCorrection.field` attribute read.
 
-It does NOT flag `select(ManualCorrection...)` reads or `ManualCorrection.field`
-attribute reads — those are the legitimate correction-delta lookup (leg B).
+**Scope.** `_scanned_modules()` walks the entire `wheel_vocabulary` package
+(`Path.rglob("*.py")`, no filter) plus every file under
+`migrations/versions/`. There is no naming convention and no manifest: a
+module dropped anywhere under either root is scanned on its next run, with
+no second commit required to register its path first. This is what makes
+AC-005-08's "every module this capability introduces" literally true —
+the scanned set is a superset of what this capability ships, not a
+convention this capability's modules have followed so far.
 
-**Discovery (JD-W3-1, Judgment Day round 1).** The scan enumerates the
-ENTIRE `wheel_vocabulary` package via `Path.rglob("*.py")`, plus every file
-under `migrations/versions/`, not a fixed per-module manifest. Before this
-fix, `_vocabulary_modules()` iterated a hardcoded `_VOCABULARY_MODULES`
-list and returned only the subset that existed on disk — `scanned` was
-therefore, BY CONSTRUCTION, always a subset of that list, so the
-non-vacuity assertion `scanned >= _EXPECTED_EXISTING_MODULES` could never
-fail on a module the manifest never named. A module this capability
-introduces after this file was written (`application/vocabulary/ports.py`,
-T26; `api/dtos/vocabulary.py`, T30; a vocabulary-specific addition to the
-shared `api/dependencies.py`, T33) would never have been scanned, and
-`migrations/versions/0004_vocabulary_group_index.py` was unreachable
-outright, because the old walk never left `_PACKAGE_ROOT`.
+**Exemptions.** REQ-005-008 forbids a write by "a module this capability
+introduces". A module this walk reaches that belongs to a DIFFERENT,
+already-shipped capability, and that legitimately writes to
+`manual_correction`, is exempted by exact path in `_EXEMPT_WRITE_MODULES`,
+with its reason recorded next to it. The walk still reaches an exempted
+module — `test_the_only_exemption_is_book_repository_and_it_is_scanned`
+pins this — and only the violation is suppressed, at the aggregation step
+in `_write_violations`, never by removing the module from
+`_scanned_modules`. Excluding an exempted module from the walk itself would
+be the exact remedy SPEC-003 §3.4 W1 forbids.
 
-**Scope, corrected during this same round.** An earlier draft of this fix
-walked the ENTIRE package (`rglob("*.py")` with no filter), reasoning that
-SPEC-003 §3.4 W1 permits broadening but not narrowing. That draft's own
-non-vacuity/mutation-check run immediately surfaced a real false positive:
-`infrastructure/persistence/book_repository.py:144`'s
-`delete(ManualCorrection).where(...)` — a genuine, INTENTIONAL write. It is
-`DeleteImport`'s cascade cleanup (SPEC-002/003, not this capability): when
-a book is deleted, its `manual_correction` rows must go with it, or a later
-import that reuses the freed `Occurrence.id` inherits a ghost correction it
-never made (`book_repository.py:129-136`). REQ-005-008 forbids a write by
-"a module THIS CAPABILITY introduces" — `book_repository.py` belongs to
-`002-text-import`, not `005-vocabulary-browser`, so scanning it here was
-never correct scope, and "broadening never narrows" is not the same claim
-as "broadening never produces a false positive": SPEC-004 (the correction
-WRITE capability, out of scope for this repository today) will introduce
-its own legitimate `manual_correction` writer, and an unscoped whole-package
-walk would flag that one too the day it lands.
+`book_repository.py` is the one exemption today: `DeleteImport`'s cascade
+delete removes `manual_correction` rows for a deleted book's occurrences,
+so a later import that reuses the freed `Occurrence.id` does not inherit a
+ghost correction it never made — that is `002-text-import`'s concern, not
+this capability's. Two tests prove the exemption is load-bearing rather
+than decorative: `test_the_exempted_write_is_real_not_inert` shows the
+write it hides is genuine, and `test_removing_the_exemption_fails_the_scan`
+shows deleting the entry fails the guard. No module whose path carries the
+case-insensitive token `"vocabulary"` may ever be exempted — enforced by
+`test_no_exempt_module_carries_the_vocabulary_naming_token`.
 
-**The corrected scope is a NAMING CONVENTION, not an exhaustive walk
-(honesty correction, Judgment Day round 2).** Every `.py` path under
-`_PACKAGE_ROOT` whose path contains the case-insensitive token
-`"vocabulary"` is scanned — which covers every PRODUCTION module T8, T26,
-T27, T30, and T38 create (`vocabulary_repository.py`,
-`application/vocabulary/*.py`, `api/dtos/vocabulary.py`,
-`api/routes/vocabulary.py`) by this capability's own established naming
-convention, with NO manifest entry required — **plus** the two shared,
-multi-capability wiring files `api/dependencies.py` and `api/main.py`,
-named explicitly because ADR-0002 routes every capability's dependency
-wiring and route registration through them without renaming either file.
-T12 is deliberately NOT on the covered-file list above: it creates
-`test_vocabulary_repository_isolation.py` under `apps/api/tests/`, outside
-`_PACKAGE_ROOT` entirely, and a test file was never this guard's business
-to scan in the first place. `book_repository.py`,
-`annotation_write_repository.py`, and every other SPEC-002/003 module stay
-correctly out of scope, confirmed by
-`test_the_scan_does_not_reach_unrelated_capability_modules` below —
-**but the token match is not verified against a manifest of what this
-capability actually introduces**, only assumed to follow the naming
-convention every module so far has. A future production module that
-skips the convention is silently excluded; see the "Discovery gaps" bullet
-below and `test_a_module_outside_the_vocabulary_naming_convention_is_a_
-known_residual_gap`.
+**Migrations carry no exemption.** Every file under `migrations/versions/`
+is scanned with no capability scoping and no exemption mechanism at all,
+unlike the package walk above. A migration belonging to any OTHER
+capability that legitimately writes to `manual_correction` — a future
+data-cleanup migration, for instance — would be flagged here with no way
+to exempt it. This is an accepted, currently-live over-approximation
+(SPEC-003 §3.6 G3), pinned by
+`test_a_migration_write_is_flagged_with_no_exemption_mechanism`, which
+calls the detector end to end against a synthetic migration rather than
+only checking scan membership.
 
-**Migrations decision, corrected for an honest false-positive claim
-(Judgment Day round 2).** REQ-005-008's text is "No module this capability
-introduces SHALL insert, update, or delete a `manual_correction` row" —
-`migrations/versions/0004_vocabulary_group_index.py` (T2) IS such a module,
-literally, even though its `upgrade()`/`downgrade()` only touch an index on
-`occurrence`. Migrations ARE in scope. Rather than tracking a second
-manifest of "which migration belongs to which capability" — which would
-reintroduce the exact hardcoded-list defect this remediation exists to
-fix — every file under `migrations/versions/` is scanned unconditionally,
-with NO capability scoping at all, unlike the token-matched package walk
-above. **This is a real, currently-live false-positive surface, not merely
-a theoretical one**: a migration belonging to ANY OTHER capability that
-legitimately writes to `manual_correction` — a future data-cleanup
-migration, for instance — is flagged here with no exemption mechanism,
-exactly the shape `book_repository.py`'s legitimate cascade delete was
-before the package walk above was scoped to exclude it. Unlike the package
-walk, migrations get no such exclusion; `test_the_scan_reaches_every_
-migration_regardless_of_capability` below pins this as an accepted,
-documented over-approximation (SPEC-003 §3.6 G3), not a closed gap. A prior
-version of this docstring claimed scanning migrations "produces no false
-positive" — that claim was never verified against a migration containing a
-real write and was false; deleted.
+**Detection.** The write detector resolves `sqlalchemy` import aliases
+(`from sqlalchemy import delete as sa_delete`) and verifies call origin for
+the three free `insert`/`update`/`delete` functions — a bare
+`insert`/`update`/`delete` `Name` is matched only when traceable to a
+`sqlalchemy` import; `cache.update(ManualCorrection)`, an ordinary
+dict-like call, is not flagged this way.
 
-**Detection, corrected for an honest origin claim (JD-W3-2, Judgment Day
-round 1; JD-W3-8, Judgment Day round 2).** The write detector resolves
-`sqlalchemy` import aliases (`from sqlalchemy import delete as sa_delete`)
-and verifies call origin for the three FREE `insert`/`update`/`delete`
-functions — a bare `insert`/`update`/`delete` `Name` is matched ONLY when
-traceable to a `sqlalchemy` import (`cache.update(ManualCorrection)`, an
-ordinary dict-like call, is not flagged this way).
-
-The remaining idioms below are matched by METHOD NAME AND ARGUMENT SHAPE
-ALONE, with NO check on the receiver's origin: `cache.add(ManualCorrection())`
-and `cache.delete(ManualCorrection)` are indistinguishable, to this AST
-walk, from a real `session.add`/`session.delete`, and ARE flagged — a
-deliberate over-approximation, never the reverse. `test_a_non_session_add_
-call_is_a_known_false_positive` and `test_a_non_session_delete_call_is_a_
-known_false_positive` below pin this as accepted (SPEC-003 §3.6 G3). The
-violation message names the ACTUAL receiver expression (`_receiver_name`)
-and marks these idioms `[receiver origin unverified]`, rather than
-asserting `session.` regardless of what the source says. Covered idioms,
-beyond the three free functions:
+The remaining idioms are matched by method name and argument shape alone,
+with no check on the receiver's origin: `cache.add(ManualCorrection())` and
+`cache.delete(ManualCorrection)` are indistinguishable, to this AST walk,
+from a real `session.add`/`session.delete`, and ARE flagged — a deliberate
+over-approximation, never the reverse. The violation message names the
+actual receiver expression (`_receiver_name`) and marks these idioms
+`[receiver origin unverified]`, rather than asserting `session.` regardless
+of what the source says. Covered idioms, beyond the three free functions:
 
   - `<receiver>.add(ManualCorrection(...))` / `<receiver>.add_all([...])`,
     including via a local variable directly bound to a `ManualCorrection(...)`
-    construction earlier in the same module. NO receiver-origin check.
-  - `<receiver>.delete(...)`, same binding-tracking rule as `add`, same NO
+    construction earlier in the same module. No receiver-origin check.
+  - `<receiver>.delete(...)`, same binding-tracking rule as `add`, same no
     receiver-origin check.
-  - `<receiver>.query(ManualCorrection).delete()` / `.update({...})` — the
-    `.query(ManualCorrection)` shape is specific enough that an unrelated
-    dict-like `.query()` taking the ORM class as its sole argument is
-    unlikely, but this is still not a verified `Session`/`Query` origin.
+  - `<receiver>.query(ManualCorrection).delete()` / `.update({...})` — no
+    verified `Session`/`Query` origin either.
   - `<receiver>.bulk_insert_mappings(ManualCorrection, ...)` /
-    `.bulk_update_mappings(ManualCorrection, ...)` — the method names are
+    `.bulk_update_mappings(ManualCorrection, ...)` — method names are
     SQLAlchemy-specific, not origin-verified.
   - `ManualCorrection.__table__.insert()` / `.update()` / `.delete()` — the
-    one instance idiom with a genuine origin check: the receiver chain must
-    literally resolve to a `Name` spelled `ManualCorrection`.
+    one idiom with a genuine origin check: the receiver chain must resolve
+    to a `Name` or an `Attribute` spelled `ManualCorrection`.
 
-**Binding tracker (JD-W3-2, Judgment Day round 1; JD-W3-9, Judgment Day
-round 2).** Three binding shapes let the detector follow a `ManualCorrection`
-construction to a LATER write on a different line, one assignment hop:
-`name = ManualCorrection(...)` (`ast.Assign`), `name: ManualCorrection =
-ManualCorrection(...)` (`ast.AnnAssign` — the idiomatic form in this
-mypy-strict repository, added this round after a plain `Assign` check
-missed every annotated binding), and `(name := ManualCorrection(...))`
-(`ast.NamedExpr`, walrus). The binding set is built ONCE from the whole
-module body and is FLOW-INSENSITIVE — see the "Residual gaps" section.
+**Binding tracker.** Three binding shapes let the detector follow a
+`ManualCorrection` construction to a later write on a different line, one
+assignment hop: `name = ManualCorrection(...)` (`ast.Assign`),
+`name: ManualCorrection = ManualCorrection(...)` (`ast.AnnAssign`), and
+`(name := ManualCorrection(...))` (`ast.NamedExpr`, walrus). The binding
+set is built once from the whole module body and is flow-insensitive — see
+the known-gaps list below.
 
-**Residual gaps (SPEC-003 §3.6 G1/G3) — not closed by this detector, and
-each pinned by its own accepted-behaviour test below. This list is intended
-to be exhaustive; a gap discovered but not listed here is itself a defect
-in this docstring, per SPEC-003 §3.6 G1.**
+**Known gaps.** The list below is not exhaustive — an AST-only detector
+over untyped Python always has more gaps than any one docstring enumerates.
+Each gap here is pinned by a test that calls the detector against the
+uncovered case, never a test that only asserts a label.
 
-Binding-tracker gaps:
+Under-approximations (a real write passes silently):
 
+  - `from sqlalchemy.sql import delete` / `from sqlalchemy.sql.expression
+    import insert` — the alias collector requires `node.module ==
+    "sqlalchemy"` exactly.
+    `test_a_sqlalchemy_submodule_import_evades_alias_resolution`.
+  - `session.merge(ManualCorrection(...))` — a real INSERT-or-UPDATE with
+    no branch for it at all. `test_a_session_merge_call_is_a_known_residual_gap`.
+  - `session.add_all` with a tuple or a generator expression — the matcher
+    requires `isinstance(arg, ast.List)`.
+    `test_add_all_with_a_non_list_argument_is_a_known_residual_gap`.
+  - Tuple-unpacking (`a, b = ManualCorrection(x=1), 2`) and `for`-target
+    bindings (`for c in [...]: session.add(c)`) — neither binding shape is
+    tracked. `test_tuple_and_for_target_bindings_are_known_residual_gaps`.
   - An attribute-assignment mutation of an already-fetched row
     (`row.field = "x"`) followed by `session.commit()` names no forbidden
-    identifier at the mutation site; this AST-only detector performs no
-    type inference to learn that `row` is a `ManualCorrection`.
-  - `session.delete(row)` where `row` was fetched by a query (or aliased
-    from one) rather than DIRECTLY bound to a `ManualCorrection(...)`
-    construction — the tracker follows one hop from a construction, never
-    into a query result.
-  - A SECOND alias of an ALREADY-tracked name (`x = ManualCorrection(...)`;
-    `y = x`; `session.delete(y)`) is NOT tracked either — `y = x`'s value is
-    a bare `Name`, not a construction, so `y` never enters the binding set.
-    Distinct from the query-fetch gap above: this one starts from a real
-    construction and loses it on the second hop.
-  - The binding set is FLOW-INSENSITIVE: once a name is bound to a
-    `ManualCorrection(...)` construction anywhere in the module, it stays
-    "bound" for the rest of the module even if later reassigned to
-    something else (`x = ManualCorrection(...); x = object(); cache.add(x)`
-    is flagged even though `x` no longer holds a correction at the call
-    site). An over-approximation, never an under-approximation.
+    identifier at the mutation site; this is a static, per-file AST guard,
+    not a type checker, and performs no type inference.
+    `test_an_attribute_mutation_followed_by_commit_is_a_known_residual_gap`.
+  - `session.delete(row)` where `row` was fetched by a query, or aliased
+    from one, rather than directly bound to a construction — the tracker
+    follows one hop from a construction, never into a query result.
+    `test_a_delete_of_an_opaquely_fetched_row_is_a_known_residual_gap`.
+  - A second alias of an already-tracked name (`y = x` after `x =
+    ManualCorrection(...)`) — `y`'s value is a bare `Name`, not a
+    construction, so `y` never enters the binding set.
+    `test_a_second_alias_of_a_tracked_binding_is_a_known_residual_gap`.
+  - Raw-SQL adjacency: `REPLACE INTO`, `TRUNCATE`, whitespace variants
+    (a double space, a newline splitting the fragment), a quoted or
+    schema-qualified table name, and runtime string assembly
+    (`str.join`, `%`-formatting, an f-string) all reach `manual_correction`
+    without ever containing one of the three tracked fragments verbatim.
+    `test_raw_sql_adjacency_gaps_evade_the_substring_scan`.
 
-Receiver-origin gaps (JD-W3-8):
+Over-approximations (a call gets flagged that is not a database write):
 
-  - `<receiver>.add`/`.add_all`/`.delete`, `<receiver>.query(...).delete()`/
-    `.update()`, and `<receiver>.bulk_insert_mappings`/
-    `.bulk_update_mappings` verify no receiver origin at all — see the
-    "Detection" section above for the full list and which idiom (only the
-    `__table__` one) is the exception.
-
-Discovery gaps (JD-W3-7):
-
-  - The token-based package walk is a naming CONVENTION this capability has
-    followed so far, not a manifest OF or a verification AGAINST what this
-    capability actually introduces. A production module this capability
-    ships that does not carry `"vocabulary"` anywhere in its path — and is
-    not one of the two named shared-wiring files — is silently excluded,
-    with no assertion able to notice.
-  - Every file under `migrations/versions/` is scanned with NO per-capability
-    scoping at all — see the "Migrations decision" section above. A future
-    migration belonging to any OTHER capability that legitimately writes to
-    `manual_correction` is flagged here with no exemption mechanism.
-
-Raw-SQL scan gaps (maintainer-deferred, unaffected by this round's ORM-idiom
-work since none of the covered idioms construct SQL text):
-
-  - `REPLACE INTO`, `TRUNCATE`, and whitespace/quoting variants of the three
-    tracked SQL fragments remain out of scope.
+  - `<receiver>.add`/`.add_all`/`.delete`,
+    `<receiver>.query(...).delete()`/`.update()`, and
+    `<receiver>.bulk_insert_mappings`/`.bulk_update_mappings` verify no
+    receiver origin at all — see the "Detection" section above.
+    `test_a_non_session_add_call_is_a_known_false_positive`,
+    `test_a_non_session_delete_call_is_a_known_false_positive`.
+  - The binding set is flow-insensitive: a name reassigned away from a
+    `ManualCorrection(...)` construction stays "bound" for the rest of the
+    module. `test_a_rebound_tracked_name_is_a_known_false_positive_residual_gap`.
   - A `sqlalchemy` import name reassigned after import
-    (`insert = lambda *a: None`) is still flagged: the alias map is static,
-    not flow-sensitive to later rebinding — an over-approximation, never an
-    under-approximation.
+    (`insert = lambda *a: None`) is still flagged; the alias map is built
+    once from imports and is never updated on a later rebinding.
+    `test_a_reassigned_sqlalchemy_import_name_is_flagged_conservatively`.
 
 REQ-005-008, AC-005-08.
 """
@@ -207,33 +156,34 @@ import pytest
 _PACKAGE_ROOT = Path(__file__).resolve().parents[2] / "src" / "wheel_vocabulary"
 _MIGRATIONS_ROOT = Path(__file__).resolve().parents[2] / "migrations" / "versions"
 
-# Non-vacuity anchors (SPEC-003 §3.3 M2): files the scan MUST reach on the
-# real filesystem, or the guard below proves nothing. NOT a manifest the
-# scan enumerates FROM (that was the JD-W3-1 defect) — `_scanned_modules`
-# walks the filesystem directly; these sets are only the checkpoints the
-# non-vacuity test below asserts against.
+# Non-vacuity anchors (SPEC-003 §3.3 M2): real files the scan MUST reach, or
+# the guard below proves nothing. Not a manifest the scan enumerates FROM —
+# `_scanned_modules` walks the filesystem unconditionally; these sets are
+# only the checkpoints the non-vacuity tests assert against.
 _EXPECTED_PACKAGE_MODULES = frozenset(
     {
         "infrastructure/persistence/vocabulary_repository.py",
+        # The one exempted module (see the module docstring's "Exemptions"
+        # section). Anchored here too, so a silent removal of this file
+        # from the walk — as opposed to a legitimate change to the
+        # exemption reason — would fail non-vacuity like any other anchor.
+        "infrastructure/persistence/book_repository.py",
         "api/dependencies.py",
-        # `api/main.py` (Judge A suspect, Judgment Day round 2): it is in
-        # `_SHARED_WIRING_FILES` below but, before this entry, had NO anchor
-        # here — removing it from `_SHARED_WIRING_FILES` would have been
-        # invisible to `test_the_scan_reaches_the_vocabulary_modules`, the
-        # exact §3.3 M2 miss this set exists to prevent for the other two.
         "api/main.py",
     }
 )
-_EXPECTED_MIGRATIONS = frozenset(
-    {
-        "0004_vocabulary_group_index.py",
-    }
-)
+_EXPECTED_MIGRATIONS = frozenset({"0004_vocabulary_group_index.py"})
 
-# The only two files in scope that do NOT carry "vocabulary" in their path —
-# see the module docstring's "Scope, corrected during this same round"
-# section for why these two, and only these two, are named explicitly.
-_SHARED_WIRING_FILES = frozenset({"api/dependencies.py", "api/main.py"})
+# The one documented exemption. See the module docstring's "Exemptions"
+# section for the mechanism and the tests that prove it is load-bearing.
+_EXEMPT_WRITE_MODULES: dict[str, str] = {
+    "infrastructure/persistence/book_repository.py": (
+        "002-text-import: DeleteImport's cascade delete removes "
+        "manual_correction rows for a deleted book's occurrences, so a "
+        "later import that reuses the freed Occurrence.id never inherits "
+        "a ghost correction it never made."
+    ),
+}
 
 _FORBIDDEN_RAW_SQL = (
     "insert into manual_correction",
@@ -257,11 +207,11 @@ def _folded_string(node: ast.AST) -> str | None:
 def _all_string_literals(source: str, label: str) -> list[str]:
     """Extract every string literal from `source`, including BinOp-folded chains.
 
-    Module docstrings are NOT exempt here — a raw SQL string in a docstring
-    is still a signal worth flagging in a write-path guard. This is simpler
-    than `_references_to`'s docstring exemption because this guard's
-    forbidden patterns are SQL fragments, not a class name that a docstring
-    legitimately explains.
+    No docstring exemption here — a raw SQL string in a docstring is still
+    a signal worth flagging in a write-path guard. This is simpler than a
+    reference guard's docstring exemption because this guard's forbidden
+    patterns are SQL fragments, not a class name a docstring might
+    legitimately explain.
     """
     tree = ast.parse(source, filename=label)
     literals: list[str] = []
@@ -286,10 +236,9 @@ def _collect_sqlalchemy_call_aliases(tree: ast.AST) -> dict[str, str]:
     imported as, resolving `as` aliases.
 
     `from sqlalchemy import delete as sa_delete` maps `"sa_delete" ->
-    "delete"`. Only `insert`/`update`/`delete` are tracked — the three ORM
-    Core write entry points this guard checks for by name. This is what
+    "delete"`. Only `insert`/`update`/`delete` are tracked. This is what
     lets `_core_write_call` verify origin instead of matching a bare `Name`
-    with no idea where it came from (JD-W3-2).
+    with no idea where it came from.
     """
     aliases: dict[str, str] = {}
     for node in ast.walk(tree):
@@ -317,9 +266,9 @@ def _constructs_manual_correction(node: ast.AST) -> bool:
     """True if `node` is a call constructing `ManualCorrection(...)` directly,
     unwrapping one `NamedExpr` (walrus) layer first.
 
-    `session.add(c := ManualCorrection(...))` puts the `NamedExpr` itself, not
-    its inner `Call`, in the argument position, so this must look one level
-    through it to find the construction (JD-W3-9, Judgment Day round 2).
+    `session.add(c := ManualCorrection(...))` puts the `NamedExpr` itself,
+    not its inner `Call`, in the argument position, so this looks one level
+    through it to find the construction.
     """
     if isinstance(node, ast.NamedExpr):
         return _constructs_manual_correction(node.value)
@@ -339,39 +288,29 @@ def _names_manual_correction(node: ast.AST) -> bool:
     return isinstance(node, ast.Attribute) and node.attr == "ManualCorrection"
 
 
+def _single_construction_target(node: ast.AST) -> ast.Name | None:
+    """Return the `Name` target of an `ast.AnnAssign` or `ast.NamedExpr`
+    binding that directly constructs `ManualCorrection(...)`, else `None`."""
+    if not isinstance(node, ast.AnnAssign | ast.NamedExpr):
+        return None
+    value = node.value
+    if value is None or not _constructs_manual_correction(value):
+        return None
+    return node.target if isinstance(node.target, ast.Name) else None
+
+
 def _manual_correction_bindings(tree: ast.AST) -> frozenset[str]:
     """Names directly bound to a `ManualCorrection(...)` construction
     anywhere in the module (module-scope, flow-insensitive), so
     `correction = ManualCorrection(...)` followed by
-    `session.add(correction)` on a LATER, non-adjacent line is recognised
-    (JD-W3-2) — exactly the shape `test_vocabulary_read_scenario.py:190-196`
-    uses.
+    `session.add(correction)` on a later, non-adjacent line is recognised.
 
-    Three binding SHAPES are tracked, each exactly one assignment hop from a
-    DIRECT `ManualCorrection(...)` construction (JD-W3-9, Judgment Day
-    round 2, added `AnnAssign` and `NamedExpr`; `Assign` predates this
-    round):
-
-      - `name = ManualCorrection(...)` (`ast.Assign`).
-      - `name: ManualCorrection = ManualCorrection(...)` (`ast.AnnAssign`) —
-        the idiomatic form in this mypy-strict repository; a plain `Assign`
-        check alone missed every annotated binding.
-      - `(name := ManualCorrection(...))` (`ast.NamedExpr`, walrus) bound
-        somewhere other than directly inside the write call's own argument
-        list (`_constructs_manual_correction` unwraps the inline case
-        itself, with no help from this binding set).
-
-    Flow-insensitive, DELIBERATELY: the set is built once from the whole
-    module body, not narrowed by later control flow. This is a documented
-    over-approximation, not an under-approximation — see
-    `test_a_rebound_tracked_name_is_a_known_false_positive_residual_gap`.
-
-    A binding threaded through a second alias of an ALREADY-tracked name, a
-    function argument, or a query result is NOT tracked — only a DIRECT
-    construction counts as the one hop. See the module docstring's
-    "Residual gaps" section, `test_a_delete_of_an_opaquely_fetched_row_is_a_
-    known_residual_gap`, and `test_a_second_alias_of_a_tracked_binding_is_a_
-    known_residual_gap`.
+    Three binding shapes are tracked, each exactly one assignment hop from
+    a direct `ManualCorrection(...)` construction: `ast.Assign`,
+    `ast.AnnAssign`, and `ast.NamedExpr`. A binding threaded through a
+    second alias of an already-tracked name, a function argument, or a
+    query result is not tracked — only a direct construction counts as the
+    one hop. See the module docstring's "Known gaps" section.
     """
     bindings: set[str] = set()
     for node in ast.walk(tree):
@@ -386,22 +325,6 @@ def _manual_correction_bindings(tree: ast.AST) -> frozenset[str]:
     return frozenset(bindings)
 
 
-def _single_construction_target(node: ast.AST) -> ast.Name | None:
-    """Return the `Name` target of an `ast.AnnAssign` or `ast.NamedExpr`
-    binding that directly constructs `ManualCorrection(...)`, else `None`.
-
-    Shared by both single-target binding shapes so `_manual_correction_
-    bindings` above does not repeat the "construct, then check the target
-    is a plain `Name`" logic twice.
-    """
-    if not isinstance(node, ast.AnnAssign | ast.NamedExpr):
-        return None
-    value = node.value
-    if value is None or not _constructs_manual_correction(value):
-        return None
-    return node.target if isinstance(node.target, ast.Name) else None
-
-
 def _references_manual_correction(node: ast.AST, bindings: frozenset[str]) -> bool:
     """True if `node` constructs, names, or (via a tracked local binding)
     resolves to `ManualCorrection`."""
@@ -410,16 +333,31 @@ def _references_manual_correction(node: ast.AST, bindings: frozenset[str]) -> bo
     return isinstance(node, ast.Name) and node.id in bindings
 
 
+def _has_manual_correction_arg(call: ast.Call) -> bool:
+    """True if `call` names `ManualCorrection` as a positional or keyword
+    argument — matches `insert(ManualCorrection, ...)`,
+    `update(ManualCorrection)`, `delete(ManualCorrection)`."""
+    for arg in call.args:
+        if isinstance(arg, ast.Name) and arg.id == "ManualCorrection":
+            return True
+        if isinstance(arg, ast.Attribute) and arg.attr == "ManualCorrection":
+            return True
+    for kw in call.keywords:
+        if isinstance(kw.value, ast.Name) and kw.value.id == "ManualCorrection":
+            return True
+    return False
+
+
 def _core_write_call(
     node: ast.Call, call_aliases: dict[str, str], module_aliases: frozenset[str]
 ) -> str | None:
     """`insert(ManualCorrection, ...)` / `update(...)` / `delete(...)`,
-    resolved through import aliases, or `sqlalchemy.insert(...)` /
-    `sa.update(...)` via a tracked module alias.
+    resolved through import aliases, or `sqlalchemy.insert(...)` via a
+    tracked module alias.
 
-    Origin-checked (JD-W3-2): a bare `.update()`/`.insert()`/`.delete()`
-    attribute call is NOT matched here unless its base is a name the module
-    actually imported `sqlalchemy` (or `sqlalchemy as ...`) under — so
+    Origin-checked: a bare `.update()`/`.insert()`/`.delete()` attribute
+    call is not matched here unless its base is a name the module actually
+    imported `sqlalchemy` (or `sqlalchemy as ...`) under — so
     `cache.update(ManualCorrection)` is never mistaken for a database write.
     """
     func = node.func
@@ -438,34 +376,13 @@ def _core_write_call(
     return None
 
 
-def _has_manual_correction_arg(call: ast.Call) -> bool:
-    """Check whether an `ast.Call` has a `ManualCorrection` argument.
-
-    Matches `insert(ManualCorrection, ...)`, `update(ManualCorrection)`,
-    `delete(ManualCorrection)` — the ORM model passed as the first positional
-    argument or as a keyword argument value. Also matches
-    `insert(ManualCorrection).values(...)` style where `ManualCorrection`
-    is the sole positional argument.
-    """
-    for arg in call.args:
-        if isinstance(arg, ast.Name) and arg.id == "ManualCorrection":
-            return True
-        if isinstance(arg, ast.Attribute) and arg.attr == "ManualCorrection":
-            return True
-    for kw in call.keywords:
-        if isinstance(kw.value, ast.Name) and kw.value.id == "ManualCorrection":
-            return True
-    return False
-
-
 def _instance_add_call(node: ast.Call, bindings: frozenset[str]) -> str | None:
     """`<receiver>.add(ManualCorrection(...))` / `<receiver>.add_all([...])`,
-    including via a locally bound variable (JD-W3-2).
+    including via a locally bound variable.
 
-    NO receiver-origin check (JD-W3-8, Judgment Day round 2): `<receiver>`
-    can be ANY expression — this matches the method name and argument shape
-    alone. See the module docstring's "Detection" section and
-    `test_a_non_session_add_call_is_a_known_false_positive` below.
+    No receiver-origin check: `<receiver>` can be any expression — this
+    matches the method name and argument shape alone. See the module
+    docstring's "Detection" section.
     """
     func = node.func
     if not isinstance(func, ast.Attribute) or func.attr not in _SESSION_ADD_METHODS:
@@ -486,13 +403,11 @@ def _instance_add_call(node: ast.Call, bindings: frozenset[str]) -> str | None:
 
 def _instance_delete_call(node: ast.Call, bindings: frozenset[str]) -> str | None:
     """`<receiver>.delete(row)` where `row` constructs, names, or is bound
-    to `ManualCorrection` (JD-W3-2). Requires an argument, which is what
-    tells this apart from the zero-arg `.query(ManualCorrection).delete()`
-    form `_query_write_call` handles instead.
+    to `ManualCorrection`. Requires an argument, which is what tells this
+    apart from the zero-arg `.query(ManualCorrection).delete()` form
+    `_query_write_call` handles instead.
 
-    NO receiver-origin check (JD-W3-8, Judgment Day round 2): same caveat as
-    `_instance_add_call` above. See
-    `test_a_non_session_delete_call_is_a_known_false_positive` below.
+    No receiver-origin check: same caveat as `_instance_add_call` above.
     """
     func = node.func
     if not isinstance(func, ast.Attribute) or func.attr != "delete" or not node.args:
@@ -507,8 +422,8 @@ def _receiver_name(node: ast.expr) -> str:
     for the violation MESSAGE text only — never for detection.
 
     Renders a plain dotted name (`session`, `self.session`) as written; a
-    receiver this walk cannot flatten to one (a call result, a subscript,
-    ...) falls back to a generic placeholder rather than guessing.
+    receiver this walk cannot flatten to one falls back to a generic
+    placeholder rather than guessing.
     """
     if isinstance(node, ast.Name):
         return node.id
@@ -519,7 +434,7 @@ def _receiver_name(node: ast.expr) -> str:
 
 def _query_write_call(node: ast.Call) -> str | None:
     """`<session>.query(ManualCorrection).delete()` / `.update({...})` —
-    the legacy `Query` API's bulk write methods (JD-W3-2)."""
+    the legacy `Query` API's bulk write methods."""
     func = node.func
     if not isinstance(func, ast.Attribute) or func.attr not in ("delete", "update"):
         return None
@@ -535,7 +450,7 @@ def _query_write_call(node: ast.Call) -> str | None:
 
 def _bulk_mapping_call(node: ast.Call) -> str | None:
     """`session.bulk_insert_mappings(ManualCorrection, rows)` /
-    `.bulk_update_mappings(ManualCorrection, rows)` (JD-W3-2)."""
+    `.bulk_update_mappings(ManualCorrection, rows)`."""
     func = node.func
     if not isinstance(func, ast.Attribute) or func.attr not in _SESSION_MAPPING_METHODS:
         return None
@@ -546,7 +461,10 @@ def _bulk_mapping_call(node: ast.Call) -> str | None:
 
 def _table_write_call(node: ast.Call) -> str | None:
     """`ManualCorrection.__table__.insert()` / `.update()` / `.delete()` —
-    a Core write issued directly against the mapped table (JD-W3-2)."""
+    a Core write issued directly against the mapped table. The receiver
+    chain is checked with `_names_manual_correction`, so a module-qualified
+    reference (`models.ManualCorrection.__table__.insert()`) is caught the
+    same way the bare form is."""
     func = node.func
     if not isinstance(func, ast.Attribute) or func.attr not in _TABLE_WRITE_METHODS:
         return None
@@ -567,11 +485,10 @@ def _classify_write_call(
     """Dispatch `node` through every known write idiom in turn, returning a
     human-readable description of the first match, or `None`.
 
-    The instance-write branches (`add`/`add_all`/`delete`) name the RECEIVER
-    as written in source (`_receiver_name`), never a hardcoded `session.` —
-    those idioms verify no receiver origin (JD-W3-8, Judgment Day round 2),
-    so the message must not assert a `Session` origin the detector never
-    checked.
+    The instance-write branches (`add`/`add_all`/`delete`) name the
+    RECEIVER as written in source (`_receiver_name`), never a hardcoded
+    `session.` — those idioms verify no receiver origin, so the message
+    must not assert a `Session` origin the detector never checked.
     """
     canonical = _core_write_call(node, call_aliases, module_aliases)
     if canonical is not None:
@@ -601,17 +518,11 @@ def _detect_writes(source: str, label: str) -> list[str]:
 
     Two detection mechanisms:
     1. AST `ast.Call` matching against every write idiom `_classify_write_call`
-       dispatches through — origin-checked free `insert`/`update`/`delete`
-       functions (with alias resolution), `session.add`/`add_all`/`delete`
-       (with local-binding tracking), `Query.delete`/`Query.update`,
-       `bulk_insert_mappings`/`bulk_update_mappings`, and
-       `ManualCorrection.__table__` writes. See the module docstring's
-       "Detection" section for the full list and its "Residual gaps"
-       section for what remains uncovered.
+       dispatches through — see the module docstring's "Detection" section
+       for the full list and "Known gaps" for what remains uncovered.
     2. Substring scan over string/`BinOp`-folded literals for raw SQL
        `INSERT INTO manual_correction` / `UPDATE manual_correction` /
-       `DELETE FROM manual_correction` (case-insensitive) — catches raw
-       `text("...")` statements.
+       `DELETE FROM manual_correction` (case-insensitive).
     """
     tree = ast.parse(source, filename=label)
     call_aliases = _collect_sqlalchemy_call_aliases(tree)
@@ -619,7 +530,6 @@ def _detect_writes(source: str, label: str) -> list[str]:
     bindings = _manual_correction_bindings(tree)
     violations: list[str] = []
 
-    # 1. ORM write calls
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
@@ -628,7 +538,6 @@ def _detect_writes(source: str, label: str) -> list[str]:
             line = getattr(node, "lineno", 0)
             violations.append(f"{label}:{line} {description}")
 
-    # 2. Raw SQL text
     for literal in _all_string_literals(source, label):
         lower = literal.lower()
         for fragment in _FORBIDDEN_RAW_SQL:
@@ -641,21 +550,18 @@ def _detect_writes(source: str, label: str) -> list[str]:
 def _scanned_modules(
     package_root: Path = _PACKAGE_ROOT, migrations_root: Path = _MIGRATIONS_ROOT
 ) -> list[tuple[Path, str]]:
-    """Enumerate every module this write guard scans: `(path, label)` pairs
-    for every "vocabulary"-named module under the package, the two shared
-    wiring files, and every Alembic migration.
+    """Enumerate every module this write guard scans: `(path, label)` for
+    every `.py` file under `package_root`, unconditionally, plus every
+    Alembic migration under `migrations_root`.
 
-    See the module docstring's "Discovery", "Scope, corrected during this
-    same round", and "Migrations decision" sections for the reasoning.
-    `package_root`/`migrations_root` are overridable so the non-vacuity
-    tests below can exercise an empty, partial, or unrelated tree without
-    touching the real one.
+    No naming convention and no manifest — a module's presence here depends
+    only on where it lives on disk. `package_root`/`migrations_root` are
+    overridable so the tests below can exercise an empty, partial, or
+    unrelated tree without touching the real one.
     """
     modules = [
-        (path, label)
+        (path, path.relative_to(package_root).as_posix())
         for path in sorted(package_root.rglob("*.py"))
-        for label in (path.relative_to(package_root).as_posix(),)
-        if "vocabulary" in label.lower() or label in _SHARED_WIRING_FILES
     ]
     modules += [
         (path, f"migrations/versions/{path.name}") for path in sorted(migrations_root.glob("*.py"))
@@ -663,19 +569,46 @@ def _scanned_modules(
     return modules
 
 
+def _write_violations(
+    modules: list[tuple[Path, str]] | None = None,
+    exempt: dict[str, str] | None = None,
+) -> list[str]:
+    """Run `_detect_writes` over every scanned module except those named in
+    `exempt`.
+
+    `exempt` defaults to `_EXEMPT_WRITE_MODULES`, the real documented
+    exemption set. Tests below pass `exempt={}` to prove the exemption is
+    load-bearing rather than decorative — see
+    `test_removing_the_exemption_fails_the_scan`.
+    """
+    scan = _scanned_modules() if modules is None else modules
+    active_exemptions = _EXEMPT_WRITE_MODULES if exempt is None else exempt
+    return [
+        violation
+        for path, label in scan
+        if label not in active_exemptions
+        for violation in _detect_writes(path.read_text(encoding="utf-8"), label)
+    ]
+
+
+# --------------------------------------------------------------------------
+# Non-vacuity and the unconditional walk.
+# --------------------------------------------------------------------------
+
+
 @pytest.mark.unit
-def test_the_scan_reaches_the_vocabulary_modules() -> None:
-    """Non-vacuity: the walk must reach the vocabulary repository and the
-    vocabulary migration, or the guard below proves nothing (SPEC-003 §3.3 M2)."""
+def test_the_scan_reaches_every_expected_module() -> None:
+    """Non-vacuity (SPEC-003 §3.3 M2): the walk must reach the vocabulary
+    repository, the exempted book repository, both shared wiring files, and
+    the vocabulary migration on the real filesystem, or the guard below
+    proves nothing."""
     scanned = {label for _, label in _scanned_modules()}
 
     missing_package = _EXPECTED_PACKAGE_MODULES - scanned
     missing_migrations = {f"migrations/versions/{name}" for name in _EXPECTED_MIGRATIONS} - scanned
     missing = missing_package | missing_migrations
 
-    assert not missing, "the vocabulary module walk is missing expected modules: " + ", ".join(
-        sorted(missing)
-    )
+    assert not missing, "the module walk is missing expected modules: " + ", ".join(sorted(missing))
 
 
 @pytest.mark.unit
@@ -695,73 +628,54 @@ def test_the_scan_fails_closed_when_the_roots_are_empty(tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
-def test_the_scan_fails_closed_when_api_main_is_missing(tmp_path: Path) -> None:
-    """Judge A suspect (Judgment Day round 2): `api/main.py` sits in
-    `_SHARED_WIRING_FILES` but, before this test, had no entry in
-    `_EXPECTED_PACKAGE_MODULES` — so if it were ever silently dropped from
-    the shared-wiring set, the non-vacuity anchor above could not notice,
-    unlike the anchor's existing coverage for `api/dependencies.py` and the
-    migration.
-
-    A package tree with every OTHER expected module present but missing
-    `api/main.py` on disk must fail `scanned >= _EXPECTED_PACKAGE_MODULES`.
-    """
-    package_root = tmp_path / "wheel_vocabulary"
-    (package_root / "api").mkdir(parents=True)
-    (package_root / "api" / "dependencies.py").write_text("x = 1\n", encoding="utf-8")
-    (package_root / "infrastructure" / "persistence").mkdir(parents=True)
-    (package_root / "infrastructure" / "persistence" / "vocabulary_repository.py").write_text(
-        "x = 1\n", encoding="utf-8"
-    )
+def test_the_scan_fails_closed_when_any_anchor_is_missing(tmp_path: Path) -> None:
+    """SPEC-003 §3.3 M2, verified by construction for every named anchor: a
+    package tree missing exactly one of `_EXPECTED_PACKAGE_MODULES` must
+    fail `scanned >= _EXPECTED_PACKAGE_MODULES` — proving the assertion can
+    fail on each anchor individually, not only when the whole tree is
+    empty."""
     migrations_root = tmp_path / "migrations"
     migrations_root.mkdir()
     (migrations_root / "0004_vocabulary_group_index.py").write_text("x = 1\n", encoding="utf-8")
 
-    scanned = {label for _, label in _scanned_modules(package_root, migrations_root)}
+    for missing in sorted(_EXPECTED_PACKAGE_MODULES):
+        package_root = tmp_path / f"pkg_missing_{missing.replace('/', '_')}"
+        for present in _EXPECTED_PACKAGE_MODULES - {missing}:
+            target = package_root / present
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("x = 1\n", encoding="utf-8")
 
-    assert not (scanned >= _EXPECTED_PACKAGE_MODULES)
+        scanned = {label for _, label in _scanned_modules(package_root, migrations_root)}
+
+        assert not (scanned >= _EXPECTED_PACKAGE_MODULES), (
+            f"a tree missing only {missing!r} did not fail non-vacuity"
+        )
 
 
 @pytest.mark.unit
-def test_the_scan_reaches_a_module_the_manifest_never_listed(tmp_path: Path) -> None:
-    """JD-W3-1: the walk is not bounded by any hardcoded list — a module
-    dropped anywhere under the package root, as long as its path carries the
-    case-insensitive token `"vocabulary"`, is scanned on the next run, with
-    no second commit required to register its path here first. This is
-    narrower than "scanned ANYWHERE unconditionally" (corrected wording,
-    Judgment Day round 2): a module named without that token is a DIFFERENT,
-    documented gap — see `test_a_module_outside_the_vocabulary_naming_
-    convention_is_a_known_residual_gap` and its sibling test directly below,
-    `test_the_scan_does_not_reach_unrelated_capability_modules`, which
-    exercises the opposite case on purpose.
-
-    Mirrors the shape of T26's `application/vocabulary/ports.py`, a module
-    this capability introduces after this guard was written.
-
-    RED before the fix: the old `_vocabulary_modules()` iterated a fixed
-    `_VOCABULARY_MODULES` manifest and returned an empty scan for a file
-    not on that list, regardless of what was on disk.
-    """
+def test_the_scan_reaches_a_module_with_no_vocabulary_token_in_its_path(tmp_path: Path) -> None:
+    """The walk carries no naming convention: a module whose path contains
+    no `"vocabulary"` token anywhere is still scanned, because
+    `_scanned_modules` filters on nothing but `.py`. This is what makes
+    AC-005-08's "every module this capability introduces" true by
+    construction rather than by an assumed convention."""
     package_root = tmp_path / "wheel_vocabulary"
-    (package_root / "application" / "vocabulary").mkdir(parents=True)
-    (package_root / "application" / "vocabulary" / "ports.py").write_text(
-        "x = 1\n", encoding="utf-8"
-    )
+    (package_root / "api" / "dtos").mkdir(parents=True)
+    (package_root / "api" / "dtos" / "groups.py").write_text("x = 1\n", encoding="utf-8")
     migrations_root = tmp_path / "migrations"
     migrations_root.mkdir()
 
     scanned = {label for _, label in _scanned_modules(package_root, migrations_root)}
 
-    assert "application/vocabulary/ports.py" in scanned
+    assert "api/dtos/groups.py" in scanned
 
 
 @pytest.mark.unit
 def test_the_scan_reaches_migrations_outside_the_package_root(tmp_path: Path) -> None:
     """The migrations root is a SEPARATE directory tree from the package
     root (`apps/api/migrations/versions/` vs. `apps/api/src/wheel_vocabulary/`)
-    — the old walk could never leave `_PACKAGE_ROOT`, so
-    `0004_vocabulary_group_index.py` was unreachable regardless of the
-    manifest's content."""
+    — a walk bounded to the package root alone could never reach
+    `0004_vocabulary_group_index.py` regardless of anything else."""
     package_root = tmp_path / "wheel_vocabulary"
     package_root.mkdir()
     migrations_root = tmp_path / "migrations"
@@ -773,137 +687,155 @@ def test_the_scan_reaches_migrations_outside_the_package_root(tmp_path: Path) ->
     assert "migrations/versions/0004_vocabulary_group_index.py" in scanned
 
 
-@pytest.mark.unit
-def test_the_scan_does_not_reach_unrelated_capability_modules(tmp_path: Path) -> None:
-    """A module belonging to a DIFFERENT capability — no `"vocabulary"` in
-    its path, not a shared wiring file — is correctly excluded, even one
-    that contains a LEGITIMATE `ManualCorrection` write that is none of
-    this guard's business.
+# --------------------------------------------------------------------------
+# The exemption mechanism.
+# --------------------------------------------------------------------------
 
-    `book_repository.py`'s `DeleteImport` cascade delete of
-    `manual_correction` rows is exactly this case (see the module
-    docstring's "Scope, corrected during this same round"): real,
-    intentional, and outside REQ-005-008's scope, because
-    `book_repository.py` is a `002-text-import` module, not one this
-    capability introduces. An earlier draft of this fix scanned the whole
-    package and flagged it as a false positive; this test pins the
-    corrected scope as a regression guard.
+
+@pytest.mark.unit
+def test_the_only_exemption_is_book_repository_and_it_is_scanned() -> None:
+    """The exemption set names exactly one module today, and the walk still
+    reaches it — the exemption suppresses a violation at the aggregation
+    step, it never removes the module from `_scanned_modules`."""
+    assert set(_EXEMPT_WRITE_MODULES) == {"infrastructure/persistence/book_repository.py"}
+
+    scanned = {label for _, label in _scanned_modules()}
+
+    assert "infrastructure/persistence/book_repository.py" in scanned
+
+
+@pytest.mark.unit
+def test_no_exempt_module_carries_the_vocabulary_naming_token() -> None:
+    """Invariant: this capability never exempts one of its own modules. A
+    future exemption whose path contains the case-insensitive token
+    `"vocabulary"` fails this test immediately, rather than surviving until
+    a human reviewer notices."""
+    offending = [label for label in _EXEMPT_WRITE_MODULES if "vocabulary" in label.lower()]
+
+    assert not offending, f"a vocabulary module is exempted: {offending}"
+
+
+@pytest.mark.unit
+def test_the_exempted_write_is_real_not_inert() -> None:
+    """The exemption hides a GENUINE write, not a hypothetical one — proved
+    by calling the detector directly against `book_repository.py`'s actual
+    source, bypassing `_write_violations`'s exemption filter entirely.
+
+    MUTATION CHECK: ran `_detect_writes` against the real file and observed::
+
+      ['infrastructure/persistence/book_repository.py:144 ORM write call delete(ManualCorrection)']
+
+    That line is `delete(ManualCorrection).where(...)` inside
+    `SqlAlchemyBookRepository.delete()` — a real, origin-checked
+    `sqlalchemy.delete()` call, not a synthetic fixture.
     """
-    package_root = tmp_path / "wheel_vocabulary"
-    (package_root / "infrastructure" / "persistence").mkdir(parents=True)
-    (package_root / "infrastructure" / "persistence" / "book_repository.py").write_text(
-        "from sqlalchemy import delete\n"
-        "delete(ManualCorrection).where(ManualCorrection.occurrence_id.in_(ids))\n",
-        encoding="utf-8",
+    path, label = next(
+        (p, lbl)
+        for p, lbl in _scanned_modules()
+        if lbl == "infrastructure/persistence/book_repository.py"
     )
-    migrations_root = tmp_path / "migrations"
-    migrations_root.mkdir()
 
-    scanned = {label for _, label in _scanned_modules(package_root, migrations_root)}
+    violations = _detect_writes(path.read_text(encoding="utf-8"), label)
 
-    assert "infrastructure/persistence/book_repository.py" not in scanned
+    assert violations
+    assert any("ManualCorrection" in v for v in violations)
 
 
 @pytest.mark.unit
-def test_a_module_outside_the_vocabulary_naming_convention_is_a_known_residual_gap(
-    tmp_path: Path,
-) -> None:
-    """JD-W3-7 (Judgment Day round 2): a production module this capability
-    could plausibly introduce that does not carry `"vocabulary"` anywhere in
-    its path — and is not one of the two named shared-wiring files — is
-    silently excluded from the scan.
+def test_removing_the_exemption_fails_the_scan() -> None:
+    """M3, made meaningful by a real exemption: dropping `book_repository.py`
+    from the exempt set must fail the main guard, proving the earlier
+    passing state is the exemption's doing and not an accident of scope.
 
-    Every module T8, T26, T27, T30, and T38 actually introduce follows this
-    capability's naming convention, so this has not yet been a real miss —
-    but the scan does not VERIFY the convention is followed, it assumes it.
-
-    ACCEPTED (SPEC-003 §3.6 G3): closing this would require either a
-    manifest of every module this capability introduces (the exact defect
-    JD-W3-1 removed) or scanning the entire package unconditionally (the
-    exact false-positive `test_the_scan_does_not_reach_unrelated_capability_
-    modules` above exists to prevent).
+    MUTATION CHECK: ran `_write_violations(exempt={})` and observed a
+    violation naming `book_repository.py` — see the assertion below,
+    verified by execution.
     """
-    package_root = tmp_path / "wheel_vocabulary"
-    (package_root / "api" / "dtos").mkdir(parents=True)
-    (package_root / "api" / "dtos" / "groups.py").write_text(
-        "session.add(ManualCorrection())\n", encoding="utf-8"
-    )
-    migrations_root = tmp_path / "migrations"
-    migrations_root.mkdir()
+    violations = _write_violations(exempt={})
 
-    scanned = {label for _, label in _scanned_modules(package_root, migrations_root)}
-
-    assert "api/dtos/groups.py" not in scanned
+    assert violations
+    assert any("book_repository.py" in v for v in violations)
 
 
 @pytest.mark.unit
-def test_the_scan_reaches_every_migration_regardless_of_capability(tmp_path: Path) -> None:
-    """JD-W3-7 (Judgment Day round 2): migrations are NOT scoped by
-    capability the way the package walk is —
-    `test_the_scan_does_not_reach_unrelated_capability_modules` above proves
-    the OPPOSITE for `_PACKAGE_ROOT`. A migration belonging to ANY
-    capability — including a hypothetical future data-cleanup migration with
-    a legitimate `manual_correction` write — is scanned, and, combined with
-    `_detect_writes`, flagged as a violation here with no exemption
-    mechanism.
+def test_the_exemption_boundary_holds() -> None:
+    """AC-005-08 scenario 4 / M3: the same forbidden write statement placed
+    in a module that carries no exemption still produces a violation — the
+    detector itself grants no blanket safety; only the two exemption tests
+    above do, and only for the one named module."""
+    source = "from sqlalchemy import insert\ninsert(ManualCorrection, {'field': 'pos'})\n"
+
+    violations = _detect_writes(source, "some/other/module.py")
+
+    assert violations
+    assert any("insert" in v and "ManualCorrection" in v for v in violations)
+
+
+# --------------------------------------------------------------------------
+# Migrations: scanned unconditionally, with no exemption mechanism.
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_a_migration_write_is_flagged_with_no_exemption_mechanism(tmp_path: Path) -> None:
+    """Migrations are not scoped by capability the way the package walk is,
+    and carry no exemption mechanism at all: a migration belonging to ANY
+    capability — including a hypothetical future data-cleanup migration
+    with a legitimate `manual_correction` write — is flagged here.
+
+    This calls `_write_violations` end to end against a real synthetic
+    migration, so a detector stubbed to return `[]` would fail this test —
+    unlike a test that only checks scan membership.
 
     ACCEPTED (SPEC-003 §3.6 G3): tracking which migration belongs to which
-    capability would reintroduce the manifest this remediation exists to
-    remove (see the module docstring's "Migrations decision" section).
+    capability would reintroduce a manifest, the exact shape the package
+    walk's exemption mechanism above exists to avoid for THIS capability's
+    own scope.
     """
     package_root = tmp_path / "wheel_vocabulary"
     package_root.mkdir()
     migrations_root = tmp_path / "migrations"
     migrations_root.mkdir()
     (migrations_root / "9999_unrelated_cleanup.py").write_text(
-        "delete(ManualCorrection).where(ManualCorrection.id > 0)\n", encoding="utf-8"
+        "from sqlalchemy import delete\ndelete(ManualCorrection).where(ManualCorrection.id > 0)\n",
+        encoding="utf-8",
     )
 
-    scanned = {label for _, label in _scanned_modules(package_root, migrations_root)}
+    violations = _write_violations(_scanned_modules(package_root, migrations_root))
 
-    assert "migrations/versions/9999_unrelated_cleanup.py" in scanned
+    assert violations
+    assert any("9999_unrelated_cleanup.py" in v for v in violations)
+
+
+# --------------------------------------------------------------------------
+# The main guard and its mutation checks.
+# --------------------------------------------------------------------------
 
 
 @pytest.mark.unit
-def test_no_vocabulary_module_writes_to_manual_correction() -> None:
+def test_no_module_writes_to_manual_correction() -> None:
     """REQ-005-008 / AC-005-08 scenario 1: no `INSERT`, `UPDATE` or `DELETE`
-    targeting `manual_correction` in any module the scan reaches — the
-    entire `wheel_vocabulary` package plus every Alembic migration (see the
-    module docstring's "Discovery" and "Migrations decision" sections).
+    targeting `manual_correction` in any module this guard scans, after the
+    one documented exemption is applied.
 
-    `select(ManualCorrection...)` reads and `ManualCorrection.field` attribute
-    reads are PERMITTED — this capability reads corrections to resolve
-    effective values (REQ-005-002). Only writes are forbidden.
-
-    MUTATION CHECK: see `test_a_synthetic_insert_would_be_caught` and
-    `test_a_synthetic_delete_would_be_caught` below for the per-mutation
-    evidence (AC-005-08 scenario 3).
+    `select(ManualCorrection...)` reads and `ManualCorrection.field`
+    attribute reads are permitted — this capability reads corrections to
+    resolve effective values (REQ-005-002). Only writes are forbidden.
     """
-    violations = [
-        violation
-        for path, label in _scanned_modules()
-        for violation in _detect_writes(path.read_text(encoding="utf-8"), label)
-    ]
+    violations = _write_violations()
 
-    assert not violations, "a vocabulary module writes to manual_correction:\n" + "\n".join(
-        violations
-    )
+    assert not violations, "a module writes to manual_correction:\n" + "\n".join(violations)
 
 
 @pytest.mark.unit
 def test_a_synthetic_insert_would_be_caught() -> None:
-    """AC-005-08 scenario 3: a synthetic `insert(ManualCorrection, ...)` must
-    produce a violation.
+    """AC-005-08 scenario 3: a synthetic `insert(ManualCorrection, ...)`
+    must produce a violation.
 
     MUTATION CHECK: ran `_detect_writes` against this exact source and
     observed::
 
         ['synthetic.py:2 ORM write call insert(ManualCorrection)']
-
-    (JD-W3-6, Judgment Day round 1: the call is the source's SECOND line —
-    the import statement is the first — so `:2` is what a verbatim run
-    produces; an earlier version of this docstring recorded `:1`, which
-    this file's own `_detect_writes` never actually outputs for this source.)
     """
     source = "from sqlalchemy import insert\ninsert(ManualCorrection, {'field': 'lemma'})\n"
 
@@ -932,30 +864,34 @@ def test_a_synthetic_delete_would_be_caught() -> None:
 
 
 @pytest.mark.unit
-def test_a_write_outside_the_capability_still_violates() -> None:
-    """AC-005-08 scenario 4 / M3: the same forbidden write statement placed
-    in a module OUTSIDE this capability still produces a violation.
-
-    The boundary control proves the guard is not silently exempting anything
-    by file path — the detector flags the write pattern regardless of which
-    module it appears in.
+def test_a_write_placed_in_the_vocabulary_repository_would_be_caught() -> None:
+    """AC-005-08 scenario 3, using its literal wording: an insert against
+    `ManualCorrection`, then a delete against it, each added in turn to the
+    real `vocabulary_repository.py` source.
     """
-    source = "from sqlalchemy import insert\ninsert(ManualCorrection, {'field': 'pos'})\n"
+    path = _PACKAGE_ROOT / "infrastructure" / "persistence" / "vocabulary_repository.py"
+    original = path.read_text(encoding="utf-8")
+    label = "infrastructure/persistence/vocabulary_repository.py"
+    with_insert = (
+        original + "\nfrom sqlalchemy import insert\ninsert(ManualCorrection, {'field': 'lemma'})\n"
+    )
+    with_delete = original + "\nfrom sqlalchemy import delete\ndelete(ManualCorrection)\n"
 
-    violations = _detect_writes(source, "some/other/module.py")
+    insert_violations = _detect_writes(with_insert, label)
+    delete_violations = _detect_writes(with_delete, label)
 
-    assert violations
-    assert any("insert" in v and "ManualCorrection" in v for v in violations)
+    assert insert_violations
+    assert any("insert" in v and "ManualCorrection" in v for v in insert_violations)
+    assert delete_violations
+    assert any("delete" in v and "ManualCorrection" in v for v in delete_violations)
 
 
 @pytest.mark.unit
 def test_select_on_manual_correction_is_permitted() -> None:
-    """AMB-3: a `select(ManualCorrection...)` read is NOT a violation.
-
-    This capability reads corrections to resolve effective values (REQ-005-002).
+    """AMB-3: a `select(ManualCorrection...)` read is NOT a violation. This
+    capability reads corrections to resolve effective values (REQ-005-002).
     The guard distinguishes read from write — only INSERT/UPDATE/DELETE are
-    forbidden.
-    """
+    forbidden."""
     source = "from sqlalchemy import select\nselect(ManualCorrection.occurrence_id)\n"
 
     violations = _detect_writes(source, "synthetic.py")
@@ -966,7 +902,7 @@ def test_select_on_manual_correction_is_permitted() -> None:
 @pytest.mark.unit
 def test_manual_correction_attribute_read_is_permitted() -> None:
     """AMB-3: `ManualCorrection.field` attribute access in a select is NOT a
-    violation — it is the legitimate correction-delta lookup (leg B)."""
+    violation — it is the legitimate correction-delta lookup."""
     source = (
         "from sqlalchemy import select\n"
         "stmt = select(ManualCorrection.occurrence_id, ManualCorrection.field)\n"
@@ -1032,24 +968,14 @@ def test_a_split_raw_sql_string_would_be_caught() -> None:
 
 
 # --------------------------------------------------------------------------
-# JD-W3-2 remediation (Judgment Day round 1) — pre-fix RED capture. Every
-# test below is run FIRST against the ORIGINAL detector (no import-alias
-# resolution, no origin check, no ORM-instance idioms) to record the exact
-# miss or false positive, then again after the fix to prove it is closed.
-# See the module docstring for the final list of idioms covered and the
-# residual gaps documented as accepted, per SPEC-003 §3.6 G3.
+# ORM write idiom coverage — every idiom the detector recognises.
 # --------------------------------------------------------------------------
 
 
 @pytest.mark.unit
 def test_an_aliased_core_write_import_would_be_caught() -> None:
     """`from sqlalchemy import delete as sa_delete` then `sa_delete(...)` —
-    no import-origin check meant an aliased import evaded the old detector
-    entirely, because it only ever matched the bare names `insert`/`update`/
-    `delete`.
-
-    RED before the fix: `_detect_writes` returned `[]` for this exact source.
-    """
+    resolved through the import-alias map."""
     source = "from sqlalchemy import delete as sa_delete\nsa_delete(ManualCorrection)\n"
 
     violations = _detect_writes(source, "synthetic.py")
@@ -1061,16 +987,14 @@ def test_an_aliased_core_write_import_would_be_caught() -> None:
 @pytest.mark.unit
 def test_a_non_session_add_call_is_a_known_false_positive() -> None:
     """`cache.add(ManualCorrection())` — `cache` is not a `Session`, but
-    `_instance_add_call` performs no receiver-origin check (JD-W3-8,
-    Judgment Day round 2): it matches ANY receiver's `.add(...)` call whose
-    argument shape names `ManualCorrection`, exactly like it would for a
-    real `session.add(...)`.
+    `_instance_add_call` performs no receiver-origin check: it matches ANY
+    receiver's `.add(...)` call whose argument shape names
+    `ManualCorrection`, exactly like it would for a real `session.add(...)`.
 
-    ACCEPTED (SPEC-003 §3.6 G3), and deliberately on the safe side, the same
-    over-approximation direction as the reassigned-import case below: a call
-    that MIGHT not be a database write still gets flagged, never the
-    reverse. The violation message names the actual receiver (`cache`, not
-    `session`) and marks the origin unverified — see `_receiver_name`.
+    ACCEPTED (SPEC-003 §3.6 G3), deliberately on the safe side: a call that
+    might not be a database write still gets flagged, never the reverse.
+    The violation message names the actual receiver (`cache`, not
+    `session`) and marks the origin unverified.
     """
     source = (
         "cache.add(ManualCorrection(occurrence_id=1, field='lemma', "
@@ -1086,7 +1010,7 @@ def test_a_non_session_add_call_is_a_known_false_positive() -> None:
 @pytest.mark.unit
 def test_a_non_session_delete_call_is_a_known_false_positive() -> None:
     """`cache.delete(ManualCorrection)` — the delete-side mirror of the
-    `add` case above; same NO receiver-origin check, same ACCEPTED
+    `add` case above; same no receiver-origin check, same accepted
     over-approximation (SPEC-003 §3.6 G3)."""
     source = "cache.delete(ManualCorrection)\n"
 
@@ -1099,15 +1023,9 @@ def test_a_non_session_delete_call_is_a_known_false_positive() -> None:
 @pytest.mark.unit
 def test_a_non_sqlalchemy_update_call_is_not_a_false_positive() -> None:
     """`cache.update(ManualCorrection)` — a dict-like `.update()` call that
-    happens to take `ManualCorrection` as an argument. The old detector
-    matched ANY `.insert`/`.update`/`.delete` attribute call with a
-    `ManualCorrection` argument, with no check that the call actually
-    originates from `sqlalchemy` — a false positive on ordinary code that
-    has nothing to do with the database.
-
-    RED before the fix: `_detect_writes` reported a violation for this
-    exact source, which performs no database write at all.
-    """
+    happens to take `ManualCorrection` as an argument, with no `sqlalchemy`
+    import anywhere in the module. The origin check on the three free
+    functions keeps this from being flagged."""
     source = "cache.update(ManualCorrection)\n"
 
     violations = _detect_writes(source, "synthetic.py")
@@ -1117,15 +1035,8 @@ def test_a_non_sqlalchemy_update_call_is_not_a_false_positive() -> None:
 
 @pytest.mark.unit
 def test_a_session_add_call_constructing_manual_correction_would_be_caught() -> None:
-    """`session.add(ManualCorrection(...))` is the live production write
-    idiom this codebase actually uses (`book_repository.py:63`'s
-    `session.add(book)`, and `test_vocabulary_read_scenario.py`'s own
-    correction-seeding fixture) — and the old detector, which recognised
-    only the three free `insert`/`update`/`delete` functions, had no branch
-    for it at all.
-
-    RED before the fix: `_detect_writes` returned `[]` for this exact source.
-    """
+    """`session.add(ManualCorrection(...))` — the production write idiom
+    this codebase actually uses."""
     source = (
         "session.add(ManualCorrection(occurrence_id=1, field='lemma', "
         "corrected_value='x', corrected_at=None))\n"
@@ -1140,10 +1051,7 @@ def test_a_session_add_call_constructing_manual_correction_would_be_caught() -> 
 @pytest.mark.unit
 def test_a_session_add_all_call_constructing_manual_correction_would_be_caught() -> None:
     """`session.add_all([ManualCorrection(...), ...])` — the batched sibling
-    of `session.add`, used by `book_repository.py` for the occurrence write.
-
-    RED before the fix: `_detect_writes` returned `[]` for this exact source.
-    """
+    of `session.add`."""
     source = (
         "session.add_all([ManualCorrection(occurrence_id=1, field='lemma', "
         "corrected_value='x', corrected_at=None)])\n"
@@ -1158,14 +1066,9 @@ def test_a_session_add_all_call_constructing_manual_correction_would_be_caught()
 @pytest.mark.unit
 def test_a_session_add_call_via_a_locally_bound_variable_would_be_caught() -> None:
     """`correction = ManualCorrection(...)` followed by
-    `session.add(correction)` on a LATER line — exactly the shape
-    `test_vocabulary_read_scenario.py:190-196` uses. The construction and
-    the write are two separate statements, so a detector that only inspects
-    one `ast.Call`'s own arguments cannot see the connection without
-    tracking the local binding.
-
-    RED before the fix: `_detect_writes` returned `[]` for this exact source.
-    """
+    `session.add(correction)` on a LATER line — the construction and the
+    write are two separate statements, so this requires tracking the local
+    binding."""
     source = (
         "correction = ManualCorrection(occurrence_id=1, field='lemma', "
         "corrected_value='x', corrected_at=None)\n"
@@ -1181,10 +1084,7 @@ def test_a_session_add_call_via_a_locally_bound_variable_would_be_caught() -> No
 @pytest.mark.unit
 def test_a_session_delete_call_via_a_locally_bound_variable_would_be_caught() -> None:
     """`row = ManualCorrection(...)` followed by `session.delete(row)` — the
-    delete-side mirror of the add-via-binding case above.
-
-    RED before the fix: `_detect_writes` returned `[]` for this exact source.
-    """
+    delete-side mirror of the add-via-binding case above."""
     source = (
         "row = ManualCorrection(occurrence_id=1, field='lemma', "
         "corrected_value='x', corrected_at=None)\n"
@@ -1201,11 +1101,7 @@ def test_a_session_delete_call_via_a_locally_bound_variable_would_be_caught() ->
 def test_an_annotated_assignment_binding_would_be_caught() -> None:
     """`correction: ManualCorrection = ManualCorrection(...)` followed by
     `session.add(correction)` — the idiomatic binding form in this
-    mypy-strict repository (JD-W3-9, Judgment Day round 2).
-
-    RED before the fix: the binding tracker matched only `ast.Assign`, so
-    `_detect_writes` returned `[]` for this exact source.
-    """
+    mypy-strict repository."""
     source = (
         "correction: ManualCorrection = ManualCorrection(occurrence_id=1, field='lemma', "
         "corrected_value='x', corrected_at=None)\n"
@@ -1221,13 +1117,7 @@ def test_an_annotated_assignment_binding_would_be_caught() -> None:
 @pytest.mark.unit
 def test_a_walrus_binding_would_be_caught() -> None:
     """`session.add(c := ManualCorrection(...))` — the walrus operator binds
-    and passes the construction in one expression (JD-W3-9, Judgment Day
-    round 2).
-
-    RED before the fix: `_constructs_manual_correction` matched only
-    `ast.Call`, never `ast.NamedExpr`, so `_detect_writes` returned `[]` for
-    this exact source.
-    """
+    and passes the construction in one expression."""
     source = (
         "session.add(c := ManualCorrection(occurrence_id=1, field='lemma', "
         "corrected_value='x', corrected_at=None))\n"
@@ -1242,11 +1132,7 @@ def test_a_walrus_binding_would_be_caught() -> None:
 @pytest.mark.unit
 def test_a_query_delete_call_would_be_caught() -> None:
     """`session.query(ManualCorrection).delete()` — the legacy `Query` API's
-    bulk-delete, which never mentions `insert`/`update`/`delete` as a free
-    function and was invisible to the old detector's only branch.
-
-    RED before the fix: `_detect_writes` returned `[]` for this exact source.
-    """
+    bulk-delete."""
     source = "session.query(ManualCorrection).delete()\n"
 
     violations = _detect_writes(source, "synthetic.py")
@@ -1258,10 +1144,7 @@ def test_a_query_delete_call_would_be_caught() -> None:
 @pytest.mark.unit
 def test_a_query_update_call_would_be_caught() -> None:
     """`session.query(ManualCorrection).update({...})` — the `Query` API's
-    bulk-update.
-
-    RED before the fix: `_detect_writes` returned `[]` for this exact source.
-    """
+    bulk-update."""
     source = "session.query(ManualCorrection).update({'field': 'pos'})\n"
 
     violations = _detect_writes(source, "synthetic.py")
@@ -1273,11 +1156,7 @@ def test_a_query_update_call_would_be_caught() -> None:
 @pytest.mark.unit
 def test_a_bulk_insert_mappings_call_would_be_caught() -> None:
     """`session.bulk_insert_mappings(ManualCorrection, rows)` — a bulk write
-    entry point that bypasses the unit-of-work identity map entirely and
-    never calls the free `insert()` function.
-
-    RED before the fix: `_detect_writes` returned `[]` for this exact source.
-    """
+    entry point that bypasses the unit-of-work identity map entirely."""
     source = "session.bulk_insert_mappings(ManualCorrection, rows)\n"
 
     violations = _detect_writes(source, "synthetic.py")
@@ -1302,10 +1181,7 @@ def test_a_bulk_update_mappings_call_would_be_caught() -> None:
 def test_a_table_insert_call_would_be_caught() -> None:
     """`ManualCorrection.__table__.insert()` — a Core write issued directly
     against the mapped table, bypassing both the free `insert()` function
-    and the ORM session entirely.
-
-    RED before the fix: `_detect_writes` returned `[]` for this exact source.
-    """
+    and the ORM session."""
     source = "ManualCorrection.__table__.insert()\n"
 
     violations = _detect_writes(source, "synthetic.py")
@@ -1326,12 +1202,22 @@ def test_a_table_delete_call_would_be_caught() -> None:
     assert any("ManualCorrection" in v for v in violations)
 
 
+@pytest.mark.unit
+def test_a_qualified_table_write_would_also_be_caught() -> None:
+    """`_names_manual_correction` matches an `ast.Attribute` ending in
+    `ManualCorrection`, not only a bare `ast.Name` — so a module-qualified
+    reference is caught by the same branch as the bare form above."""
+    source = "models.ManualCorrection.__table__.insert()\n"
+
+    violations = _detect_writes(source, "synthetic.py")
+
+    assert violations
+    assert any("ManualCorrection" in v for v in violations)
+
+
 # --------------------------------------------------------------------------
-# G3 — accepted residual gaps. Each test below EXERCISES a case this
-# AST-only detector does NOT cover and records that as specified, accepted
-# behaviour, so a future change to this detector has something to flip
-# rather than an unnoticed hole. See the module docstring's "Residual gaps"
-# section for the full list.
+# G3 — accepted residual gaps. Each test EXERCISES a case this AST-only
+# detector does NOT cover and records that as specified, accepted behaviour.
 # --------------------------------------------------------------------------
 
 
@@ -1340,12 +1226,11 @@ def test_an_attribute_mutation_followed_by_commit_is_a_known_residual_gap() -> N
     """`row.field = 'corrected'` then `session.commit()` mutates an
     already-fetched ORM object with no syntax naming `ManualCorrection`
     anywhere in the mutating statement itself. `row`'s runtime type is
-    whatever query produced it; this is a static, per-file AST guard, not a
-    type checker, and performs no such inference.
+    whatever query produced it; this is a static AST guard, not a type
+    checker, and performs no such inference.
 
     ACCEPTED (SPEC-003 §3.6 G3): closing this would require tracking a
-    variable's runtime type across arbitrary prior statements, which this
-    guard does not attempt.
+    variable's runtime type across arbitrary prior statements.
     """
     source = "row.field = 'corrected'\nsession.commit()\n"
 
@@ -1356,15 +1241,12 @@ def test_an_attribute_mutation_followed_by_commit_is_a_known_residual_gap() -> N
 
 @pytest.mark.unit
 def test_a_delete_of_an_opaquely_fetched_row_is_a_known_residual_gap() -> None:
-    """`session.delete(row)` where `row` was fetched by a query (or aliased
-    from one) rather than directly bound to a `ManualCorrection(...)`
-    construction. The binding tracker above only follows a DIRECT
-    `name = ManualCorrection(...)` assignment; a query result, a function
-    return value, or a second alias of an already-tracked name all evade it.
+    """`session.delete(row)` where `row` was fetched by a query, then
+    aliased, rather than directly bound to a `ManualCorrection(...)`
+    construction. The binding tracker only follows a DIRECT
+    `name = ManualCorrection(...)` assignment; a query result evades it.
 
-    ACCEPTED (SPEC-003 §3.6 G3): this is the same limitation
-    `test_annotation_write_repository_isolation.py`'s docstring accepts for
-    string construction, applied here to object provenance instead.
+    ACCEPTED (SPEC-003 §3.6 G3).
     """
     source = (
         "row = session.query(ManualCorrection).filter_by(id=1).first()\n"
@@ -1382,18 +1264,11 @@ def test_a_second_alias_of_a_tracked_binding_is_a_known_residual_gap() -> None:
     """`x = ManualCorrection(...)` followed by `y = x` then
     `session.delete(y)` — `y = x` is not itself a `ManualCorrection(...)`
     construction (its value is a bare `Name`), so `y` is never added to the
-    binding set even though it is, at runtime, the exact same object `x`
-    names (JD-W3-9, Judgment Day round 2).
-
-    This is DISTINCT from `test_a_delete_of_an_opaquely_fetched_row_is_a_
-    known_residual_gap` above: that case is a query result re-aliased; this
-    one is a DIRECT construction re-aliased. Both evade the tracker for the
-    same reason — it follows exactly one hop from a construction, never a
-    hop from an existing tracked name.
+    binding set even though it is, at runtime, the same object `x` names.
 
     ACCEPTED (SPEC-003 §3.6 G3): closing this would require following an
-    arbitrary chain of aliases, which this deliberately simple, single-hop
-    tracker does not attempt.
+    arbitrary chain of aliases, which this deliberately single-hop tracker
+    does not attempt.
     """
     source = (
         "x = ManualCorrection(occurrence_id=1, field='lemma', corrected_value='x', "
@@ -1409,17 +1284,14 @@ def test_a_second_alias_of_a_tracked_binding_is_a_known_residual_gap() -> None:
 
 @pytest.mark.unit
 def test_a_rebound_tracked_name_is_a_known_false_positive_residual_gap() -> None:
-    """`x = ManualCorrection(...)` then `x = object()` (reassigning `x` away
-    from the correction entirely) then `cache.add(x)` — the binding set is
-    built once from the whole module body and never narrowed by later
-    control flow, so `x` stays "bound" for the rest of the module even
-    though it no longer holds a `ManualCorrection` at the `cache.add` call
-    site (JD-W3-9, Judgment Day round 2).
+    """`x = ManualCorrection(...)` then `x = object()` (reassigning `x`
+    entirely) then `cache.add(x)` — the binding set is built once from the
+    whole module body and never narrowed by later control flow, so `x`
+    stays "bound" even though it no longer holds a `ManualCorrection` at
+    the call site.
 
-    ACCEPTED (SPEC-003 §3.6 G3), and deliberately on the safe side, the same
-    direction as `test_a_reassigned_sqlalchemy_import_name_is_flagged_
-    conservatively` below: an over-approximation (flagging a call that no
-    longer touches `ManualCorrection`), never an under-approximation.
+    ACCEPTED (SPEC-003 §3.6 G3), on the safe side: an over-approximation,
+    never an under-approximation.
     """
     source = (
         "x = ManualCorrection(occurrence_id=1, field='lemma', corrected_value='x', "
@@ -1438,16 +1310,12 @@ def test_a_rebound_tracked_name_is_a_known_false_positive_residual_gap() -> None
 def test_a_reassigned_sqlalchemy_import_name_is_flagged_conservatively() -> None:
     """`from sqlalchemy import insert` then a LATER reassignment
     `insert = some_other_callable` shadows the tracked alias. The alias map
-    is built once, statically, from the module's import statements — it is
-    NOT flow-sensitive to a later rebinding of the same name, so this call
-    is STILL reported even though it may no longer reach `sqlalchemy` at
+    is static, not flow-sensitive to a later rebinding, so this call is
+    still reported even though it may no longer reach `sqlalchemy` at
     runtime.
 
-    ACCEPTED (SPEC-003 §3.6 G3), and deliberately on the safe side: this is
-    an over-approximation (a call that MIGHT be a false positive still gets
-    flagged), never an under-approximation (a real write silently passing).
-    A write-safety guard failing towards "flag it" on an ambiguous case is
-    the correct default; failing towards "let it through" would not be.
+    ACCEPTED (SPEC-003 §3.6 G3), on the safe side: a write-safety guard
+    failing towards "flag it" on an ambiguous case is the correct default.
     """
     source = "from sqlalchemy import insert\ninsert = lambda *a: None\ninsert(ManualCorrection)\n"
 
@@ -1455,3 +1323,115 @@ def test_a_reassigned_sqlalchemy_import_name_is_flagged_conservatively() -> None
 
     assert violations
     assert any("insert" in v and "ManualCorrection" in v for v in violations)
+
+
+# --------------------------------------------------------------------------
+# Known gaps introduced or clarified by this rewrite. Each test below calls
+# the detector against the uncovered case rather than only asserting a
+# label.
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_a_sqlalchemy_submodule_import_evades_alias_resolution() -> None:
+    """KNOWN GAP: `_collect_sqlalchemy_call_aliases` requires
+    `node.module == "sqlalchemy"` exactly. `from sqlalchemy.sql import
+    delete` and `from sqlalchemy.sql.expression import insert` are both
+    documented SQLAlchemy import paths and both evade alias resolution.
+
+    ACCEPTED (SPEC-003 §3.6 G3): matching any module path with a
+    `sqlalchemy.` prefix risks matching an unrelated package sharing it.
+    """
+    sources = (
+        "from sqlalchemy.sql import delete\ndelete(ManualCorrection)\n",
+        "from sqlalchemy.sql.expression import insert\n"
+        "insert(ManualCorrection, {'field': 'pos'})\n",
+    )
+
+    for source in sources:
+        assert _detect_writes(source, "synthetic.py") == [], source
+
+
+@pytest.mark.unit
+def test_a_session_merge_call_is_a_known_residual_gap() -> None:
+    """KNOWN GAP: `session.merge(ManualCorrection(...))` is a real
+    INSERT-or-UPDATE, and no branch in `_classify_write_call` recognises
+    the method name `merge` at all.
+
+    ACCEPTED (SPEC-003 §3.6 G3): not closed by this rewrite.
+    """
+    source = (
+        "session.merge(ManualCorrection(occurrence_id=1, field='lemma', "
+        "corrected_value='x', corrected_at=None))\n"
+    )
+
+    assert _detect_writes(source, "synthetic.py") == []
+
+
+@pytest.mark.unit
+def test_add_all_with_a_non_list_argument_is_a_known_residual_gap() -> None:
+    """KNOWN GAP: `_instance_add_call`'s `add_all` branch requires
+    `isinstance(arg, ast.List)`. A tuple or a generator expression carries
+    the same meaning to SQLAlchemy and evades it.
+
+    ACCEPTED (SPEC-003 §3.6 G3): every non-list iterable shape was not
+    closed in this rewrite.
+    """
+    sources = (
+        "session.add_all((ManualCorrection(occurrence_id=1, field='lemma', "
+        "corrected_value='x', corrected_at=None),))\n",
+        "session.add_all(c for c in corrections)\n",
+    )
+
+    for source in sources:
+        assert _detect_writes(source, "synthetic.py") == [], source
+
+
+@pytest.mark.unit
+def test_tuple_and_for_target_bindings_are_known_residual_gaps() -> None:
+    """KNOWN GAP: `_manual_correction_bindings` only recognises `Assign`,
+    `AnnAssign`, and `NamedExpr` targets that are a single plain `Name`. A
+    tuple-unpacking assignment and a `for`-loop target both bind a name to
+    a `ManualCorrection` value through a different AST shape and are not
+    tracked.
+
+    ACCEPTED (SPEC-003 §3.6 G3): the binding tracker is deliberately a
+    single-hop, single-shape tracker.
+    """
+    sources = (
+        "a, b = ManualCorrection(occurrence_id=1, field='lemma', "
+        "corrected_value='x', corrected_at=None), 2\nsession.add(a)\n",
+        "for c in [ManualCorrection(occurrence_id=1, field='lemma', "
+        "corrected_value='x', corrected_at=None)]:\n    session.add(c)\n",
+    )
+
+    for source in sources:
+        assert _detect_writes(source, "synthetic.py") == [], source
+
+
+@pytest.mark.unit
+def test_raw_sql_adjacency_gaps_evade_the_substring_scan() -> None:
+    """KNOWN GAP: `_FORBIDDEN_RAW_SQL` matches exactly three fixed
+    fragments. `REPLACE INTO`, `TRUNCATE`, whitespace variants, a quoted or
+    schema-qualified table name, and runtime string assembly all reach
+    `manual_correction` without ever containing one of the three tracked
+    fragments verbatim.
+
+    ACCEPTED (SPEC-003 §3.6 G3): the scan is a fixed substring match, not a
+    SQL parser; each case below is a distinct way to spell a write the
+    substring match does not recognise.
+    """
+    sources = (
+        'text("REPLACE INTO manual_correction VALUES (1)")\n',
+        'text("TRUNCATE manual_correction")\n',
+        'text("INSERT  INTO manual_correction VALUES (1)")\n',
+        'text("INSERT INTO\\nmanual_correction VALUES (1)")\n',
+        "text('DELETE FROM \"manual_correction\" WHERE 1=1')\n",
+        'text("DELETE FROM main.manual_correction WHERE 1=1")\n',
+        'text("".join(["DELETE FROM ", "manual_correction"]))\n',
+        'text("DELETE FROM %s" % "manual_correction")\n',
+        "query = f'DELETE FROM {\"manual_correction\"}'\n",
+    )
+
+    for source in sources:
+        assert _detect_writes(source, "synthetic.py") == [], source
