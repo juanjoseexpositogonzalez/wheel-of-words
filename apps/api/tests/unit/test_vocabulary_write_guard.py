@@ -2,21 +2,40 @@
 
 Detects two write forms naming `manual_correction`: a `sqlalchemy`
 `insert`/`update`/`delete` call resolved through import/module aliases,
-carrying `ManualCorrection` as an argument; and raw SQL text matching
-`insert into`/`update`/`delete from manual_correction` (case-insensitive,
-`+`-folded). `select(...)` reads are permitted (REQ-005-002).
+carrying `ManualCorrection` as an argument (matched by its bare name or by
+any `from ... import ManualCorrection as X` alias, resolved the same way
+the write-function aliases are); and raw SQL text matching `insert
+into`/`update`/`delete from manual_correction` (case-insensitive,
+`+`-folded, deduplicated so a folded chain is not also counted through its
+own sub-expressions). `select(...)` reads are permitted (REQ-005-002).
 
 Scans every `.py` file under `wheel_vocabulary` and every migration (both
 `rglob`, no naming convention), exempting `book_repository.py`'s
 `DeleteImport` cascade delete (002-text-import) at aggregation, never by
 excluding the module from the walk.
 
-ORM-instance idioms (`session.add`, `.merge`, bulk mappings, `__table__`)
-are out of scope — this AST pass cannot verify a receiver's runtime type;
-the read-scenario integration test verifies the table at runtime instead.
+ORM-instance idioms whose receiver must be a `Session` (`session.add`,
+`.merge`, `.delete`, `Query.delete`/`.update`, bulk mappings) are out of
+scope — this AST pass cannot verify a receiver's runtime type; the
+runtime write-absence harness (Phase 3b, `design.md`/`tasks.md`) covers
+them instead. `ManualCorrection.__table__.delete()` is a separate,
+still-open gap this detector does not close today (Phase 3c) — it has no
+`Session` receiver to infer, so closing it needs no type inference, only
+more AST.
 
-AC-005-08's "ORM class or SQL text" reads as: the class as a call argument
-versus the table name in a string — both covered. REQ-005-008, AC-005-08.
+Known accepted over-approximations, not narrowed: name resolution is not
+flow-sensitive, so a parameter that shadows an imported write name, or a
+name later rebound to something else, is still reported as a write
+(`test_a_shadowed_or_rebound_name_is_a_known_over_approximation`). Module,
+class and function docstrings are excluded from the raw-SQL scan — a
+docstring is prose, not executable SQL — so ordinary documentation
+mentioning `manual_correction` near a write verb is not a violation
+(`test_a_docstring_mentioning_manual_correction_is_not_a_violation`).
+
+AC-005-08's "ORM class or SQL text" is now two mechanisms, not one — see
+`spec.md` §5 AMB-11: structural inspection for the forms above, runtime
+observation for the ORM-instance forms this AST pass cannot verify.
+REQ-005-008, AC-005-08.
 """
 
 from __future__ import annotations
@@ -71,16 +90,46 @@ def _folded_string(node: ast.AST) -> str | None:
     return None
 
 
-def _string_literals(tree: ast.AST) -> list[str]:
-    """Every string literal in `tree`, including `+`-folded chains."""
-    literals: list[str] = []
+_DOCSTRING_HOLDERS = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+
+
+def _docstring_literal_ids(tree: ast.AST) -> set[int]:
+    """`id()` of every string-literal `ast.Constant` that is a module, class
+    or function docstring — the first statement of such a body, when it is
+    a bare string expression. A docstring is prose, not executable SQL, so
+    the raw-SQL scan below must not treat one as a write statement."""
+    ids: set[int] = set()
     for node in ast.walk(tree):
+        if isinstance(node, _DOCSTRING_HOLDERS) and node.body:
+            first = node.body[0]
+            if (
+                isinstance(first, ast.Expr)
+                and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)
+            ):
+                ids.add(id(first.value))
+    return ids
+
+
+def _string_literals(tree: ast.AST) -> list[str]:
+    """Every non-docstring string literal in `tree`, including `+`-folded
+    chains. A folded chain is collected once, at its outermost `BinOp`; its
+    constituent sub-expressions are then skipped so the same source text is
+    never counted a second time through its own parts."""
+    docstring_ids = _docstring_literal_ids(tree)
+    literals: list[str] = []
+    consumed: set[int] = set()
+    for node in ast.walk(tree):
+        if id(node) in consumed:
+            continue
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            literals.append(node.value)
+            if id(node) not in docstring_ids:
+                literals.append(node.value)
         elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
             folded = _folded_string(node)
             if folded is not None:
                 literals.append(folded)
+                consumed.update(id(child) for child in ast.walk(node) if child is not node)
     return literals
 
 
@@ -110,40 +159,65 @@ def _sqlalchemy_module_aliases(tree: ast.AST) -> frozenset[str]:
     )
 
 
-def _names_manual_correction(node: ast.AST) -> bool:
-    """True for a bare `ManualCorrection` `Name`, or an `Attribute` access
-    ending in it."""
+def _manual_correction_aliases(tree: ast.AST) -> frozenset[str]:
+    """Names bound to the `ManualCorrection` class: its bare name, always,
+    plus any `from ... import ManualCorrection as X` alias — resolved the
+    same way `_sqlalchemy_call_aliases` resolves write-function aliases.
+    Unlike that function, no module is required to match, because the
+    class's real import path (`....persistence.models`) is not fixed the
+    way `sqlalchemy` is; matching on the imported name alone is what
+    `_names_manual_correction` already did before aliasing, so this cannot
+    make an unrelated class match — only `import X as ManualCorrection`
+    would, and that binds the alias to `ManualCorrection`, not away from
+    it."""
+    aliases = {
+        alias.asname
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+        if alias.name == "ManualCorrection" and alias.asname is not None
+    }
+    return frozenset({"ManualCorrection", *aliases})
+
+
+def _names_manual_correction(node: ast.AST, class_aliases: frozenset[str]) -> bool:
+    """True for a `Name` bound to `ManualCorrection` (bare or aliased), or
+    an `Attribute` access ending in the bare class name."""
     if isinstance(node, ast.Name):
-        return node.id == "ManualCorrection"
+        return node.id in class_aliases
     return isinstance(node, ast.Attribute) and node.attr == "ManualCorrection"
 
 
-def _has_manual_correction_arg(call: ast.Call) -> bool:
-    """True if `call` names `ManualCorrection` as a positional or keyword
-    argument."""
+def _has_manual_correction_arg(call: ast.Call, class_aliases: frozenset[str]) -> bool:
+    """True if `call` names `ManualCorrection` (or one of its aliases) as a
+    positional or keyword argument."""
     args = [*call.args, *(kw.value for kw in call.keywords)]
-    return any(_names_manual_correction(arg) for arg in args)
+    return any(_names_manual_correction(arg, class_aliases) for arg in args)
 
 
 def _sqlalchemy_write_call(
-    node: ast.Call, call_aliases: dict[str, str], module_aliases: frozenset[str]
+    node: ast.Call,
+    call_aliases: dict[str, str],
+    module_aliases: frozenset[str],
+    class_aliases: frozenset[str],
 ) -> str | None:
     """`insert(ManualCorrection, ...)` / `update(...)` / `delete(...)`
-    resolved to a `sqlalchemy` import, carrying `ManualCorrection` as an
-    argument. Origin-checked: a bare `.update()`/`.insert()`/`.delete()`
-    attribute call only matches when its base names a tracked `sqlalchemy`
-    module alias, so `cache.update(ManualCorrection)` is never mistaken for
-    a database write — this is the one thing this AST walk can verify.
+    resolved to a `sqlalchemy` import, carrying `ManualCorrection` (or one
+    of its aliases) as an argument. Origin-checked: a bare
+    `.update()`/`.insert()`/`.delete()` attribute call only matches when
+    its base names a tracked `sqlalchemy` module alias, so
+    `cache.update(ManualCorrection)` is never mistaken for a database
+    write — this is the one thing this AST walk can verify.
     """
     func = node.func
     if isinstance(func, ast.Name) and func.id in call_aliases:
-        return call_aliases[func.id] if _has_manual_correction_arg(node) else None
+        return call_aliases[func.id] if _has_manual_correction_arg(node, class_aliases) else None
     if (
         isinstance(func, ast.Attribute)
         and isinstance(func.value, ast.Name)
         and func.value.id in module_aliases
         and func.attr in _WRITE_FUNCS
-        and _has_manual_correction_arg(node)
+        and _has_manual_correction_arg(node, class_aliases)
     ):
         return func.attr
     return None
@@ -151,17 +225,18 @@ def _sqlalchemy_write_call(
 
 def _detect_writes(source: str, label: str) -> list[str]:
     """Every write targeting `manual_correction` in `source`: a
-    `sqlalchemy` write call carrying `ManualCorrection`, or raw SQL text
-    naming it after an INSERT/UPDATE/DELETE keyword (case-insensitive,
-    `+`-folded)."""
+    `sqlalchemy` write call carrying `ManualCorrection` (bare name or
+    import alias), or raw SQL text naming it after an INSERT/UPDATE/DELETE
+    keyword (case-insensitive, `+`-folded)."""
     tree = ast.parse(source, filename=label)
     call_aliases = _sqlalchemy_call_aliases(tree)
     module_aliases = _sqlalchemy_module_aliases(tree)
+    class_aliases = _manual_correction_aliases(tree)
     violations: list[str] = []
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
-            canonical = _sqlalchemy_write_call(node, call_aliases, module_aliases)
+            canonical = _sqlalchemy_write_call(node, call_aliases, module_aliases, class_aliases)
             if canonical is not None:
                 violations.append(f"{label}:{node.lineno} sqlalchemy {canonical}(ManualCorrection)")
 
@@ -308,13 +383,15 @@ def test_emptying_the_exempt_set_fails_through_write_violations() -> None:
     round's control bypassed aggregation and passed against a mutant that
     suppressed the whole default scan.
 
-    MUTATION CHECK: ran `_write_violations(exempt={})` and observed a
-    violation naming `book_repository.py`.
+    MUTATION CHECK: ran `_write_violations(exempt={})` and observed::
+
+        ['infrastructure/persistence/book_repository.py:144 sqlalchemy delete(ManualCorrection)']
     """
     violations = _write_violations(exempt={})
 
-    assert violations
-    assert any("book_repository.py" in v for v in violations)
+    assert violations == [
+        "infrastructure/persistence/book_repository.py:144 sqlalchemy delete(ManualCorrection)"
+    ]
 
 
 @pytest.mark.unit
@@ -420,15 +497,27 @@ def test_a_non_sqlalchemy_call_with_the_same_method_name_is_not_flagged() -> Non
         "session.merge(ManualCorrection(occurrence_id=1))\n",
         "session.query(ManualCorrection).delete()\n",
         "session.bulk_insert_mappings(ManualCorrection, rows)\n",
-        "ManualCorrection.__table__.delete()\n",
     ],
-    ids=["session.add", "session.merge", "Query.delete", "bulk_insert_mappings", "__table__"],
+    ids=["session.add", "session.merge", "Query.delete", "bulk_insert_mappings"],
 )
-def test_orm_instance_idioms_are_out_of_scope(source: str) -> None:
+def test_session_receiver_idioms_are_out_of_scope(source: str) -> None:
     """Pins the docstring's scope claim: none of these ORM-instance idioms
-    are detected here — this AST pass cannot verify a receiver's runtime
-    type."""
+    are detected here — this AST pass cannot verify that their receiver is
+    a `Session`. The runtime write-absence harness (Phase 3b) covers them
+    instead."""
     assert _detect_writes(source, "synthetic.py") == []
+
+
+@pytest.mark.unit
+def test_table_attribute_write_is_a_known_gap_not_a_receiver_type_problem() -> None:
+    """`ManualCorrection.__table__.delete()` used to be grouped with the
+    `Session`-receiver idioms above and given the same reason for being
+    out of scope. That reason does not apply here: `__table__` is an
+    attribute chain on the class object itself, with no `Session`
+    receiver to infer — Judge B rendered its SQL as
+    `DELETE FROM manual_correction`. It is a separate, still-open gap
+    (Phase 3c), not a type-inference problem."""
+    assert _detect_writes("ManualCorrection.__table__.delete()\n", "synthetic.py") == []
 
 
 @pytest.mark.unit
@@ -463,3 +552,137 @@ def test_raw_sql_adjacency_gaps_are_not_exhaustive() -> None:
 
     for source in sources:
         assert _detect_writes(source, "synthetic.py") == [], source
+
+
+# --------------------------------------------------------------------------
+# Round 5 (Judgment Day): the UPDATE leg, class aliasing, and two
+# over-approximations found in the raw-SQL scan.
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_an_update_call_against_manual_correction_is_caught() -> None:
+    """JD-A1: pins the UPDATE leg of the `sqlalchemy`-call detector.
+    Removing `"update"` from `_WRITE_FUNCS` left the whole suite green
+    before this test existed — its only purpose is to make that removal
+    fail.
+
+    MUTATION CHECK: ran `_detect_writes` against
+    `'from sqlalchemy import update\\nupdate(ManualCorrection)\\n'` and
+    observed::
+
+        ['synthetic.py:2 sqlalchemy update(ManualCorrection)']
+    """
+    source = "from sqlalchemy import update\nupdate(ManualCorrection)\n"
+
+    assert _detect_writes(source, "synthetic.py") == [
+        "synthetic.py:2 sqlalchemy update(ManualCorrection)"
+    ]
+
+
+@pytest.mark.unit
+def test_update_raw_sql_targeting_manual_correction_is_caught() -> None:
+    """JD-A1: pins the UPDATE leg of the raw-SQL detector. Removing
+    `"update manual_correction"` from `_FORBIDDEN_RAW_SQL` left the whole
+    suite green before this test existed — its only purpose is to make
+    that removal fail.
+
+    MUTATION CHECK: ran `_detect_writes` against
+    `'text("UPDATE manual_correction SET field=1")\\n'` and observed::
+
+        ["synthetic.py raw SQL fragment 'update manual_correction'"]
+    """
+    source = 'text("UPDATE manual_correction SET field=1")\n'
+
+    assert _detect_writes(source, "synthetic.py") == [
+        "synthetic.py raw SQL fragment 'update manual_correction'"
+    ]
+
+
+@pytest.mark.unit
+def test_a_write_call_through_a_class_alias_is_caught() -> None:
+    """JD-A4: `from ... import ManualCorrection as MC` then `delete(MC)`
+    used to evade detection entirely — `_names_manual_correction` matched
+    only the literal identifier `ManualCorrection`. Class aliases now
+    resolve the same way `sqlalchemy` write-function aliases already
+    did."""
+    source = (
+        "from sqlalchemy import delete\n"
+        "from wheel_vocabulary.infrastructure.persistence.models import ManualCorrection as MC\n"
+        "delete(MC)\n"
+    )
+
+    assert _detect_writes(source, "synthetic.py") == [
+        "synthetic.py:3 sqlalchemy delete(ManualCorrection)"
+    ]
+
+
+@pytest.mark.unit
+def test_an_unrelated_class_aliased_to_a_similar_name_is_not_flagged() -> None:
+    """False-positive control for the class-alias fix: importing a
+    DIFFERENT class under a name that merely looks related is never
+    mistaken for `ManualCorrection` — only `from ... import
+    ManualCorrection as X` binds `X` to the tracked class, and this
+    import binds a different one entirely."""
+    source = (
+        "from sqlalchemy import delete\n"
+        "from wheel_vocabulary.infrastructure.persistence.models "
+        "import Occurrence as ManualCorrectionLike\n"
+        "delete(ManualCorrectionLike)\n"
+    )
+
+    assert _detect_writes(source, "synthetic.py") == []
+
+
+@pytest.mark.unit
+def test_a_folded_chain_is_reported_once_not_once_per_sub_expression() -> None:
+    """JD-A5 (Judge A): `"a" + "insert into manual_correction" + "b"` used
+    to report three times for one write statement — the outer fold, the
+    inner fold, and the bare inner constant were each collected
+    independently by `_string_literals`. The outermost fold is now the
+    only literal collected from a chain; its sub-expressions are
+    consumed, not re-walked."""
+    source = 'x = "a" + "insert into manual_correction" + "b"\n'
+
+    assert _detect_writes(source, "synthetic.py") == [
+        "synthetic.py raw SQL fragment 'insert into manual_correction'"
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "source",
+    [
+        '"""We never delete from manual_correction here."""\n',
+        'def f() -> None:\n    """insert into manual_correction, in prose only."""\n',
+    ],
+    ids=["module docstring", "function docstring"],
+)
+def test_a_docstring_mentioning_manual_correction_is_not_a_violation(source: str) -> None:
+    """JD-A5 (Judge B): the raw-SQL scan used to walk every string
+    constant including docstrings, so ordinary prose was reported as a
+    write with no exemption mechanism. A docstring is not executable SQL;
+    it is now excluded from the scan by AST position — the first
+    statement of a module/class/function body — not by content."""
+    assert _detect_writes(source, "synthetic.py") == []
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from sqlalchemy import delete\n\n\ndef f(delete):\n    delete(ManualCorrection)\n",
+        "from sqlalchemy import delete\ndelete = lambda x: None\ndelete(ManualCorrection)\n",
+    ],
+    ids=["shadowing parameter", "rebinding"],
+)
+def test_a_shadowed_or_rebound_name_is_a_known_over_approximation(source: str) -> None:
+    """JD-A5 (Judge B): name resolution is not flow-sensitive. A parameter
+    that shadows an imported write name, or a name later rebound to
+    something unrelated, is still reported as a `sqlalchemy` write. This
+    is an ACCEPTED over-approximation, not narrowed — a prior version
+    tracked reassignment, and its receiver-origin claims were the exact
+    defect three Judgment Day rounds escalated on. Pinned here so the gap
+    stays documented instead of silently reappearing or silently
+    disappearing."""
+    assert _detect_writes(source, "synthetic.py") != []
