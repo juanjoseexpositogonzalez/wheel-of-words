@@ -32,7 +32,9 @@ import pytest
 
 _PACKAGE_ROOT = Path(__file__).resolve().parents[2] / "src" / "wheel_vocabulary"
 _PROPN_ALLOWED_FILE = "domain/annotation.py"
-_CONFIDENCE_ACTION_PATTERN = "threshold|filter_by_confidence|min_confidence|sort_by_confidence"
+_CONFIDENCE_ACTION_PATTERN = (
+    "threshold|filter_by_confidence|min_confidence|sort_by_confidence|mean_confidence"
+)
 
 _EXPECTED_FILES = frozenset(
     {
@@ -41,6 +43,15 @@ _EXPECTED_FILES = frozenset(
         "infrastructure/nlp/spacy_analyzer.py",
         "infrastructure/persistence/annotation_repository.py",
         "api/routes/annotation.py",
+        # T18: `application/vocabulary/use_cases.py` and `api/routes/vocabulary.py`
+        # are deliberately deferred here. This set feeds
+        # `assert scanned >= _EXPECTED_FILES` (non-vacuity check), so listing a
+        # path that has not shipped yet turns that assertion red — confirmed by
+        # running it with both paths present: AssertionError, "Extra items in
+        # the right set: 'application/vocabulary/use_cases.py',
+        # 'api/routes/vocabulary.py'". They ship in WU5 (T27) and WU6 (T38);
+        # add them then.
+        "infrastructure/persistence/vocabulary_repository.py",
     }
 )
 
@@ -157,6 +168,47 @@ def test_a_propn_special_case_outside_the_allowed_file_would_be_caught() -> None
 def test_a_confidence_threshold_helper_would_be_caught() -> None:
     """Direct mutation check, run synthetically."""
     source = "def filter_by_confidence(rows):\n    return rows\n"
+
+    assert _confidence_action_violations(source, "synthetic.py")
+
+
+@pytest.mark.unit
+def test_a_min_confidence_query_parameter_would_be_caught() -> None:
+    """AC-005-07 scenario 4: a query-parameter-shaped identifier.
+
+    Mirrors `test_a_confidence_threshold_helper_would_be_caught`, shaped as a
+    handler reading a `min_confidence` query parameter into a local name
+    rather than defining a `filter_by_confidence` function.
+    """
+    source = "def list_groups(min_confidence=None):\n    return min_confidence\n"
+
+    assert _confidence_action_violations(source, "synthetic.py")
+
+
+@pytest.mark.unit
+def test_a_mean_confidence_property_would_be_caught() -> None:
+    """AC-005-07 scenario 4: a property-shaped identifier.
+
+    MUTATION CHECK: before T19 extended `_CONFIDENCE_ACTION_PATTERN` with
+    `mean_confidence`, this assertion failed::
+
+        AssertionError: assert []
+
+    because none of `threshold|filter_by_confidence|min_confidence|
+    sort_by_confidence` are a substring of `mean_confidence`. After T19 added
+    the term, the assertion passes.
+    """
+    source = (
+        "class Stats:\n    @property\n    def mean_confidence(self):\n        return self._value\n"
+    )
+
+    assert _confidence_action_violations(source, "synthetic.py")
+
+
+@pytest.mark.unit
+def test_a_sort_by_confidence_helper_would_be_caught() -> None:
+    """AC-005-07 scenario 4: a sorting-helper-shaped identifier."""
+    source = "def sort_by_confidence(rows):\n    return rows\n"
 
     assert _confidence_action_violations(source, "synthetic.py")
 
