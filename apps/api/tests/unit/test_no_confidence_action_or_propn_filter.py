@@ -123,15 +123,19 @@ def test_the_scan_reaches_the_shipped_annotation_sources() -> None:
 def test_propn_appears_nowhere_outside_the_upos_tags_membership_set() -> None:
     """AC-003-23 scenario 2: structural, package-wide.
 
-    MUTATION CHECK: temporarily added `if pos == "PROPN": pos = None` to
-    `AnnotateImport._validate_and_assemble` in
-    `application/annotation/use_cases.py`, ran this test, and observed::
+    MUTATION CHECK: temporarily added `if pos == "PROPN": pos = None` right
+    after `pos = annotation.pos` in `AnnotateImport._validate_and_assemble`
+    (`application/annotation/use_cases.py`), ran this test, and observed::
 
         AssertionError: a proper-noun special case leaked into the backend sources:
-        application/annotation/use_cases.py:146 string literal 'PROPN'
+        application/annotation/use_cases.py:187 string literal 'PROPN'
         (only domain/annotation.py may contain it)
 
-    then reverted.
+    then reverted. (Judgment Day round 2, JD-W3-10 audit: the previous
+    recording, `:146`, predates the C6 identity-check block a later commit
+    inserted above this method — `_validate_and_assemble` itself now starts
+    at line 150, so `:146` could never have been inside the mutated method.
+    Re-verified verbatim against the file at HEAD.)
     """
     violations = [
         violation
