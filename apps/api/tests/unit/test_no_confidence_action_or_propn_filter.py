@@ -79,7 +79,18 @@ def _propn_violations(source: str, label: str) -> list[str]:
 
 def _confidence_action_violations(source: str, label: str) -> list[str]:
     """Report any identifier whose name suggests acting on a confidence
-    value (filtering, sorting, thresholding) — REQ-003-009 C6."""
+    value (filtering, sorting, thresholding) — REQ-003-009 C6.
+
+    JD-W3-4 (Judgment Day round 1): a function/method PARAMETER is checked
+    via `ast.arg`, not only `ast.Name`. AC-005-07 sc.4 is about the served
+    OpenAPI parameter list — a `min_confidence` query parameter is a
+    confidence-keyed behaviour the moment it is declared, whether or not the
+    handler body ever reads the parameter back by name (a body that never
+    references its own parameter produces no `ast.Name` for it at all, so
+    the `ast.Name` branch alone cannot see it). `ast.Attribute` is checked
+    too — `self.min_confidence` or `request.min_confidence`-shaped access
+    carries the same signal as a bare name.
+    """
     tree = ast.parse(source, filename=label)
     violations: list[str] = []
     for node in ast.walk(tree):
@@ -88,6 +99,10 @@ def _confidence_action_violations(source: str, label: str) -> list[str]:
             name = node.name
         elif isinstance(node, ast.Name):
             name = node.id
+        elif isinstance(node, ast.arg):
+            name = node.arg
+        elif isinstance(node, ast.Attribute):
+            name = node.attr
         if name is not None and any(
             token in name for token in _CONFIDENCE_ACTION_PATTERN.split("|")
         ):
@@ -174,13 +189,26 @@ def test_a_confidence_threshold_helper_would_be_caught() -> None:
 
 @pytest.mark.unit
 def test_a_min_confidence_query_parameter_would_be_caught() -> None:
-    """AC-005-07 scenario 4: a query-parameter-shaped identifier.
+    """AC-005-07 scenario 4: a served endpoint PARAMETER, not merely a body
+    that happens to echo the parameter's name.
 
-    Mirrors `test_a_confidence_threshold_helper_would_be_caught`, shaped as a
-    handler reading a `min_confidence` query parameter into a local name
-    rather than defining a `filter_by_confidence` function.
+    AC-005-07 sc.4 is about the served OpenAPI parameter list — a
+    `min_confidence` FastAPI query parameter is a confidence-keyed behaviour
+    the moment it is DECLARED, whether or not the handler body ever reads
+    it back by name. The handler below never references `min_confidence`
+    inside its body at all, so the only AST position that can catch it is
+    the parameter declaration itself (`ast.arg`).
+
+    RED (Judgment Day round 1, JD-W3-4): before `_confidence_action_violations`
+    inspected `ast.arg`, this returned `[]` — the earlier version of this
+    test passed only because its handler body said `return min_confidence`,
+    which produced an `ast.Name` the old check already covered; it never
+    exercised the parameter-declaration position AC-005-07 sc.4 is actually
+    about. Observed::
+
+        assert []
     """
-    source = "def list_groups(min_confidence=None):\n    return min_confidence\n"
+    source = "def list_groups(min_confidence: float = 0.0) -> None:\n    return None\n"
 
     assert _confidence_action_violations(source, "synthetic.py")
 
