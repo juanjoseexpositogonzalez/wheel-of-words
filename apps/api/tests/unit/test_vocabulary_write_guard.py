@@ -23,9 +23,11 @@ aggregation, never by excluding the module from the walk.
 
 This is a purely structural, non-flow-sensitive AST pass: callee and class names are matched
 textually, never resolved to what they refer to at runtime. Its accepted over-approximations and
-known gaps are registered in this capability's spec, §5, rows AMB-3 and AMB-11 through AMB-14
-(`openspec/changes/vocabulary-browser/specs/005-vocabulary-browser/spec.md`) — each bound there is
-pinned by at least one test in this module, cited by name in the row.
+known gaps are registered in this capability's spec, §5, rows AMB-3 and AMB-15
+(`openspec/changes/vocabulary-browser/specs/005-vocabulary-browser/spec.md`) — this module is the
+authoritative record of the detector's coverage and its bounds (AC-005-08 scenario 1, round 12);
+every mechanism and every bound is pinned by at least one named test below, cited by name in the
+row.
 
 REQ-005-008, AC-005-08.
 """
@@ -95,8 +97,8 @@ _FORBIDDEN_RAW_SQL = (
 # hypothetical `manual_correction_backup`) still matches; this widening is
 # unchanged from before round 8, not a new over-approximation. Dynamic
 # assembly — `%`-format, `str.join`, an interpolated f-string — is NOT
-# resolved by this regex or by anything else in this module; see the
-# module docstring's Known-gaps section.
+# resolved by this regex or by anything else in this module
+# (`test_dynamic_sql_assembly_is_a_documented_gap`, spec §5 AMB-15).
 _RAW_SQL_PATTERNS: dict[str, re.Pattern[str]] = {
     "insert into manual_correction": re.compile(
         r"insert\s+into\s+[\"'`]?(?:\w+\.)?[\"'`]?manual_correction", re.IGNORECASE
@@ -363,7 +365,21 @@ def test_the_scan_reaches_every_expected_module() -> None:
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("missing", sorted(_EXPECTED_PACKAGE_MODULES))
+@pytest.mark.parametrize(
+    # Hardcoded, not `sorted(_EXPECTED_PACKAGE_MODULES)`: the parametrize
+    # list must stay fixed independently of the constant under test (see
+    # `test_every_write_verb_is_caught_bare`'s identical rationale) —
+    # sourcing this list FROM the constant would let an element dropped
+    # from `_EXPECTED_PACKAGE_MODULES` silently remove its own case from
+    # collection, leaving the mutation undetected instead of failing it.
+    "missing",
+    [
+        "api/dependencies.py",
+        "api/main.py",
+        "infrastructure/persistence/book_repository.py",
+        "infrastructure/persistence/vocabulary_repository.py",
+    ],
+)
 def test_the_scan_fails_closed_when_an_anchor_is_missing(tmp_path: Path, missing: str) -> None:
     """SPEC-003 §3.3 M2, per anchor: a tree missing exactly one named anchor
     must fail `scanned >= _EXPECTED_PACKAGE_MODULES`."""
@@ -877,7 +893,7 @@ def test_a_docstring_mentioning_manual_correction_without_a_verb_stays_permitted
     verb+table match to. Contrast with
     `test_prose_matching_the_tolerant_raw_sql_regex_is_flagged_a_known_over_approximation`:
     the regex is NOT a pure literal-substring match, so prose that DOES
-    carry a verb keyword can still be caught (§5 AMB-14)."""
+    carry a verb keyword can still be caught (§5 AMB-15)."""
     source = '"""We document manual_correction rows here."""\n'
 
     assert _detect_writes(source, "synthetic.py") == []
@@ -896,7 +912,7 @@ def test_a_docstring_mentioning_manual_correction_without_a_verb_stays_permitted
 def test_prose_matching_the_tolerant_raw_sql_regex_is_flagged_a_known_over_approximation(
     source: str,
 ) -> None:
-    """KNOWN ACCEPTED OVER-APPROXIMATION (§5 AMB-14): `_RAW_SQL_PATTERNS`'
+    """KNOWN ACCEPTED OVER-APPROXIMATION (§5 AMB-15): `_RAW_SQL_PATTERNS`'
     whitespace- and schema-prefix-tolerance makes it MORE than a literal
     substring match, so prose naming `manual_correction` alongside a write
     verb can be flagged even with no contiguous `verb + table` fragment in
@@ -997,7 +1013,7 @@ def test_a_chained_assignment_binds_every_plain_name_target() -> None:
 
 @pytest.mark.unit
 def test_a_second_assignment_hop_is_the_documented_uncovered_boundary() -> None:
-    """KNOWN GAP, pinned boundary (§5 AMB-12): the tracker follows EXACTLY
+    """KNOWN GAP, pinned boundary (§5 AMB-15): the tracker follows EXACTLY
     ONE assignment hop. `alias = correction`, where `correction` is
     already one-hop bound to a `ManualCorrection(...)` construction, is a
     SECOND hop — `alias`'s own right-hand side is a plain `Name`, not a
@@ -1012,7 +1028,7 @@ def test_a_second_assignment_hop_is_the_documented_uncovered_boundary() -> None:
 
 @pytest.mark.unit
 def test_tuple_unpacking_targets_are_a_documented_uncovered_boundary() -> None:
-    """Deliberate scope decision (§5 AMB-12), not an oversight: a
+    """Deliberate scope decision (§5 AMB-15), not an oversight: a
     tuple/list unpacking assignment target is never tracked, even where a
     per-element match with the right-hand side would be structurally
     possible."""
@@ -1023,7 +1039,7 @@ def test_tuple_unpacking_targets_are_a_documented_uncovered_boundary() -> None:
 
 @pytest.mark.unit
 def test_a_for_loop_target_is_a_documented_uncovered_boundary() -> None:
-    """Deliberate scope decision (§5 AMB-12): a `for` loop target is
+    """Deliberate scope decision (§5 AMB-15): a `for` loop target is
     never tracked, even when the iterable is a literal list of
     `ManualCorrection` constructions visible in the same expression."""
     source = "for correction in [ManualCorrection(occurrence_id=1)]:\n    session.add(correction)\n"
@@ -1050,7 +1066,7 @@ def test_a_for_loop_target_is_a_documented_uncovered_boundary() -> None:
     ids=["attribute target", "self-attribute target", "subscript target"],
 )
 def test_a_non_name_assignment_target_is_a_documented_uncovered_boundary(source: str) -> None:
-    """KNOWN GAP, pinned boundary (§5 AMB-12): `_one_hop_bindings` only
+    """KNOWN GAP, pinned boundary (§5 AMB-15): `_one_hop_bindings` only
     registers a plain `ast.Name` target (`_register`'s own
     `isinstance(target, ast.Name)` check). An `ast.Attribute` target
     (`holder.correction = ...`, `self.x = ...`) or an `ast.Subscript`
@@ -1063,7 +1079,7 @@ def test_a_non_name_assignment_target_is_a_documented_uncovered_boundary(source:
 
 @pytest.mark.unit
 def test_the_one_hop_tracker_leaks_across_lexical_scopes_a_known_over_approximation() -> None:
-    """KNOWN ACCEPTED OVER-APPROXIMATION (§5 AMB-12): `_one_hop_bindings`
+    """KNOWN ACCEPTED OVER-APPROXIMATION (§5 AMB-15): `_one_hop_bindings`
     accumulates bound names into one module-wide `set`, with no lexical-
     scope association. `make()` binds `item` to a fresh
     `ManualCorrection()` construction; the unrelated `unrelated()` binds
@@ -1087,7 +1103,7 @@ def test_the_one_hop_tracker_leaks_across_lexical_scopes_a_known_over_approximat
 
 @pytest.mark.unit
 def test_a_rebound_write_verb_is_a_documented_uncovered_boundary() -> None:
-    """KNOWN GAP, pinned boundary (§5 AMB-13, SPEC-003 §3.6 G3): a write
+    """KNOWN GAP, pinned boundary (§5 AMB-15, SPEC-003 §3.6 G3): a write
     verb reached through a REBOUND local name — `d = delete` after
     `from sqlalchemy import delete`, then `d(...)` — is not resolved.
     `_write_verb_aliases` reads only `ast.ImportFrom` nodes; a plain
@@ -1110,7 +1126,7 @@ def test_a_rebound_write_verb_is_a_documented_uncovered_boundary() -> None:
     ids=["double-quoted schema and table", "backtick-quoted schema and table"],
 )
 def test_a_fully_quoted_schema_and_table_name_is_a_documented_gap(source: str) -> None:
-    """KNOWN GAP, pinned boundary (§5 AMB-14): `_RAW_SQL_PATTERNS` has one
+    """KNOWN GAP, pinned boundary (§5 AMB-15): `_RAW_SQL_PATTERNS` has one
     optional quote slot before the schema prefix and one between the
     prefix and the table name — it has no slot for a quote AFTER the
     schema name and another BEFORE the table name, so a form that quotes
@@ -1153,3 +1169,146 @@ def test_the_two_quote_slots_in_the_raw_sql_regex_are_independently_pinned(sourc
     assert _detect_writes(source, "synthetic.py") == [
         "synthetic.py raw SQL fragment 'delete from manual_correction'"
     ]
+
+
+# --------------------------------------------------------------------------
+# Round 12 (Judgment Day): every remaining tolerance component pinned
+# separately, not only in combination.
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("fragment", "source"),
+    [
+        ("insert into manual_correction", 'text("INSERT  INTO manual_correction VALUES (1)")\n'),
+        ("insert into manual_correction", 'text("INSERT INTO  manual_correction VALUES (1)")\n'),
+        (
+            "insert into manual_correction",
+            'text("INSERT INTO main.manual_correction VALUES (1)")\n',
+        ),
+        (
+            "insert into manual_correction",
+            "text('INSERT INTO \"main.manual_correction\" VALUES (1)')\n",
+        ),
+        (
+            "insert into manual_correction",
+            "text('INSERT INTO main.\"manual_correction\" VALUES (1)')\n",
+        ),
+        ("update manual_correction", "text('UPDATE \"main.manual_correction\" SET field=1')\n"),
+        ("update manual_correction", "text('UPDATE main.\"manual_correction\" SET field=1')\n"),
+        ("delete from manual_correction", 'text("DELETE FROM  manual_correction WHERE 1=1")\n'),
+        ("replace into manual_correction", 'text("REPLACE  INTO manual_correction VALUES (1)")\n'),
+        ("replace into manual_correction", 'text("REPLACE INTO  manual_correction VALUES (1)")\n'),
+        (
+            "replace into manual_correction",
+            'text("REPLACE INTO main.manual_correction VALUES (1)")\n',
+        ),
+        (
+            "replace into manual_correction",
+            "text('REPLACE INTO \"main.manual_correction\" VALUES (1)')\n",
+        ),
+        (
+            "replace into manual_correction",
+            "text('REPLACE INTO main.\"manual_correction\" VALUES (1)')\n",
+        ),
+        ("truncate table manual_correction", 'text("TRUNCATE  TABLE manual_correction")\n'),
+        ("truncate table manual_correction", 'text("TRUNCATE TABLE  manual_correction")\n'),
+        ("truncate table manual_correction", 'text("TRUNCATE TABLE main.manual_correction")\n'),
+        (
+            "truncate table manual_correction",
+            "text('TRUNCATE TABLE \"main.manual_correction\"')\n",
+        ),
+        (
+            "truncate table manual_correction",
+            "text('TRUNCATE TABLE main.\"manual_correction\"')\n",
+        ),
+    ],
+    ids=[
+        "insert-ws1",
+        "insert-ws2",
+        "insert-schema",
+        "insert-quote-pre",
+        "insert-quote-post",
+        "update-quote-pre",
+        "update-quote-post",
+        "delete-ws2",
+        "replace-ws1",
+        "replace-ws2",
+        "replace-schema",
+        "replace-quote-pre",
+        "replace-quote-post",
+        "truncate-ws1",
+        "truncate-ws2",
+        "truncate-schema",
+        "truncate-quote-pre",
+        "truncate-quote-post",
+    ],
+)
+def test_every_tolerance_component_is_independently_pinned_per_pattern(
+    fragment: str, source: str
+) -> None:
+    """MUTATION CHECK (round 12, Judgment Day): round 10 pinned only
+    `delete`'s two quote slots individually
+    (`test_the_two_quote_slots_in_the_raw_sql_regex_are_independently_pinned`).
+    Every other tolerance component of every other pattern — both quote
+    slots for `insert`/`update`/`replace`/`truncate`, the two whitespace
+    slots and the schema-prefix group for `insert`/`replace`/`truncate`, and
+    `delete`'s second whitespace slot (18 components total) — had been
+    exercised only in combination with every other tolerance already
+    present (a single space, no schema, no quote), never in isolation, so
+    removing any one of the 18 left the full suite green. Each case here
+    mirrors the existing quote-slot test's isolation technique for exactly
+    one component of one pattern. Ran each of the 18 with the corresponding
+    regex component removed in turn, separately, restoring the file between
+    mutations and verifying the restore by content hash before the next
+    mutation; each mutation broke exactly its own case here and no other
+    test in this module went red (round 12 evidence, this Judgment Day
+    report). `update`'s own whitespace slot and schema-prefix group are not
+    listed here because both are already independently pinned by
+    `test_prose_matching_the_tolerant_raw_sql_regex_is_flagged_a_known_over_approximation`'s
+    `"schema-shaped prefix"` and `"line-wrapped verb"` cases."""
+    assert _detect_writes(source, "synthetic.py") == [f"synthetic.py raw SQL fragment {fragment!r}"]
+
+
+@pytest.mark.unit
+def test_a_fragment_split_across_a_plus_concatenation_requires_the_fold_arm() -> None:
+    """MUTATION CHECK (round 12): `test_a_folded_chain_is_reported_once_not_
+    once_per_sub_expression` concatenates `"a" + "insert into manual_
+    correction" + "b"`, but the FORBIDDEN FRAGMENT already sits whole inside
+    the middle constant — `_string_literals` finds it as its own,
+    independently-walked `ast.Constant` even with `_folded_string`'s
+    `ast.BinOp`/`ast.Add` fold arm deleted, because the outer `BinOp` node
+    simply produces no folded literal (and consumes nothing) while `ast.walk`
+    still visits the unconsumed inner constants directly. Deleting that fold
+    arm left the 88-test suite green for exactly this reason (round 11/12
+    evidence). This case genuinely needs the fold: `"insert into "` and
+    `"manual_correction"` are split at the exact verb/table boundary, so
+    NEITHER half alone contains the fragment the regex requires in one
+    string — only `_folded_string` combining them into
+    `"insert into manual_correction"` produces a match."""
+    source = 'text("insert into " + "manual_correction")\n'
+
+    assert _detect_writes(source, "synthetic.py") == [
+        "synthetic.py raw SQL fragment 'insert into manual_correction'"
+    ]
+
+
+@pytest.mark.unit
+def test_a_module_qualified_manual_correction_reference_requires_the_attribute_arm() -> None:
+    """MUTATION CHECK (round 12): `_names_manual_correction`'s
+    `ast.Attribute` arm (`isinstance(node, ast.Attribute) and node.attr ==
+    "ManualCorrection"`) matches a MODULE-qualified reference — the class
+    named through an attribute access on some other name, not imported or
+    bound directly. Every existing test that exercises `ManualCorrection` as
+    an attribute uses `ManualCorrection.__table__.delete()`, where
+    `ManualCorrection` ITSELF is the receiver's leading `ast.Name`, matched
+    by the `ast.Name` arm — the `Attribute` arm is never reached by that
+    case. Replacing the `Attribute` arm with `return False` left the
+    88-test suite green (round 11/12 evidence) because no test used a
+    reference of the shape this case supplies: `models.ManualCorrection`,
+    where `ManualCorrection` is the attribute and `models` is the
+    receiver — only the `Attribute` arm's `.attr` check can match it."""
+    source = "delete(models.ManualCorrection)\n"
+
+    assert _detect_writes(source, "synthetic.py") == ["synthetic.py:1 delete(ManualCorrection)"]
