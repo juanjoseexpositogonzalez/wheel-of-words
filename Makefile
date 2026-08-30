@@ -1,3 +1,5 @@
+PORT ?= 8000
+
 .PHONY: bootstrap install dev-backend dev-frontend dev \
         test-backend test-frontend test-e2e test \
         lint-backend lint-frontend lint \
@@ -15,7 +17,7 @@ install: bootstrap
 # ─── Dev servers ──────────────────────────────────────────────────────────────
 
 dev-backend:
-	cd apps/api && uv run uvicorn wheel_vocabulary.api.main:create_app --factory --reload
+	cd apps/api && uv run uvicorn wheel_vocabulary.api.main:create_app --factory --reload --port $(PORT)
 
 dev-frontend:
 	cd apps/web && pnpm run dev

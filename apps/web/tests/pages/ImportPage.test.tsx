@@ -4,8 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ImportPage } from "../../src/pages/ImportPage";
 import { postAnnotation } from "../../src/api/annotation";
 import { deleteImport, postImport } from "../../src/api/imports";
+import { getVocabulary } from "../../src/api/vocabulary";
 import type { AnnotationResult } from "../../src/types/annotation";
 import type { ImportResult } from "../../src/types/imports";
+import type { VocabularyResult } from "../../src/types/vocabulary";
 
 /**
  * REQ-003-012/§2.6: closes verify-report WARNING-4. `handleAnnotate`, the
@@ -18,10 +20,12 @@ import type { ImportResult } from "../../src/types/imports";
 
 vi.mock("../../src/api/imports", () => ({ postImport: vi.fn(), deleteImport: vi.fn() }));
 vi.mock("../../src/api/annotation", () => ({ postAnnotation: vi.fn() }));
+vi.mock("../../src/api/vocabulary", () => ({ getVocabulary: vi.fn() }));
 
 const postImportMock = vi.mocked(postImport);
 const postAnnotationMock = vi.mocked(postAnnotation);
 const deleteImportMock = vi.mocked(deleteImport);
+const getVocabularyMock = vi.mocked(getVocabulary);
 
 function makeFile(name: string): File {
   return new File(["run ran running"], name, { type: "text/plain" });
@@ -61,6 +65,13 @@ const annotationResult: AnnotationResult = {
       lemma_confidence: null,
     },
   ],
+};
+
+const vocabularyResult: VocabularyResult = {
+  id: 42,
+  group_count: 1,
+  total_occurrence_count: 3,
+  groups: [{ lemma: "run", pos: "VERB", occurrence_count: 3 }],
 };
 
 async function importSuccessfully(user: ReturnType<typeof userEvent.setup>): Promise<void> {
@@ -130,6 +141,18 @@ describe("ImportPage", () => {
     expect(annotationTable).not.toBeNull();
     expect(annotationTable).toHaveTextContent("run");
     expect(postAnnotationMock).toHaveBeenCalledWith(42);
+  });
+
+  it("loads and renders vocabulary groups after a successful import", async () => {
+    const user = userEvent.setup();
+    await importSuccessfully(user);
+    getVocabularyMock.mockResolvedValue(vocabularyResult);
+
+    await user.click(screen.getByRole("button", { name: "Ver vocabulario" }));
+
+    expect(await screen.findByText("Vocabulario agrupado por lema y categoría gramatical.")).toBeVisible();
+    expect(screen.getByRole("table", { name: /vocabulario agrupado/i })).toHaveTextContent("run");
+    expect(getVocabularyMock).toHaveBeenCalledWith(42);
   });
 
   it("shows the backend error message perceptibly when annotation fails, and the table is never rendered", async () => {

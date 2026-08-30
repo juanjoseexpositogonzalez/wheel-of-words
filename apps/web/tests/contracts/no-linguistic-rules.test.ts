@@ -32,6 +32,7 @@ const FRONTEND_FEATURE_MODULES = [
   "src/components/DeleteImportButton.tsx",
   "src/components/AnnotationTable.tsx",
   "src/components/uposLabels.ts",
+  "src/components/VocabularyBrowser.tsx",
   "src/api/imports.ts",
   "src/api/annotation.ts",
   "src/api/vocabulary.ts",
