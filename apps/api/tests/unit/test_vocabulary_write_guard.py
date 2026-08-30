@@ -27,12 +27,14 @@ known gaps are registered in this capability's spec, §5, rows AMB-3 and AMB-15
 (`openspec/changes/vocabulary-browser/specs/005-vocabulary-browser/spec.md`) — this module is the
 authoritative record of the detector's coverage and its bounds (AC-005-08 scenario 1). Every
 mechanism and every bound is pinned by at least one named test below; not every one of those tests
-is cited by name in the AMB-15 row itself, but every test the row DOES cite, together with every
-mechanism-pinning test this module tags MUTATION CHECK, is named in
-`_MECHANISM_AND_BOUND_PINNING_TESTS` (round 13), whose own guard test —
-`test_every_named_pinning_test_still_exists_in_this_module` — fails, by name, if any anchored test
-is deleted. That guard cannot detect a name being removed FROM the anchor instead of the test it
-names being deleted; see the guard's own docstring for why no test can.
+is cited by name in the AMB-15 row itself, but every test that DOES pin a mechanism or a bound is
+kept in sync with that row by two checks, computed at test time, not a hand-written list (round 13,
+re-derived round 15 after the hand-written list proved short by four):
+`test_every_named_pinning_test_still_exists_in_this_module` fails, by name, if a test the AMB-15 row
+cites is deleted; `test_every_mutation_check_test_is_cited_in_amb15` fails, by name, if a test this
+module tags MUTATION CHECK in its own docstring is not cited in that row. Neither direction can
+detect a citation and the test it names being removed together in the same edit; see either guard's
+own docstring for why no test can.
 
 REQ-005-008, AC-005-08.
 """
@@ -47,6 +49,16 @@ import pytest
 
 _PACKAGE_ROOT = Path(__file__).resolve().parents[2] / "src" / "wheel_vocabulary"
 _MIGRATIONS_ROOT = Path(__file__).resolve().parents[2] / "migrations" / "versions"
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
+_SPEC_PATH = (
+    _REPOSITORY_ROOT
+    / "openspec"
+    / "changes"
+    / "vocabulary-browser"
+    / "specs"
+    / "005-vocabulary-browser"
+    / "spec.md"
+)
 
 # Non-vacuity anchors (SPEC-003 §3.3 M2): real files the scan MUST reach, or
 # the guard below proves nothing. Not a manifest the scan enumerates FROM —
@@ -361,7 +373,23 @@ def _write_violations(
 
 @pytest.mark.unit
 def test_the_scan_reaches_every_expected_module() -> None:
-    """Non-vacuity (SPEC-003 §3.3 M2): the real walk reaches every anchor."""
+    """Non-vacuity (SPEC-003 §3.3 M2): the real walk, against the real
+    `_PACKAGE_ROOT`/`_MIGRATIONS_ROOT`, reaches every anchor. Distinct
+    from `test_the_scan_fails_closed_when_an_anchor_is_missing`, which
+    proves the anchor-vs-scan LOGIC fails closed against a synthetic
+    `tmp_path` tree — this test is the only one in the module that
+    proves the REAL repository still contains what `_EXPECTED_PACKAGE_MODULES`
+    and `_EXPECTED_MIGRATIONS` name, so a real file renamed or deleted
+    without updating either constant is caught here, not silently missed.
+
+    MUTATION CHECK (round 15): added a fifth, nonexistent module,
+    `"api/this_file_does_not_exist.py"`, to `_EXPECTED_PACKAGE_MODULES`
+    and observed this test fail alone (108 passed, 1 failed — every other
+    test in the module, including the ones reading real `book_repository.py`
+    and `vocabulary_repository.py` source, stayed green), confirming this
+    test is the sole enforcer of "the anchor matches what the real
+    filesystem contains" for `api/dependencies.py` and `api/main.py`,
+    which no other test reads directly."""
     scanned = {label for _, label in _scanned_modules()}
     missing_migrations = {f"migrations/versions/{name}" for name in _EXPECTED_MIGRATIONS}
 
@@ -387,7 +415,14 @@ def test_the_scan_reaches_every_expected_module() -> None:
 )
 def test_the_scan_fails_closed_when_an_anchor_is_missing(tmp_path: Path, missing: str) -> None:
     """SPEC-003 §3.3 M2, per anchor: a tree missing exactly one named anchor
-    must fail `scanned >= _EXPECTED_PACKAGE_MODULES`."""
+    must fail `scanned >= _EXPECTED_PACKAGE_MODULES`.
+
+    MUTATION CHECK (round 15): dropped `"api/main.py"` from
+    `_EXPECTED_PACKAGE_MODULES` (4 elements to 3) and observed exactly
+    `test_the_scan_fails_closed_when_an_anchor_is_missing[api/main.py]`
+    fail, with `scanned >= _EXPECTED_PACKAGE_MODULES` both sides equal to
+    the mutated 3-element set — every other parametrized case, and every
+    other test in the module, stayed green."""
     package_root = tmp_path / "pkg"
     migrations_root = tmp_path / "migrations"
     migrations_root.mkdir()
@@ -399,6 +434,52 @@ def test_the_scan_fails_closed_when_an_anchor_is_missing(tmp_path: Path, missing
     scanned = {label for _, label in _scanned_modules(package_root, migrations_root)}
 
     assert not (scanned >= _EXPECTED_PACKAGE_MODULES)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    # Hardcoded, not `sorted(_EXPECTED_MIGRATIONS)`: same rationale as
+    # `test_the_scan_fails_closed_when_an_anchor_is_missing`'s identical
+    # comment — the parametrize list must stay fixed independently of the
+    # constant under test.
+    "missing",
+    [
+        "0004_vocabulary_group_index.py",
+    ],
+)
+def test_the_migrations_scan_fails_closed_when_an_anchor_is_missing(
+    tmp_path: Path, missing: str
+) -> None:
+    """SPEC-003 §3.3 M2, per anchor (round 15): `_EXPECTED_PACKAGE_MODULES`
+    has had this per-element guard since round 12; `_EXPECTED_MIGRATIONS`
+    never did. `test_the_scan_reaches_every_expected_module`'s
+    `assert not (missing_migrations - scanned)` does not close that gap —
+    it is vacuously true when `_EXPECTED_MIGRATIONS` itself is emptied,
+    because an empty set's subtraction from anything is always the empty
+    set, and `assert not set()` passes regardless of what `scanned`
+    contains.
+
+    MUTATION CHECK: ran with `_EXPECTED_MIGRATIONS` mutated to
+    `frozenset()` (the file's only migration anchor emptied) and observed
+    the full module stay green — 109 passed, `test_the_scan_reaches_every_expected_module`
+    included — confirming that test alone does not fail closed for this
+    anchor. This test does: with `_EXPECTED_MIGRATIONS` emptied, `expected`
+    below becomes `set()` and `scanned` (nothing created, since the loop
+    body never runs) is also `set()`, so `set() >= set()` is `True` and the
+    assertion fails.
+    """
+    package_root = tmp_path / "pkg"
+    migrations_root = tmp_path / "migrations"
+    package_root.mkdir()
+    for present in _EXPECTED_MIGRATIONS - {missing}:
+        target = migrations_root / present
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("x = 1\n", encoding="utf-8")
+
+    scanned = {label for _, label in _scanned_modules(package_root, migrations_root)}
+    expected = {f"migrations/versions/{name}" for name in _EXPECTED_MIGRATIONS}
+
+    assert not (scanned >= expected)
 
 
 @pytest.mark.unit
@@ -440,7 +521,19 @@ def test_the_scan_reaches_a_nested_migration(tmp_path: Path) -> None:
 def test_the_exempt_set_is_exactly_book_repository() -> None:
     """The exempt set names exactly one module. This does not prove it is
     impossible to exempt another — it proves any addition requires
-    deliberately editing this assertion, which forces review."""
+    deliberately editing this assertion, which forces review.
+
+    MUTATION CHECK (round 15): emptied `_EXEMPT_WRITE_MODULES` to `{}` and
+    observed this test fail with `assert set() ==
+    {'infrastructure/persistence/book_repository.py'}` (this module's own
+    genuine write at `book_repository.py:144` also surfaced through
+    `test_no_module_writes_to_manual_correction`, a second, corroborating
+    failure, not this test's own). This is AC-005-08 scenario 1's fourth
+    failure mode's enforcer — "the exempt set changes only together with
+    the test enforcing its exact membership" — and until this docstring's
+    tag, nothing else in this module protected THIS test's own
+    existence: deleting it, then adding an unauthorized exemption, left
+    the suite green."""
     assert set(_EXEMPT_WRITE_MODULES) == {"infrastructure/persistence/book_repository.py"}
 
 
@@ -1053,8 +1146,11 @@ def test_a_for_loop_target_is_a_documented_uncovered_boundary() -> None:
 
 
 # --------------------------------------------------------------------------
-# Round 10 (Judgment Day): bounds registered in spec §5 AMB-12 through
-# AMB-14, and the two quote slots in `_RAW_SQL_PATTERNS` distinguished.
+# Round 10 (Judgment Day): bounds registered in spec §5 (originally
+# AMB-12 through AMB-14; those three rows were collapsed into AMB-15 in
+# round 12 — corrected round 15, this header pointed at rows the spec no
+# longer has), and the two quote slots in `_RAW_SQL_PATTERNS`
+# distinguished.
 # --------------------------------------------------------------------------
 
 
@@ -1138,9 +1234,17 @@ def test_a_fully_quoted_schema_and_table_name_is_a_documented_gap(source: str) -
     the schema and the table as two independently-delimited identifiers
     (`"main"."manual_correction"`, `` `main`.`manual_correction` ``)
     evades the scan entirely; this is literal SQL text, inside AC-005-08
-    scenario 1's stated scope. SQLite has no schema support, so this
-    exact form cannot arise in this codebase's own modules today — that
-    is a reason to register the bound, not to omit it."""
+    scenario 1's stated scope. Corrected (round 15): an earlier revision
+    of this docstring claimed "SQLite has no schema support, so this
+    exact form cannot arise" — false, verified by execution against plain
+    `sqlite3` before this correction, not merely re-asserted: `main` and
+    `temp` are built-in SQLite schemas needing no `ATTACH DATABASE`, and
+    both `DELETE FROM "main"."manual_correction"` and the backtick-quoted
+    form execute successfully (`cur.execute(...)` raises nothing, and
+    reports a row count) against an in-memory `sqlite3` connection with a
+    `manual_correction` table. This form is reachable against this
+    project's own database engine, unmodified — that is a reason to
+    register the bound, not a reason it is merely hypothetical."""
     assert _detect_writes(source, "synthetic.py") == []
 
 
@@ -1267,10 +1371,26 @@ def test_every_tolerance_component_is_independently_pinned_per_pattern(
     one component of one pattern. Ran each of the 18 with the corresponding
     regex component removed in turn, separately, restoring the file between
     mutations and verifying the restore by content hash before the next
-    mutation; each mutation broke exactly its own case here and no other
-    test in this module went red (round 12 evidence, this Judgment Day
-    report). `update`'s own whitespace slot and schema-prefix group are not
-    listed here because both are already independently pinned by
+    mutation.
+
+    Corrected (round 15): a prior revision of this docstring claimed each
+    of the 18 mutations "broke exactly its own case here and no other test
+    in this module went red" — re-running each of the 18 individually
+    found that false for the three schema-prefix components. Dropping
+    `insert`/`replace`/`truncate`'s schema-prefix group (`(?:\\w+\\.)?`)
+    breaks THREE cases each, not one: the `*-schema` case itself, plus
+    `*-quote-pre` and `*-quote-post` — both quote-slot cases embed a
+    literal `main.` between the quote and `manual_correction` in their own
+    source text (`insert-quote-pre`'s `'INSERT INTO "main.manual_correction"
+    VALUES (1)'`), so with no schema-prefix group left to skip over
+    `main.`, neither quote slot's regex can reach `manual_correction`
+    either. The other 15 components — both whitespace slots and both
+    quote slots for `insert`/`replace`/`truncate`, `delete`'s second
+    whitespace slot, and both quote slots for `update` — were
+    re-verified, individually, to break only their own parametrized case,
+    exactly as originally claimed. `update`'s own whitespace slot and
+    schema-prefix group are not listed here because both are already
+    independently pinned by
     `test_prose_matching_the_tolerant_raw_sql_regex_is_flagged_a_known_over_approximation`'s
     `"schema-shaped prefix"` and `"line-wrapped verb"` cases."""
     assert _detect_writes(source, "synthetic.py") == [f"synthetic.py raw SQL fragment {fragment!r}"]
@@ -1322,104 +1442,181 @@ def test_a_module_qualified_manual_correction_reference_requires_the_attribute_a
 # --------------------------------------------------------------------------
 # Round 13 (Judgment Day): a name-existence anchor for the tests AC-005-08
 # scenario 1 depends on, and an explicit statement of what it cannot do.
+# Round 15 (Judgment Day): the anchor stopped being a hand-written
+# frozenset. Round 13's list was already short by one against its own
+# stated rule the day it was written (`test_every_named_pinning_test_still_exists_in_this_module`
+# itself is cited in §5 AMB-15's own text but was never added), and three
+# separate tests in this module pin a mechanism or a bound — the real
+# anchor-vs-scan check, its per-anchor fail-closed check, and the
+# exempt-set exact-membership check — without being cited in §5 AMB-15 or
+# tagged MUTATION CHECK, meaning deleting any one of them was
+# undetectable. Both directions below are computed from spec.md and this
+# module's own source, read fresh from disk at test-call time, not from a
+# constant maintained by hand.
 # --------------------------------------------------------------------------
 
-# Membership (AC-005-08 scenario 1, §5 AMB-15): the union of (a) every test
-# §5 AMB-15 (`spec.md`) cites by exact name — the module's documented
-# bounds and over-approximations — and (b) every test in this module
-# tagged "MUTATION CHECK" in its own docstring — this module's established
-# marker for a mechanism proven load-bearing by executing its pinned
-# mutation and observing red. Zero names overlap between (a) and (b) as of
-# round 13. A test that demonstrates a positive case with no recorded
-# mutation run, and that AMB-15 does not cite, is deliberately NOT in this
-# set — adding it would not change what the guard below actually proves
-# (see its docstring), and round 13's scope is one constant, one test, and
-# prose, not a new detection mechanism or a broader anchor.
-_MECHANISM_AND_BOUND_PINNING_TESTS = frozenset(
-    {
-        # (a) Cited by exact name in §5 AMB-15.
-        "test_a_folded_chain_is_reported_once_not_once_per_sub_expression",
-        "test_a_for_loop_target_is_a_documented_uncovered_boundary",
-        "test_a_fully_quoted_schema_and_table_name_is_a_documented_gap",
-        "test_a_non_name_assignment_target_is_a_documented_uncovered_boundary",
-        "test_a_rebound_class_alias_is_still_treated_as_manual_correction",
-        "test_a_rebound_write_verb_is_a_documented_uncovered_boundary",
-        "test_a_second_assignment_hop_is_the_documented_uncovered_boundary",
-        "test_an_import_aliasing_a_different_class_to_the_exact_name_is_flagged",
-        "test_an_unrelated_class_genuinely_named_manual_correction_is_flagged",
-        "test_dynamic_sql_assembly_is_a_documented_gap",
-        "test_no_receiver_or_origin_is_verified_a_known_over_approximation",
-        "test_prose_matching_the_tolerant_raw_sql_regex_is_flagged_a_known_over_approximation",
-        "test_renaming_an_unrelated_import_to_a_write_verb_name_is_an_over_approximation",
-        "test_the_one_hop_tracker_leaks_across_lexical_scopes_a_known_over_approximation",
-        "test_the_raw_sql_adjacency_gaps_named_in_the_brief_are_now_closed",
-        "test_tuple_unpacking_targets_are_a_documented_uncovered_boundary",
-        # (b) Tagged MUTATION CHECK in this module, not cited by name in
-        # the §5 AMB-15 row above.
-        "test_the_exemption_hides_a_genuine_write",
-        "test_emptying_the_exempt_set_fails_through_write_violations",
-        "test_writes_appended_to_the_vocabulary_repository_are_caught",
-        "test_every_write_verb_is_caught_under_a_renamed_import",
-        "test_every_write_verb_is_caught_bare",
-        "test_every_raw_sql_fragment_is_caught",
-        "test_a_docstring_containing_the_forbidden_fragment_is_flagged",
-        "test_the_two_quote_slots_in_the_raw_sql_regex_are_independently_pinned",
-        "test_every_tolerance_component_is_independently_pinned_per_pattern",
-        "test_a_fragment_split_across_a_plus_concatenation_requires_the_fold_arm",
-        "test_a_module_qualified_manual_correction_reference_requires_the_attribute_arm",
-    }
-)
+
+def _amb15_row(spec_text: str) -> str:
+    """The raw text of spec.md's own §5 AMB-15 row. Read fresh from the
+    file at test-call time by every caller below — never copied into this
+    module — so the two directional checks that depend on it stay
+    genuinely external: a test deleted in THIS file can never also delete
+    its own citation, because the citation lives in a file the deletion
+    never touches."""
+    match = re.search(r"^\| \*\*AMB-15\*\* \|.*$", spec_text, re.MULTILINE)
+    if match is None:
+        raise AssertionError(
+            f"{_SPEC_PATH} no longer has a §5 AMB-15 row — the row this "
+            "module's two-directional pinning check reads moved or was "
+            "deleted"
+        )
+    return match.group(0)
+
+
+def _tests_cited_in_amb15(spec_text: str) -> frozenset[str]:
+    """Every `test_*` name §5 AMB-15's row cites by exact backtick-quoted
+    name. This is the EXTERNAL half of the two-directional constraint
+    (round 15): the required-to-exist set for direction A below comes
+    from spec.md's own text, never from this module's `globals()` — the
+    trap a module-only reference cannot escape, because deleting a test
+    would remove it from the required set and the actual set in the same
+    edit."""
+    return frozenset(re.findall(r"`(test_\w+)`", _amb15_row(spec_text)))
+
+
+def _mutation_check_tagged_tests(module_source: str) -> frozenset[str]:
+    """Every module-level `test_*` function in THIS module whose own
+    docstring contains the literal marker `MUTATION CHECK` — this
+    module's round-12/13 convention for a test that names the exact
+    mutation it pins and the exact output that mutation produced,
+    verifying by execution that deleting the test lets the mutation
+    survive undetected. Parsed via `ast` from source text read fresh from
+    disk at test-call time, never from `globals()` (a decorated
+    `pytest.mark.parametrize` function's own docstring is unaffected by
+    parametrization, so this reads the single underlying `ast.FunctionDef`
+    once per test, not once per parametrized case)."""
+    tree = ast.parse(module_source)
+    return frozenset(
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+        and node.name.startswith("test_")
+        and (docstring := ast.get_docstring(node)) is not None
+        and "MUTATION CHECK" in docstring
+    )
 
 
 @pytest.mark.unit
 def test_every_named_pinning_test_still_exists_in_this_module() -> None:
-    """AC-005-08 scenario 1, closing the half of the gap round 12's wording
-    left open (§5 AMB-15): deleting
+    """AC-005-08 scenario 1, direction A (round 13, re-derived round 15):
+    deleting
     `test_a_module_qualified_manual_correction_reference_requires_the_attribute_arm`
     AND applying the mutation it pins together left the 108-test file (the
     deleted test plus the other 107) fully green — round 12's scenario
     text called that combination 'a failure of this scenario', but nothing
-    made it one. This test is that enforcement, for every name in
-    `_MECHANISM_AND_BOUND_PINNING_TESTS`: each must still exist as a
-    module-level `test_*` callable, read through `globals()` at CALL time
-    (not at import or collection time), so a deleted `def test_x(...):` is
-    simply absent from this module's namespace by the time pytest runs
-    this assertion — regardless of where in the file this guard itself is
-    defined.
+    made it one. This test is that enforcement: every `test_*` name §5
+    AMB-15's row cites by exact name (`_tests_cited_in_amb15`, read fresh
+    from `spec.md`) must still exist as a module-level `test_*` callable,
+    read through `globals()` at CALL time (not at import or collection
+    time), so a deleted `def test_x(...):` is simply absent from this
+    module's namespace by the time pytest runs this assertion —
+    regardless of where in the file this guard itself is defined.
+
+    Round 13's `_MECHANISM_AND_BOUND_PINNING_TESTS` was a hand-written
+    frozenset a human had to update every time a new test started pinning
+    a mechanism; it was already short by one the round it was written
+    (this guard's own name is cited in §5 AMB-15's text but was never
+    added to it), and three further tests were found round 15 pinning a
+    mechanism while cited nowhere and tagged nothing. Reading the
+    required set from spec.md's row text directly removes the
+    human-maintained middle step.
 
     WHAT THIS DOES NOT DO, stated plainly, not implied: this closes ONE
-    half of the gap. Deleting a named test now fails this test, by name,
+    half of the gap. Deleting a cited test now fails this test, by name,
     with the deleted test's own name in the assertion message. It does
-    NOT close the other half. Removing a name FROM
-    `_MECHANISM_AND_BOUND_PINNING_TESTS` — instead of deleting the test
-    that name points at — shrinks this test's own membership along with
-    the removal, so the pair (delete the test, delete its name from this
-    set) passes this guard exactly as it did before round 13. No
-    construct in this file, or in Python, closes that: the anchor is
-    itself an editable module-level constant, and any guard checking IT
-    is either this same regress one level up, or a human reading a diff.
-    This anchor moves the failure mode from silent (round 12's
-    demonstration: 107 passed, zero red) to a visible one-line diff on a
-    named constant, in a reviewed pull request — deleting a test's name
-    from `_MECHANISM_AND_BOUND_PINNING_TESTS` without also deleting the
-    test is visible in that diff alone. The regress closes by review, not
-    by code, and this docstring makes no claim to the contrary.
+    NOT close the other half. Removing a name's citation FROM spec.md's
+    AMB-15 row — instead of deleting the test that name points at —
+    shrinks this test's own required set along with the removal, so the
+    pair (delete the test, delete its citation from spec.md) passes this
+    guard exactly as the equivalent pair did against round 13's constant.
+    No construct in this file, or in Python, closes that: the citation is
+    itself editable prose in a separate file, and any guard checking IT is
+    either this same regress one level up, or a human reading a diff. This
+    check moves the failure mode from silent (round 12's demonstration:
+    107 passed, zero red) to a visible diff across two files in the same
+    reviewed pull request — deleting a test's citation from spec.md
+    without also deleting the test is visible in that diff alone. The
+    regress closes by review, not by code, and this docstring makes no
+    claim to the contrary.
 
-    NOT VACUOUS (round 13 evidence, this Judgment Day report; each
+    NOT VACUOUS (round 15 evidence, this Judgment Day report; each
     mutation was applied to an in-memory copy, run, and reverted from a
     byte snapshot verified by hash — never via git):
-    - `_MECHANISM_AND_BOUND_PINNING_TESTS` emptied: this test passes
-      trivially, an empty set has no missing member — expected of a
-      subset-of-existing-names check on an empty set, not a defect.
-    - `_MECHANISM_AND_BOUND_PINNING_TESTS` naming a test that does not
-      exist (`"test_this_does_not_exist"`, added alongside the real 27):
-      fails with `pinning test(s) named in the anchor no longer exist:
-      ['test_this_does_not_exist']`, so the assertion is reachable and
-      reports the exact offending name(s), not merely a tautology.
+    - deleted
+      `test_a_module_qualified_manual_correction_reference_requires_the_attribute_arm`
+      (cited in §5 AMB-15's row) from an in-memory copy of this module:
+      this test failed with `§5 AMB-15 cites test(s) no longer in this
+      module: ['test_a_module_qualified_manual_correction_reference_requires_the_attribute_arm']`.
+    - added a row to spec.md's AMB-15 text citing a nonexistent name,
+      `` `test_this_does_not_exist` ``, alongside the real citations: this
+      test failed with the same message, naming that exact string, so the
+      assertion is reachable and reports the exact offending name(s), not
+      merely a tautology.
     """
+    spec_text = _SPEC_PATH.read_text(encoding="utf-8")
+    required = _tests_cited_in_amb15(spec_text)
     existing_test_names = {
         name for name, value in globals().items() if name.startswith("test_") and callable(value)
     }
-    missing = _MECHANISM_AND_BOUND_PINNING_TESTS - existing_test_names
+    missing = required - existing_test_names
 
-    assert not missing, f"pinning test(s) named in the anchor no longer exist: {sorted(missing)}"
+    assert not missing, f"§5 AMB-15 cites test(s) no longer in this module: {sorted(missing)}"
+
+
+@pytest.mark.unit
+def test_every_mutation_check_test_is_cited_in_amb15() -> None:
+    """AC-005-08 scenario 1, direction B (round 15) — the half round 13's
+    hand-written frozenset never had: every test in this module tagged
+    `MUTATION CHECK` in its own docstring
+    (`_mutation_check_tagged_tests`) must be cited by exact name
+    somewhere in §5 AMB-15's row (`_tests_cited_in_amb15`), or THIS test
+    fails, by name. Round 13's anchor only ever grew when a human
+    remembered to add a name to it; nothing forced that. A new
+    mechanism-pinning test could be written, tagged MUTATION CHECK, and
+    left uncited indefinitely — that state changed nothing observable.
+    This test makes it observably red until spec.md's row is updated to
+    cite it.
+
+    Combined with `test_every_named_pinning_test_still_exists_in_this_module`
+    (direction A), every MUTATION-CHECK-tagged test necessarily becomes,
+    and stays, a name §5 AMB-15 cites: this test forces the citation to
+    exist, and direction A then protects that citation's target from
+    being deleted out from under it. Neither direction alone closed both
+    halves; together they do, for every test this module can mechanically
+    recognize as pinning a mechanism or a bound. A test that demonstrates
+    a positive case with no `MUTATION CHECK` marker and no AMB-15
+    citation is outside what this pair of checks can reach — see the
+    module docstring's closing paragraph for what that residual gap is.
+
+    NOT VACUOUS (round 15 evidence, this Judgment Day report; every
+    mutation applied to an in-memory copy, run, and reverted from a byte
+    snapshot verified by hash — never via git):
+    - before spec.md's row was updated this round to cite them, this test
+      failed listing 14 real, already-tagged, uncited names, including
+      `test_the_exempt_set_is_exactly_book_repository` and
+      `test_the_scan_reaches_every_expected_module` — the two tests round
+      15 also found pinning an unenforced bound and an unenforced
+      non-vacuity check, respectively (this Judgment Day report's
+      Property 1/2/3 findings).
+    - added a synthetic `MUTATION CHECK` marker to an existing, already-
+      cited test's docstring copy in an in-memory mutant: no new failure,
+      confirming the check is additive over citations already present,
+      not a full-text equality check that would fail on any edit.
+    """
+    module_source = Path(__file__).read_text(encoding="utf-8")
+    spec_text = _SPEC_PATH.read_text(encoding="utf-8")
+    tagged = _mutation_check_tagged_tests(module_source)
+    cited = _tests_cited_in_amb15(spec_text)
+    uncited = tagged - cited
+
+    assert not uncited, f"MUTATION CHECK test(s) not cited in §5 AMB-15: {sorted(uncited)}"
