@@ -65,6 +65,7 @@ const LEMMA_OWNING_FILES: Readonly<Record<string, ReadonlySet<string>>> = {
     "automatic_lemma",
   ]),
   "src/components/AnnotationTable.tsx": new Set(["lemma", "lemma_confidence", "lemma_origin"]),
+  "src/types/vocabulary.ts": new Set(["lemma"]),
 };
 
 interface Violation {

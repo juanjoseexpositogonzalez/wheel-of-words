@@ -1,5 +1,6 @@
 import type { JSX } from "react";
 import type { AnnotatedOccurrence, AnnotationResult } from "../types/annotation";
+import { posLabel } from "./uposLabels";
 
 interface AnnotationTableProps {
   result: AnnotationResult;
@@ -34,33 +35,6 @@ interface AnnotationTableProps {
  * the raw `"automatic"`/`"manual"` wire value, never translated — per
  * AC-003-19's "origin marker verbatim" wording.
  */
-const UPOS_LABELS: Readonly<Record<string, string>> = {
-  ADJ: "Adjetivo",
-  ADP: "Adposición",
-  ADV: "Adverbio",
-  AUX: "Auxiliar",
-  CCONJ: "Conjunción coordinante",
-  DET: "Determinante",
-  INTJ: "Interjección",
-  NOUN: "Sustantivo",
-  NUM: "Numeral",
-  PART: "Partícula",
-  PRON: "Pronombre",
-  PROPN: "Nombre propio",
-  PUNCT: "Puntuación",
-  SCONJ: "Conjunción subordinante",
-  SYM: "Símbolo",
-  VERB: "Verbo",
-  X: "Otro",
-};
-
-function posLabel(tag: string | null): string {
-  if (tag === null) {
-    return "Sin anotar";
-  }
-  return UPOS_LABELS[tag] ?? tag;
-}
-
 function confidenceLabel(value: number | null): string {
   if (value === null) {
     return "No informada";

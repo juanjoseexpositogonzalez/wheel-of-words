@@ -493,3 +493,83 @@ The first strict local attempt reported 3,297 ms p95 while the default run repor
 - Current work unit: WU7 — vocabulary endpoint benchmark.
 - Boundary: adds only the benchmark corpus, executable benchmark, T42–T46 completion state, and this evidence. Rollback deletes the two benchmark files and reverts the two SDD artifact updates.
 - Estimated review budget impact: 268 authored test-infrastructure lines plus SDD evidence, within the 400-line code-slice budget.
+
+## Batch 8 — Phase 8 / WU8 (T47–T54)
+
+**Mode**: Strict TDD
+**Delivery**: chained, stacked-to-main
+**Branch**: `feat/vocabulary-browser-wu8-frontend-extraction`
+
+### Completed Tasks
+
+- [x] T47–T49 [TEST/IMPL] Extracted the single UPOS label map and `posLabel` helper without changing `AnnotationTable` output.
+- [x] T50–T51 [IMPL] Added vocabulary response types and a single-GET vocabulary client.
+- [x] T52–T53 [TEST] Registered the new vocabulary files in the lemma-ownership and linguistic-rule guard manifests.
+- [x] T54 [TEST] Ran focused tests, type checking, and linting.
+
+### Files Changed
+
+| File | Action | What Was Done |
+|------|--------|---------------|
+| `apps/web/src/components/uposLabels.ts` | Created | Moved the 17-entry Spanish UPOS map and `posLabel`, retaining null and raw-tag fallback behavior. |
+| `apps/web/src/components/AnnotationTable.tsx` | Modified | Imports `posLabel`; its row rendering is otherwise unchanged. |
+| `apps/web/src/types/vocabulary.ts` | Created | Defines API-shaped `VocabularyGroup` and `VocabularyResult` interfaces. |
+| `apps/web/src/api/vocabulary.ts` | Created | Adds `getVocabulary(importId)` with one GET request and shared-shaped error parsing. |
+| `apps/web/tests/components/uposLabels.test.ts` | Created | Covers all 17 labels plus null and unmapped-tag fallback. |
+| `apps/web/tests/api/vocabulary.test.ts` | Created | Covers one GET request, parsed result, and unknown-import error propagation. |
+| `apps/web/tests/contracts/no-lemma-naming.test.ts` | Modified | Grants `lemma` ownership only to `src/types/vocabulary.ts`. |
+| `apps/web/tests/contracts/no-linguistic-rules.test.ts` | Modified | Scans the three WU8 files and recognizes vocabulary-named feature files. |
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| T47 | `tests/components/uposLabels.test.ts` | Unit | N/A (new module) | ✅ Test import failed because `src/components/uposLabels.ts` did not exist. | ✅ 2 tests passed after extraction. | ✅ Covers all 17 mapped tags, null, and raw unmapped fallback. | ➖ None needed. |
+| T48 | `tests/components/uposLabels.test.ts` | Unit | N/A (new module) | ✅ T47 RED covered the absent extracted module. | ✅ 2 tests passed. | ✅ Total map and two fallback paths. | ➖ Verbatim extraction. |
+| T49 | `tests/components/AnnotationTable.test.tsx` | Component | ✅ 6/6 passed before the extraction. | ✅ T47 RED established the extracted helper contract. | ✅ 6/6 unchanged component tests passed. | ✅ Existing tagged, unmapped, and null display cases exercised the imported helper. | ✅ Removed duplicate private definitions only. |
+| T50 | `tests/api/vocabulary.test.ts` | Unit | N/A (new module) | ✅ Test import failed because the vocabulary client and result type did not exist. | ✅ 2 client tests passed after the type and client additions. | ✅ Non-empty result envelope and error response. | ➖ Structural interface only. |
+| T51 | `tests/api/vocabulary.test.ts` | Unit | N/A (new module) | ✅ Same missing-client RED as T50. | ✅ 2 tests passed; one fetch call used the vocabulary URL with GET semantics. | ✅ Success and 404 error paths. | ➖ Mirrors the established annotation client. |
+| T52 | `tests/contracts/no-lemma-naming.test.ts` | Structural | ✅ Guard passed before vocabulary types existed. | ✅ Adding `lemma` to the type produced the guard violation for `src/types/vocabulary.ts:2`. | ✅ Exact ownership restriction leaves `VocabularyBrowser.tsx` absent until Phase 9. | ➖ One allow-list entry. |
+| T53 | `tests/contracts/no-linguistic-rules.test.ts` | Structural | ✅ Existing guard passed before the vocabulary pattern change. | ✅ Expanding the feature-name pattern failed with unlisted vocabulary API/type files. | ✅ Manifest also registers extracted labels, which are not name-matched by the pattern. | ➖ One manifest extension. |
+| T54 | Focused tests and quality commands | Unit + Structural | ✅ Focused suites green before quality commands. | ✅ 36 focused tests, typecheck, and lint passed. | ✅ Includes extraction, API client, and both guard suites. | ➖ None needed. |
+
+### Work Unit Evidence
+
+| Evidence | Result |
+|----------|--------|
+| Focused test command and exact result | `cd apps/web && pnpm exec vitest run tests/components/uposLabels.test.ts tests/components/AnnotationTable.test.tsx tests/api/vocabulary.test.ts tests/contracts/no-lemma-naming.test.ts tests/contracts/no-linguistic-rules.test.ts` → 5 files passed, 36 tests passed. |
+| Runtime harness command/scenario and exact result | N/A — WU8 creates static frontend types, a fetch adapter, and a presentational helper only; no rendered vocabulary route or E2E workflow exists until WU9. The mocked client test exercised the one-GET request contract. |
+| Rollback boundary | Delete `apps/web/src/components/uposLabels.ts`, `apps/web/src/types/vocabulary.ts`, `apps/web/src/api/vocabulary.ts`, and their two tests; revert the `AnnotationTable.tsx` import and the two guard manifests. No page wiring or browser UI behavior is included. |
+
+### Verification
+
+- RED (T47): `cd apps/web && pnpm run test -- uposLabels` → failed to resolve `../../src/components/uposLabels` before extraction.
+- RED (T50/T51): `cd apps/web && pnpm run test -- vocabulary` → failed to resolve `../../src/api/vocabulary` before the vocabulary client existed.
+- RED (T52): focused test run reported `src/types/vocabulary.ts:2 identifier "lemma"` before the ownership registration.
+- RED (T53): `cd apps/web && pnpm run test -- no-linguistic-rules` → unlisted `src/api/vocabulary.ts` and `src/types/vocabulary.ts` after adding `[Vv]ocab` to the pattern and before manifest registration.
+- Focused: the five-file Vitest command above → 36 passed.
+- Full frontend regression after implementation: `cd apps/web && pnpm run test -- uposLabels vocabulary AnnotationTable no-lemma-naming no-linguistic-rules` → 17 files passed, 73 tests passed.
+- Typecheck: `cd apps/web && pnpm run typecheck` → exit 0.
+- Lint: `cd apps/web && pnpm run lint` → exit 0.
+- Diff validation: `git diff --check` → exit 0.
+
+### Deviations from Design
+
+None — the extraction preserves the existing labels and fallback behavior, while the vocabulary client and types match the API contract.
+
+### Issues Found
+
+None.
+
+### Remaining Tasks
+
+- [ ] T23–T24 — repository follow-up and coverage task; T23 is conditional on a T22 defect.
+- [ ] T55–T62 — vocabulary browser UI, E2E coverage, and traceability work remain outside WU8.
+- [ ] WU2b — snapshot-isolation work remains blocked on the journal-mode decision.
+
+### Workload / PR Boundary
+
+- Mode: chained PR slice (stacked-to-main).
+- Current work unit: WU8 — frontend extraction, vocabulary client/types, and guard registration.
+- Boundary: starts after WU7 and ends with reusable frontend primitives; it excludes `VocabularyBrowser.tsx`, `ImportPage.tsx`, E2E, and traceability changes.
+- Estimated review budget impact: under the 400-line WU8 budget, excluding SDD artifact updates.
