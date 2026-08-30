@@ -573,3 +573,84 @@ None.
 - Current work unit: WU8 — frontend extraction, vocabulary client/types, and guard registration.
 - Boundary: starts after WU7 and ends with reusable frontend primitives; it excludes `VocabularyBrowser.tsx`, `ImportPage.tsx`, E2E, and traceability changes.
 - Estimated review budget impact: under the 400-line WU8 budget, excluding SDD artifact updates.
+
+## Batch 9 — Phase 9 / WU9 (T55–T60)
+
+**Mode**: Strict TDD
+**Delivery**: chained, stacked-to-main
+**Branch**: `feat/vocabulary-browser-wu9-ui-wiring`
+**Status**: complete — the Playwright harness uses a dedicated backend port.
+
+### Completed Tasks
+
+- [x] T55 [TEST] Added component coverage for received groups, explicit null labels, unmapped POS fallback, and no correction controls.
+- [x] T56 [IMPL] Added the presentational `VocabularyBrowser` table.
+- [x] T57 [TEST] Registered the component in both frontend guard manifests and ran them.
+- [x] T58 [IMPL] Added the vocabulary trigger, request state, and success rendering to `ImportPage`.
+- [x] T59 [TEST] Created and ran `apps/web/e2e/vocabulary.spec.ts` against the dedicated backend port.
+- [x] T60 [TEST] Ran the E2E harness, typecheck, lint, and coverage checks.
+
+### Files Changed
+
+| File | Action | What Was Done |
+|------|--------|---------------|
+| `apps/web/src/components/VocabularyBrowser.tsx` | Created | Renders API-supplied vocabulary groups with explicit Spanish null labels and `posLabel` fallback. |
+| `apps/web/tests/components/VocabularyBrowser.test.tsx` | Created | Covers mapped, null-bucket, unmapped-tag, and no-control rendering behavior. |
+| `apps/web/src/pages/ImportPage.tsx` | Modified | Loads vocabulary with a `Ver vocabulario` trigger and renders the browser after success. |
+| `apps/web/tests/pages/ImportPage.test.tsx` | Modified | Covers the trigger, API request, and rendered vocabulary result. |
+| `apps/web/tests/contracts/no-lemma-naming.test.ts` | Modified | Registers the component as an allowed owner of the wire `lemma` field. |
+| `apps/web/tests/contracts/no-linguistic-rules.test.ts` | Modified | Adds the component to the frontend feature scan. |
+| `apps/web/e2e/vocabulary.spec.ts` | Created | Defines the import → annotate → vocabulary browser workflow. |
+| `Makefile` | Modified | Makes `dev-backend` honor `PORT`, retaining port 8000 as its default. |
+| `apps/web/playwright.config.ts` | Modified | Starts the E2E backend at port 8010, points Vite at that API base URL, and exports the representative `WHEEL_PROCESS_NAME`. |
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| T55 | `tests/components/VocabularyBrowser.test.tsx` | Component | N/A (new module) | ✅ Initial run failed to resolve `src/components/VocabularyBrowser`. | ✅ 4 tests passed after the component was added. | ✅ Mapped, both null bucket forms, unmapped tag, and no-control paths. | ➖ None needed. |
+| T56 | `tests/components/VocabularyBrowser.test.tsx` | Component | N/A (new module) | ✅ T55 RED covered the absent component. | ✅ 4 tests passed. | ✅ The component cannot hard-code one response shape. | ➖ None needed. |
+| T57 | Frontend guard manifests | Structural | ✅ Component test suite passed before registration. | ✅ Both guards failed after the component was added: unowned `lemma` identifiers and an unlisted feature file. | ✅ 77 tests passed after both manifest entries were added. | ➖ Two independent guards. | ➖ None needed. |
+| T58 | `tests/pages/ImportPage.test.tsx` | Component | ✅ 7 existing page tests passed before modification. | ✅ New test failed because `Ver vocabulario` was absent. | ✅ 8 page tests passed after request-state wiring. | ✅ Covers successful request/render path and existing annotation paths remain green. | ➖ None needed. |
+| T59 | `e2e/vocabulary.spec.ts` | E2E | N/A (new spec) | ➖ The page-level RED covered the absent trigger before the E2E spec was added. | ✅ Playwright ran the spec against `127.0.0.1:8010`: 1 passed in 10.3s. | ✅ Import, annotation, and grouped vocabulary table with counts were visible. | ➖ None needed. |
+| T60 | Focused, quality, and E2E commands | Component + E2E | ✅ Focused suites green. | N/A | ✅ E2E, typecheck, lint, and coverage passed. | ✅ 78 frontend tests and 100% line coverage. | ➖ None needed. |
+
+### Work Unit Evidence
+
+| Evidence | Result |
+|----------|--------|
+| Focused test command and exact result | `cd apps/web && pnpm run test -- VocabularyBrowser` → 18 files passed, 78 tests passed. Guard run: `pnpm run test -- no-lemma-naming no-linguistic-rules` → 18 files passed, 77 tests passed. |
+| Runtime harness command/scenario and exact result | `cd apps/web && pnpm exec playwright test e2e/vocabulary.spec.ts` → 1 passed in 10.3s. Playwright launched Uvicorn at `127.0.0.1:8010`; the backend command exports `WHEEL_PROCESS_NAME=wheel-vocabulary-e2e-api` because POSIX `sh` cannot safely use `exec -a`. `lsof -nP -iTCP:8010 -sTCP:LISTEN` after the run reported no listener, confirming Playwright cleanup. |
+| Rollback boundary | Delete `VocabularyBrowser.tsx`, its component and E2E tests; revert `ImportPage.tsx`, its page test, and the two guard-manifest entries. This removes only the vocabulary UI wiring. |
+
+### Verification
+
+- RED (T55): `cd apps/web && pnpm run test -- VocabularyBrowser` → failed to resolve `../../src/components/VocabularyBrowser` before the component existed.
+- RED (T57): the post-component focused run reported unowned `lemma` identifiers and `src/components/VocabularyBrowser.tsx` missing from the linguistic-rule manifest.
+- RED (T58): `cd apps/web && pnpm run test -- ImportPage` → 1 failed because `Ver vocabulario` was absent.
+- Focused green: `cd apps/web && pnpm run test -- VocabularyBrowser` → 18 files passed, 78 tests passed.
+- Guard green: `cd apps/web && pnpm run test -- no-lemma-naming no-linguistic-rules` → 18 files passed, 77 tests passed.
+- Typecheck: `cd apps/web && pnpm run typecheck` → exit 0.
+- Lint: `cd apps/web && pnpm run lint` → exit 0.
+- Coverage: `cd apps/web && pnpm run test:coverage` → 18 files passed, 78 tests passed; 100% line coverage.
+- Runtime harness: `cd apps/web && pnpm exec playwright test e2e/vocabulary.spec.ts` → 1 passed in 10.3s; Uvicorn served `127.0.0.1:8010` and no listener remained after Playwright cleanup.
+
+### Deviations from Design
+
+None — the component only presents `result.groups`; all grouping, counts, and linguistic values remain API-owned.
+
+### Issues Found
+
+Port 8000 remains occupied by an external process and was not stopped. The E2E backend now uses port 8010.
+
+### Remaining Tasks
+
+- [ ] T61–T62 — traceability work remains outside WU9.
+- [ ] WU2b — snapshot-isolation work remains blocked on the journal-mode decision.
+
+### Workload / PR Boundary
+
+- Mode: chained PR slice (stacked-to-main).
+- Current work unit: WU9 — vocabulary browser, page wiring, and E2E coverage.
+- Boundary: starts from the WU8 frontend API/types and ends with the presentational component, page trigger/state, guards, E2E spec, and isolated E2E server configuration. The port change reverts independently through `Makefile` and `apps/web/playwright.config.ts`.
+- Estimated review budget impact: 191 authored source/test lines plus OpenSpec evidence, below the 400-line code-slice budget.

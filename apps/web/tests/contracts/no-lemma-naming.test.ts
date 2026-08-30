@@ -66,6 +66,7 @@ const LEMMA_OWNING_FILES: Readonly<Record<string, ReadonlySet<string>>> = {
   ]),
   "src/components/AnnotationTable.tsx": new Set(["lemma", "lemma_confidence", "lemma_origin"]),
   "src/types/vocabulary.ts": new Set(["lemma"]),
+  "src/components/VocabularyBrowser.tsx": new Set(["lemma"]),
 };
 
 interface Violation {
