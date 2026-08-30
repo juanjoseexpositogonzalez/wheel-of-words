@@ -654,3 +654,45 @@ Port 8000 remains occupied by an external process and was not stopped. The E2E b
 - Current work unit: WU9 — vocabulary browser, page wiring, and E2E coverage.
 - Boundary: starts from the WU8 frontend API/types and ends with the presentational component, page trigger/state, guards, E2E spec, and isolated E2E server configuration. The port change reverts independently through `Makefile` and `apps/web/playwright.config.ts`.
 - Estimated review budget impact: 191 authored source/test lines plus OpenSpec evidence, below the 400-line code-slice budget.
+
+## Batch 10 — Phase 10 / WU10 (T61–T62)
+
+**Mode**: Standard — documentation-only work; the configured TDD requirement applies to code changes.
+**Delivery**: chained, stacked-to-main
+**Branch**: `docs/vocabulary-browser-wu10-traceability`
+
+### Completed Tasks
+
+- [x] T61 [DOC] Added the eleven `REQ-005-001` through `REQ-005-011` matrix rows with spec, acceptance, test, task, and status citations.
+- [x] T62 [DOC/TEST] Validated matrix cells and every cited Python node with the traceability guard.
+
+### Files Changed
+
+| File | Action | What Was Done |
+|------|--------|---------------|
+| `docs/traceability-matrix.md` | Modified | Added the vocabulary-browser requirement rows; `REQ-005-006` remains `Pendiente` because the POS-filter slice is not shipped. |
+| `openspec/changes/vocabulary-browser/tasks.md` | Modified | Marked T61 and T62 complete. |
+| `openspec/changes/vocabulary-browser/apply-progress.md` | Modified | Appended this WU10 evidence record. |
+
+### Work Unit Evidence
+
+| Evidence | Result |
+|----------|--------|
+| Focused test command and exact result | `cd apps/api && uv run pytest tests/unit/test_traceability.py -q` → 12 passed in 3.89s. |
+| Runtime harness command/scenario and exact result | N/A — this work unit changes static traceability documentation only; the pytest collector validates the cited Python runtime test nodes. |
+| Rollback boundary | Revert the eleven `REQ-005-*` rows and the T61/T62 checkboxes; no product behavior or test implementation changes. |
+
+### Deviations from Design
+
+None — the matrix reflects the completed work units and leaves the deferred POS filter unfulfilled.
+
+### Issues Found
+
+`REQ-005-006` has no implemented POS-filter test because slice 2 is not shipped; its row records that state rather than citing a nonexistent node.
+
+### Workload / PR Boundary
+
+- Mode: chained PR slice (stacked-to-main).
+- Current work unit: WU10 — traceability matrix.
+- Boundary: matrix citations, WU10 completion checkboxes, and this evidence record only.
+- Estimated review budget impact: documentation-only, below the 400-line budget.
