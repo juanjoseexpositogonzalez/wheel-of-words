@@ -17,6 +17,7 @@ from wheel_vocabulary.api.errors import register_error_handlers
 from wheel_vocabulary.api.routes import annotation as annotation_router_module
 from wheel_vocabulary.api.routes import health as health_router_module
 from wheel_vocabulary.api.routes import imports as imports_router_module
+from wheel_vocabulary.api.routes import vocabulary as vocabulary_router_module
 from wheel_vocabulary.infrastructure.version import get_package_version
 
 __all__ = ["create_app", "get_clock"]
@@ -52,4 +53,5 @@ def create_app() -> FastAPI:
     app.include_router(health_router_module.router)
     app.include_router(imports_router_module.router)
     app.include_router(annotation_router_module.router)
+    app.include_router(vocabulary_router_module.router)
     return app

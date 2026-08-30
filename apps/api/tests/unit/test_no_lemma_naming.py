@@ -201,6 +201,7 @@ _LEMMA_OWNING_FILES: dict[str, frozenset[str]] = {
     "api/routes/annotation.py": frozenset(
         {"lemma", "lemma_confidence", "lemma_origin", "automatic_lemma"}
     ),
+    "api/routes/vocabulary.py": frozenset({"lemma"}),
     # Migration labels use their own format (`migrations/versions/<file>`,
     # see `_migration_modules`/its call site below), not `_relative()`.
     "migrations/versions/0003_annotation.py": frozenset({"lemma", "lemma_confidence"}),
@@ -236,6 +237,7 @@ _OCCURRENCE_PROPERTIES = frozenset(
         *_OCCURRENCE_LEMMA_PROPERTIES,
     }
 )
+_VOCABULARY_GROUP_PROPERTIES = frozenset({"lemma", "pos", "occurrence_count"})
 _SCHEMA_OWNERS: dict[str, tuple[OwningDefinition, ...]] = {
     "import.v1.json": (),
     "annotation.v1.json": (
@@ -246,12 +248,24 @@ _SCHEMA_OWNERS: dict[str, tuple[OwningDefinition, ...]] = {
         ),
     ),
     "health.v1.json": (),
+    "vocabulary.v1.json": (
+        OwningDefinition(
+            path=("$", "$defs", "group"),
+            declared=_VOCABULARY_GROUP_PROPERTIES,
+            exempt=frozenset({"lemma"}),
+        ),
+    ),
 }
 _OPENAPI_OWNERS = (
     OwningDefinition(
         path=("$", "components", "schemas", "AnnotationOccurrenceResponse"),
         declared=_OCCURRENCE_PROPERTIES,
         exempt=_OCCURRENCE_LEMMA_PROPERTIES,
+    ),
+    OwningDefinition(
+        path=("$", "components", "schemas", "VocabularyGroupResponse"),
+        declared=_VOCABULARY_GROUP_PROPERTIES,
+        exempt=frozenset({"lemma"}),
     ),
 )
 
@@ -423,7 +437,9 @@ def imported_body(imports_client: TestClient) -> dict[str, Any]:
     return body
 
 
-_EXPECTED_SCHEMA_FILES = frozenset({"import.v1.json", "annotation.v1.json", "health.v1.json"})
+_EXPECTED_SCHEMA_FILES = frozenset(
+    {"import.v1.json", "annotation.v1.json", "health.v1.json", "vocabulary.v1.json"}
+)
 
 
 @pytest.mark.unit
