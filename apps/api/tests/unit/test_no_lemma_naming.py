@@ -192,9 +192,12 @@ _LEMMA_OWNING_FILES: dict[str, frozenset[str]] = {
     "infrastructure/nlp/spacy_analyzer.py": frozenset({"lemma", "lemma_confidence", "lemmatizer"}),
     "application/annotation/ports.py": frozenset({"lemma", "lemma_confidence"}),
     "application/annotation/use_cases.py": frozenset({"lemma", "lemma_confidence"}),
+    "application/vocabulary/ports.py": frozenset({"lemma"}),
+    "application/vocabulary/use_cases.py": frozenset({"lemma"}),
     "api/dtos/annotation.py": frozenset(
         {"lemma", "lemma_confidence", "lemma_origin", "automatic_lemma"}
     ),
+    "api/dtos/vocabulary.py": frozenset({"lemma"}),
     "api/routes/annotation.py": frozenset(
         {"lemma", "lemma_confidence", "lemma_origin", "automatic_lemma"}
     ),

@@ -25,6 +25,7 @@ from wheel_vocabulary.application.imports.ports import (
     TextExtractor,  # noqa: TC001 – runtime for FastAPI
 )
 from wheel_vocabulary.application.imports.use_cases import DeleteImport, ImportText, ReadImport
+from wheel_vocabulary.application.vocabulary.use_cases import ReadVocabulary
 from wheel_vocabulary.infrastructure.clock import SystemClock
 from wheel_vocabulary.infrastructure.nlp.registry import AnalyzerRegistry
 from wheel_vocabulary.infrastructure.persistence.annotation_repository import (
@@ -39,6 +40,9 @@ from wheel_vocabulary.infrastructure.persistence.book_repository import (
 from wheel_vocabulary.infrastructure.persistence.engine import (
     create_engine_from_url,
     create_session_factory,
+)
+from wheel_vocabulary.infrastructure.persistence.vocabulary_repository import (
+    SqlAlchemyVocabularyReadRepository,
 )
 from wheel_vocabulary.infrastructure.settings import Settings, get_settings
 from wheel_vocabulary.infrastructure.text_extraction import PlainTextExtractor
@@ -58,6 +62,8 @@ __all__ = [
     "get_read_import",
     "get_settings",
     "get_text_extractor",
+    "get_vocabulary_repository",
+    "get_read_vocabulary",
 ]
 
 
@@ -139,6 +145,21 @@ def get_annotation_read_repository(
     """
     engine = create_engine_from_url(settings.database_url)
     return SqlAlchemyAnnotationReadRepository(create_session_factory(engine))
+
+
+def get_vocabulary_repository(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> SqlAlchemyVocabularyReadRepository:
+    """Dependency provider for the vocabulary read repository."""
+    engine = create_engine_from_url(settings.database_url)
+    return SqlAlchemyVocabularyReadRepository(create_session_factory(engine))
+
+
+def get_read_vocabulary(
+    repository: Annotated[SqlAlchemyVocabularyReadRepository, Depends(get_vocabulary_repository)],
+) -> ReadVocabulary:
+    """Dependency provider that assembles the vocabulary read use case."""
+    return ReadVocabulary(repository=repository)
 
 
 def get_annotation_write_repository(
