@@ -179,3 +179,92 @@ The implementation matches design D2 (relies on the WU1 index), D4 (no `Annotati
 - Current work unit: WU2 — vocabulary repository core (V3 hybrid) + Hypothesis equivalence proof
 - Boundary: starts from `feat/vocabulary-browser-wu1-index-migration`'s tip (branched at `main` @ `9c74152`, which already carries the WU1 index migration); ends with `vocabulary_repository.py` + its property test file + the one guard-map extension. Rollback: delete `apps/api/src/wheel_vocabulary/infrastructure/persistence/vocabulary_repository.py` and `apps/api/tests/unit/test_vocabulary_repository_properties.py`; revert the `test_no_lemma_naming.py::_LEMMA_OWNING_FILES` entry.
 - Estimated review budget impact: 449 authored lines added (263 new test file + 181 new implementation file + 5-line guard-map extension), against the tasks.md estimate of ~270 — 1.66x. The implementation file itself (181 lines) is close to a typical "repository + dataclass" comparable; the overrun is concentrated in the test file, consistent with this repo's established density for Hypothesis property-test modules (design's own forecast note: `test_annotate_import_properties.py` is 553 lines for a comparable precedent).
+
+## Batch 3 — Phase 3 / WU3 (T12–T21)
+
+**Mode**: Strict TDD
+**Delivery**: chained, stacked-to-main
+**Branch**: `feat/vocabulary-browser-wu3-guards`
+
+### Completed Tasks
+
+- [x] T12–T17 [TEST/IMPL] Added vocabulary repository provenance-isolation and manual-correction write guards, including mutation and boundary controls.
+- [x] T18–T20 [TEST/IMPL] Registered the repository with the confidence guard, added `mean_confidence`, and added three confidence-action mutation checks.
+- [x] T21 [TEST] Ran Phase 3 and full backend validation.
+
+### Verification
+
+- Focused Phase 3: `cd apps/api && uv run pytest tests/unit/test_vocabulary_repository_isolation.py tests/unit/test_vocabulary_write_guard.py tests/unit/test_no_confidence_action_or_propn_filter.py -q` → 24 passed.
+- Backend suite: `make test-backend` → 574 passed.
+- Quality: `make lint-backend`, `make typecheck-backend`, and `make format` → passed.
+
+### Workload / PR Boundary
+
+- Mode: chained PR slice (stacked-to-main).
+- Boundary: WU3 added only structural guards and their test controls. Rollback deletes the two guard files and reverts the confidence-guard update.
+
+## Batch 4 — Phase 4 / WU4 (T22)
+
+**Mode**: Strict TDD
+**Delivery**: chained, stacked-to-main
+**Branch**: `feat/vocabulary-browser-wu4-repository-tests`
+
+### Completed Tasks
+
+- [x] T22 [TEST] Added repository integration coverage for homographs, direct ORM-seeded corrections, `NULL` buckets, unknown versus empty books, literal D5 ordering, and repeated-read stability.
+
+### Files Changed
+
+| File | Action | What Was Done |
+|------|--------|---------------|
+| `apps/api/tests/integration/test_vocabulary_repository.py` | Created | Five SQLite-backed repository integration tests covering T22 scenarios and positional ordering. |
+| `openspec/changes/vocabulary-browser/tasks.md` | Modified | Marked T22 complete. |
+| `openspec/changes/vocabulary-browser/apply-progress.md` | Modified | Preserved WU1–WU3 history and recorded WU4 evidence. |
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| T22 | `tests/integration/test_vocabulary_repository.py` | Integration (SQLite) | ✅ 8/8 existing repository tests passed before the new file | ➖ Existing WU2 behavior already satisfied the repository scenarios; no honest behavior-absence RED was possible without deleting implementation. Mutation control: changing D5 from count-descending to ascending made the new suite fail, 2 failed / 3 passed. | ✅ 5/5 passed | ✅ Five scenarios include non-empty homographs, full and per-field corrections, NULL buckets, empty versus unknown, and literal tie-break ordering | ➖ None needed; only a new test file was added. |
+
+### Test Summary
+
+- **Total tests written**: 5 integration tests.
+- **Total tests passing**: 13 repository/vocabulary tests; `vocabulary_repository.py` reached 100% line and branch coverage in that run.
+- **Layers used**: Integration (5 new tests).
+- **Approval tests**: None — no production refactor.
+- **Pure functions created**: 0.
+
+### Work Unit Evidence
+
+| Evidence | Result |
+|----------|--------|
+| Focused test command and exact result | `cd apps/api && uv run pytest tests/integration/test_vocabulary_repository.py -q` → 5 passed in 0.26s. |
+| Runtime harness command/scenario and exact result | `cd apps/api && uv run pytest tests/integration/test_vocabulary_repository.py tests/unit/test_vocabulary_repository_properties.py tests/integration/test_vocabulary_read_scenario.py --cov=wheel_vocabulary --cov-report=term-missing -q` → 13 passed in 1.70s; exercised repository reads against temporary SQLite databases. |
+| Rollback boundary | Delete `apps/api/tests/integration/test_vocabulary_repository.py`; no production behavior changes. |
+
+### Verification
+
+- Mutation control: temporary count-ascending D5 mutation → 2 failed, 3 passed; restored before final validation.
+- Relevant repository/vocabulary tests with coverage: 13 passed in 1.70s; `vocabulary_repository.py` 100% line and branch coverage. The selected run reports 58% project-wide coverage because it does not execute unrelated modules; it does not replace the full-suite 80% gate.
+- Quality: `cd apps/api && uv run ruff check . && uv run ruff format --check . && uv run mypy src/wheel_vocabulary` → all checks passed; 120 files already formatted; 48 source files typechecked.
+
+### Deviations from Design
+
+None — the tests assert the design D5 sequence and existing repository behavior without changing production code.
+
+### Issues Found
+
+The prior failed verification report remains untracked and unchanged. It records incomplete WU5–WU10 work and the deferred WU2b snapshot-isolation defect; neither is in WU4 scope.
+
+### Remaining Tasks
+
+- [ ] T23–T62 — pending; T23 applies only if T22 exposes a repository defect, which it did not.
+- [ ] WU2b — snapshot-isolation work remains blocked on the journal-mode decision.
+
+### Workload / PR Boundary
+
+- Mode: chained PR slice (stacked-to-main).
+- Current work unit: WU4 — repository integration tests.
+- Boundary: starts from WU3 on main and ends with one integration test file plus SDD completion evidence. Rollback deletes only the new test file and reverts the two SDD artifact updates.
+- Estimated review budget impact: 196 authored test lines plus artifact updates, within the 400-line budget.
