@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wheel-vocabulary:vocabulary:v1",
+  "title": "Vocabulary result — GET /api/v1/imports/{id}/vocabulary (X-Schema-Version: 1)",
+  "type": "object",
+  "required": ["id", "group_count", "total_occurrence_count", "groups"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "integer", "minimum": 1 },
+    "group_count": { "type": "integer", "minimum": 0 },
+    "total_occurrence_count": { "type": "integer", "minimum": 0 },
+    "groups": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/group" }
+    }
+  },
+  "$defs": {
+    "group": {
+      "type": "object",
+      "required": ["lemma", "pos", "occurrence_count"],
+      "additionalProperties": false,
+      "properties": {
+        "lemma": { "type": ["string", "null"] },
+        "pos": { "type": ["string", "null"] },
+        "occurrence_count": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

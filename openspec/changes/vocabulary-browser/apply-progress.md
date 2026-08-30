@@ -343,3 +343,75 @@ The initial dependency execution reached a real SQLite file without a schema and
 - Current work unit: WU5 — application layer and DTOs.
 - Boundary: starts from main after WU4 and ends with unregistered application abstractions, DTOs, provider factories, tests, guard ownership, and SDD evidence. Rollback removes only those files and the corresponding provider and guard entries.
 - Estimated review budget impact: within the 400-line WU5 boundary; no route, schema, frontend, benchmark, or traceability changes were made.
+
+## Batch 6 — Phase 6 / WU6 (T35–T41)
+
+**Mode**: Strict TDD
+**Delivery**: chained, stacked-to-main
+**Branch**: `feat/vocabulary-browser-wu6-route-schema`
+
+### Completed Tasks
+
+- [x] T35–T36 [TEST/IMPL] Added API contract coverage and the Draft 2020-12 vocabulary schema.
+- [x] T37 [TEST] Registered the schema and its OpenAPI component with the lemma ownership guard.
+- [x] T38–T40 [IMPL] Added and registered the `GET /api/v1/imports/{id}/vocabulary` adapter.
+- [x] T39 [TEST] Registered the route as an owner of the wire `lemma` field.
+- [x] T41 [TEST] Ran focused, full backend, quality, and manual runtime checks.
+
+### Files Changed
+
+| File | Action | What Was Done |
+|---|---|---|
+| `apps/api/tests/api/test_vocabulary_route.py` | Created | Covers the 200 envelope, positional D5 order, stable repeated reads, content-free 404, frozen annotation schema hash, and additive OpenAPI operations. |
+| `apps/api/src/wheel_vocabulary/api/schemas/vocabulary.v1.json` | Created | Adds the versioned Draft 2020-12 response contract. |
+| `apps/api/src/wheel_vocabulary/api/routes/vocabulary.py` | Created | Adapts `ReadVocabulary` to the GET endpoint with the schema-version header and shared not-found error. |
+| `apps/api/src/wheel_vocabulary/api/main.py` | Modified | Registers the vocabulary router. |
+| `apps/api/tests/unit/test_no_lemma_naming.py` | Modified | Pins schema, OpenAPI, and route ownership for the `lemma` field. |
+| `openspec/changes/vocabulary-browser/tasks.md` | Modified | Marks T35–T41 complete. |
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|---|---|---|---|---|---|---|---|
+| T35 | `tests/api/test_vocabulary_route.py` | API | N/A (new test file) | ✅ 4 failed before the route was registered: expected 200/OpenAPI path and error envelope, received missing-route 404s | ✅ 4 passed after T36/T38/T40 | ✅ Seeded non-empty groups plus unknown id and repeated GET cases | ➖ None needed |
+| T36 | `tests/api/test_vocabulary_route.py` | API contract | N/A (new schema) | ✅ T35 was written before any route/schema implementation | ✅ Route response matches the required envelope | ➖ Structural contract has one response shape | ➖ None needed |
+| T37 | `tests/unit/test_no_lemma_naming.py` | Unit | ✅ 42/42 before WU6 | ✅ Schema addition produced 2 guard failures: missing schema owner and `KeyError` | ✅ 33/33 after ownership registration | ➖ Structural guard has one outcome | ➖ None needed |
+| T38 | `tests/api/test_vocabulary_route.py` | API | ✅ T35 RED captured | ✅ 4/4 passed with the adapter registered | ✅ Successful and unknown-import paths | ➖ None needed |
+| T39 | `tests/unit/test_no_lemma_naming.py` | Unit | ✅ 32/32 after schema ownership | ✅ Route produced two unowned `lemma` violations | ✅ 33/33 after route ownership registration | ➖ Structural guard has one outcome | ➖ None needed |
+| T40 | `tests/api/test_vocabulary_route.py` | API | ✅ T35 RED captured the absent OpenAPI path | ✅ 4/4 passed after router registration | ➖ Same API cases cover registration | ➖ None needed |
+| T41 | Focused/full validation | API + integration | ✅ Focused checks green | N/A | ✅ 695/695 backend tests, quality checks, and runtime harness passed | ✅ Full suite includes existing annotation acceptance coverage | ➖ None needed |
+
+### Work Unit Evidence
+
+| Evidence | Result |
+|---|---|
+| Focused test command and exact result | `cd apps/api && uv run pytest tests/api/test_vocabulary_route.py tests/unit/test_no_lemma_naming.py -q` → 37 passed in 0.48s. |
+| Runtime harness command/scenario and exact result | Started `uvicorn wheel_vocabulary.api.main:create_app --factory` on `127.0.0.1:8016`; `GET /api/v1/imports/999999/vocabulary` returned `404 IMPORT_NOT_FOUND`; the server process was killed and awaited. |
+| Rollback boundary | Delete `api/routes/vocabulary.py`, `api/schemas/vocabulary.v1.json`, and `tests/api/test_vocabulary_route.py`; revert the router registration and guard ownership entries. This removes only the new endpoint. |
+
+### Verification
+
+- RED: `cd apps/api && uv run pytest tests/api/test_vocabulary_route.py -q` → 4 failed before implementation, with missing-route 404 responses and absent OpenAPI path.
+- Focused green: `cd apps/api && uv run pytest tests/api/test_vocabulary_route.py tests/unit/test_no_lemma_naming.py -q` → 37 passed in 0.48s.
+- Full backend/`003-lemmatization-pos` regression suite: `cd apps/api && uv run pytest -q` → 695 passed in 27.28s.
+- Quality: `cd apps/api && uv run ruff check . && uv run ruff format --check . && uv run mypy src/wheel_vocabulary` → passed; 129 files formatted; 53 source files typechecked.
+
+### Deviations from Design
+
+None — the route is a thin adapter over `ReadVocabulary`; grouping and ordering remain in the repository.
+
+### Issues Found
+
+The first runtime harness command used zsh's read-only `status` parameter and then a nonexistent `python` executable for result parsing. The server was stopped after each attempt; the final harness used `http_status` and `python3` and passed.
+
+### Remaining Tasks
+
+- [ ] T42–T62 — benchmark, frontend, and traceability work remain outside WU6.
+- [ ] WU2b — snapshot-isolation work remains blocked on the journal-mode decision.
+
+### Workload / PR Boundary
+
+- Mode: chained PR slice (stacked-to-main).
+- Current work unit: WU6 — route, schema, wiring, and API tests.
+- Boundary: begins after WU5 and ends with the isolated HTTP vocabulary read surface and its API/ownership checks. No frontend, benchmark, traceability, or snapshot-isolation work is included.
+- Estimated review budget impact: within the 400-line WU6 allocation, including route, schema, API tests, guard entries, and SDD evidence.
