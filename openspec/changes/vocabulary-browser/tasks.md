@@ -332,8 +332,8 @@ Runtime harness: `cd apps/web && pnpm exec playwright test e2e/vocabulary.spec.t
 
 Depends on: every requirement's implementing phase having landed (this task can be split per-requirement and attached to the PR that closes each requirement, per work-unit-commits — listed together here for completeness).
 
-- T61 [DOC] Add 11 rows to `docs/traceability-matrix.md` — `REQ-005-001` through `REQ-005-011`, each citing this spec's path + its `AC-005-##`, the test file(s)/node(s) from the phases above, the task IDs (`T#`), and status. `REQ-005-006` (POS filter, slice 2) MAY carry an unfulfilled status until slice 2 ships (§1, §5 AMB-5) — every other row MUST be `Cumplido` before this capability is archived.
-- T62 [DOC] Run `cd apps/api && uv run pytest tests/unit/test_traceability.py -q` to confirm every cited Python test node resolves against pytest collection (`:190`) and no cell is a placeholder (`:19`).
+- [x] T61 [DOC] Add 11 rows to `docs/traceability-matrix.md` — `REQ-005-001` through `REQ-005-011`, each citing this spec's path + its `AC-005-##`, the test file(s)/node(s) from the phases above, the task IDs (`T#`), and status. `REQ-005-006` (POS filter, slice 2) MAY carry an unfulfilled status until slice 2 ships (§1, §5 AMB-5) — every other row MUST be `Cumplido` before this capability is archived.
+- [x] T62 [DOC] Run `cd apps/api && uv run pytest tests/unit/test_traceability.py -q` to confirm every cited Python test node resolves against pytest collection (`:190`) and no cell is a placeholder (`:19`).
 
 ---
 
