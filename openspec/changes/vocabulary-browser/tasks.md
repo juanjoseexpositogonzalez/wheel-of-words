@@ -265,16 +265,16 @@ Focused test: `cd apps/api && uv run pytest tests/integration/test_vocabulary_re
 Depends on: Phase 2.
 Focused test: `cd apps/api && uv run pytest tests/unit/test_vocabulary_ports.py tests/unit/test_vocabulary_dtos.py tests/integration/test_vocabulary_dependencies.py -q`
 
-- T25 [TEST] Write `apps/api/tests/unit/test_vocabulary_ports.py`: a plain stdlib double satisfies `VocabularyReader` structurally (mirrors `test_annotation_ports.py`'s precedent for `AnnotationReader`).
-- T26 [IMPL] Create `apps/api/src/wheel_vocabulary/application/vocabulary/__init__.py` (module docstring, mirrors `application/annotation/__init__.py`) and `ports.py`: `VocabularyReader` Protocol with `groups(book_id: int) -> Sequence[VocabularyGroup] | None`.
-- T27 [IMPL] Create `apps/api/src/wheel_vocabulary/application/vocabulary/use_cases.py`: `ReadVocabulary.execute(book_id) -> Sequence[VocabularyGroup] | None`, mirrors `ReadImport` (`application/imports/use_cases.py:218-241`) — a thin pass-through, no aggregation logic duplicated here (E3).
-- T28 [TEST] Extend `test_no_lemma_naming.py::_LEMMA_OWNING_FILES` with `"application/vocabulary/ports.py"` and `"application/vocabulary/use_cases.py"`, each `frozenset({"lemma"})`.
-- T29 [TEST] Write `apps/api/tests/unit/test_vocabulary_dtos.py`: `VocabularyGroupResponse`/`VocabularyResponse` both reject unknown fields (`extra="forbid"`, mirrors `test_annotation_contract.py`'s DTO-strictness pattern).
-- T30 [IMPL] Create `apps/api/src/wheel_vocabulary/api/dtos/vocabulary.py`: `VocabularyGroupResponse(lemma: str | None = Field(title="lemma"), pos: str | None, occurrence_count: int)`, `VocabularyResponse(id: int, group_count: int, total_occurrence_count: int, groups: list[VocabularyGroupResponse])`.
-- T31 [TEST] Extend `test_no_lemma_naming.py::_LEMMA_OWNING_FILES` with `"api/dtos/vocabulary.py": frozenset({"lemma"})`.
-- T32 [TEST] Write `apps/api/tests/integration/test_vocabulary_dependencies.py` (mirrors `test_annotation_dependencies.py`, 73 lines): `get_vocabulary_repository`/`get_read_vocabulary` resolve against a real engine.
-- T33 [IMPL] Extend `apps/api/src/wheel_vocabulary/api/dependencies.py`: add `get_vocabulary_repository` (mirrors `get_annotation_read_repository`) and `get_read_vocabulary` (mirrors `get_read_import`), both added to `__all__`.
-- T34 [TEST] Run Phase 5 green.
+- [x] T25 [TEST] Write `apps/api/tests/unit/test_vocabulary_ports.py`: a plain stdlib double satisfies `VocabularyReader` structurally (mirrors `test_annotation_ports.py`'s precedent for `AnnotationReader`).
+- [x] T26 [IMPL] Create `apps/api/src/wheel_vocabulary/application/vocabulary/__init__.py` (module docstring, mirrors `application/annotation/__init__.py`) and `ports.py`: `VocabularyReader` Protocol with `groups(book_id: int) -> Sequence[VocabularyGroup] | None`.
+- [x] T27 [IMPL] Create `apps/api/src/wheel_vocabulary/application/vocabulary/use_cases.py`: `ReadVocabulary.execute(book_id) -> Sequence[VocabularyGroup] | None`, mirrors `ReadImport` (`application/imports/use_cases.py:218-241`) — a thin pass-through, no aggregation logic duplicated here (E3).
+- [x] T28 [TEST] Extend `test_no_lemma_naming.py::_LEMMA_OWNING_FILES` with `"application/vocabulary/ports.py"` and `"application/vocabulary/use_cases.py"`, each `frozenset({"lemma"})`.
+- [x] T29 [TEST] Write `apps/api/tests/unit/test_vocabulary_dtos.py`: `VocabularyGroupResponse`/`VocabularyResponse` both reject unknown fields (`extra="forbid"`, mirrors `test_annotation_contract.py`'s DTO-strictness pattern).
+- [x] T30 [IMPL] Create `apps/api/src/wheel_vocabulary/api/dtos/vocabulary.py`: `VocabularyGroupResponse(lemma: str | None = Field(title="lemma"), pos: str | None, occurrence_count: int)`, `VocabularyResponse(id: int, group_count: int, total_occurrence_count: int, groups: list[VocabularyGroupResponse])`.
+- [x] T31 [TEST] Extend `test_no_lemma_naming.py::_LEMMA_OWNING_FILES` with `"api/dtos/vocabulary.py": frozenset({"lemma"})`.
+- [x] T32 [TEST] Write `apps/api/tests/integration/test_vocabulary_dependencies.py` (mirrors `test_annotation_dependencies.py`, 73 lines): `get_vocabulary_repository`/`get_read_vocabulary` resolve against a real engine.
+- [x] T33 [IMPL] Extend `apps/api/src/wheel_vocabulary/api/dependencies.py`: add `get_vocabulary_repository` (mirrors `get_annotation_read_repository`) and `get_read_vocabulary` (mirrors `get_read_import`), both added to `__all__`.
+- [x] T34 [TEST] Run Phase 5 green.
 
 ## Phase 6 — Route + schema + wiring + API tests (WU6, ~400 lines)
 

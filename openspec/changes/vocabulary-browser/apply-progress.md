@@ -268,3 +268,78 @@ The prior failed verification report remains untracked and unchanged. It records
 - Current work unit: WU4 — repository integration tests.
 - Boundary: starts from WU3 on main and ends with one integration test file plus SDD completion evidence. Rollback deletes only the new test file and reverts the two SDD artifact updates.
 - Estimated review budget impact: 196 authored test lines plus artifact updates, within the 400-line budget.
+
+## Batch 5 — Phase 5 / WU5 (T25–T34)
+
+**Mode**: Strict TDD
+**Delivery**: chained, stacked-to-main
+**Branch**: `feat/vocabulary-browser-wu5-application-dtos`
+
+### Completed Tasks
+
+- [x] T25–T28 [TEST/IMPL] Added the structural `VocabularyReader` port, `ReadVocabulary` pass-through use case, and ownership entries for the two application modules.
+- [x] T29–T31 [TEST/IMPL] Added strict vocabulary response DTOs and the DTO ownership entry.
+- [x] T32–T33 [TEST/IMPL] Added and exercised vocabulary repository/use-case dependency providers against SQLite.
+- [x] T34 [TEST] Ran the Phase 5 focused suite and applicable backend guards and quality checks.
+
+### Files Changed
+
+| File | Action | What Was Done |
+|------|--------|---------------|
+| `apps/api/src/wheel_vocabulary/application/vocabulary/__init__.py` | Created | Declares the application package boundary. |
+| `apps/api/src/wheel_vocabulary/application/vocabulary/ports.py` | Created | Defines the runtime-checkable `VocabularyReader` structural protocol. |
+| `apps/api/src/wheel_vocabulary/application/vocabulary/use_cases.py` | Created | Defines `ReadVocabulary` as a direct repository pass-through. |
+| `apps/api/src/wheel_vocabulary/api/dtos/vocabulary.py` | Created | Defines strict group and response Pydantic DTOs. |
+| `apps/api/src/wheel_vocabulary/api/dependencies.py` | Modified | Adds and exports the repository and use-case providers. |
+| `apps/api/tests/unit/test_vocabulary_ports.py` | Created | Covers structural port conformance and both pass-through outcomes. |
+| `apps/api/tests/unit/test_vocabulary_dtos.py` | Created | Covers unknown-field rejection on both DTOs. |
+| `apps/api/tests/integration/test_vocabulary_dependencies.py` | Created | Covers provider construction and a real SQLite-backed unknown-book read. |
+| `apps/api/tests/unit/test_no_lemma_naming.py` | Modified | Registers the three new modules as owners of `lemma`. |
+| `openspec/changes/vocabulary-browser/tasks.md` | Modified | Marks T25–T34 complete. |
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| T25–T27 | `tests/unit/test_vocabulary_ports.py` | Unit | N/A (new module) | ✅ Missing `application.vocabulary` caused `ModuleNotFoundError` | ✅ 3 passed after the protocol and use case were added | ✅ Non-empty group identity and `None` both preserve the repository result | ➖ None needed |
+| T28 | `tests/unit/test_no_lemma_naming.py` | Unit | ✅ 33 passed before modification | ✅ Guard reported `api/dtos/vocabulary.py:15` three times before ownership registration | ✅ 33 passed after all three ownership entries were added | ➖ Structural guard has one outcome | ➖ None needed |
+| T29–T30 | `tests/unit/test_vocabulary_dtos.py` | Unit | N/A (new module) | ✅ Missing DTO module caused `ModuleNotFoundError` | ✅ 2 passed after strict DTOs were added | ✅ Group and envelope reject distinct unknown fields | ➖ None needed |
+| T31 | `tests/unit/test_no_lemma_naming.py` | Unit | ✅ 33 passed before modification | ✅ Same guard failure as T28 included the DTO module | ✅ 33 passed with the DTO ownership entry | ➖ Structural guard has one outcome | ➖ None needed |
+| T32–T33 | `tests/integration/test_vocabulary_dependencies.py` | Integration | ✅ `test_annotation_dependencies.py` 3 passed before modification | ✅ Missing provider imports failed collection | ✅ 2 passed after providers were added and the test created the real SQLite schema | ✅ Provider type construction and real repository execution on unknown id | ➖ None needed |
+| T34 | Phase 5 focused suite and quality gates | Unit + Integration | ✅ Focused suite green after implementation | N/A | ✅ 49 selected tests passed; Ruff, format, and mypy passed | ✅ Includes vocabulary behavior, ownership, confidence guard, and real SQLite execution | ➖ None needed |
+
+### Work Unit Evidence
+
+| Evidence | Result |
+|----------|--------|
+| Focused test command and exact result | `cd apps/api && uv run pytest tests/unit/test_vocabulary_ports.py tests/unit/test_vocabulary_dtos.py tests/integration/test_vocabulary_dependencies.py -q` → 7 passed in 0.39s. |
+| Runtime harness command/scenario and exact result | The same focused command's `test_get_read_vocabulary_assembles_the_use_case_from_a_real_repository` creates a temporary SQLite schema, resolves both providers, and executes `ReadVocabulary` against it; 7 passed in 0.39s. |
+| Rollback boundary | Delete `application/vocabulary/`, `api/dtos/vocabulary.py`, and the three vocabulary test files; revert the provider and lemma-ownership entries. No route, schema, frontend, or repository behavior is registered or changed. |
+
+### Verification
+
+- Focused: `cd apps/api && uv run pytest tests/unit/test_vocabulary_ports.py tests/unit/test_vocabulary_dtos.py tests/integration/test_vocabulary_dependencies.py -q` → 7 passed in 0.39s.
+- Guards: `cd apps/api && uv run pytest tests/unit/test_no_lemma_naming.py tests/unit/test_no_confidence_action_or_propn_filter.py -q` → 42 passed in 1.21s.
+- Combined relevant checks: `cd apps/api && uv run pytest tests/unit/test_vocabulary_ports.py tests/unit/test_vocabulary_dtos.py tests/integration/test_vocabulary_dependencies.py tests/unit/test_no_lemma_naming.py tests/unit/test_no_confidence_action_or_propn_filter.py -q` → 49 passed in 1.15s.
+- Quality: `cd apps/api && uv run ruff check . && uv run ruff format --check . && uv run mypy src/wheel_vocabulary` → all checks passed; 127 files already formatted; no mypy issues in 52 source files.
+
+### Deviations from Design
+
+None — the application use case only delegates to the repository and the DTO shape matches the design interface.
+
+### Issues Found
+
+The initial dependency execution reached a real SQLite file without a schema and failed with `sqlite3.OperationalError: no such table: book`. The integration test now creates the declared metadata before executing the use case, so it exercises the real repository path rather than only provider construction.
+
+### Remaining Tasks
+
+- [ ] T23–T24 — repository follow-up and coverage task; T23 is conditional on a T22 defect.
+- [ ] T35–T62 — route, schema, benchmark, frontend, and traceability work remain outside WU5.
+- [ ] WU2b — snapshot-isolation work remains blocked on the journal-mode decision.
+
+### Workload / PR Boundary
+
+- Mode: chained PR slice (stacked-to-main).
+- Current work unit: WU5 — application layer and DTOs.
+- Boundary: starts from main after WU4 and ends with unregistered application abstractions, DTOs, provider factories, tests, guard ownership, and SDD evidence. Rollback removes only those files and the corresponding provider and guard entries.
+- Estimated review budget impact: within the 400-line WU5 boundary; no route, schema, frontend, benchmark, or traceability changes were made.
