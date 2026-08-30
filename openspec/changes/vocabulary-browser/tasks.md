@@ -306,14 +306,14 @@ Focused test: `cd apps/api && uv run pytest tests/integration/test_vocabulary_be
 Depends on: none (can run parallel to Phases 1-7; only needs `AnnotationTable.tsx` as it exists today).
 Focused test: `cd apps/web && pnpm run test -- uposLabels`
 
-- T47 [TEST] Write `apps/web/tests/components/uposLabels.test.ts`: the extracted `posLabel`/`UPOS_LABELS` map is total over the 17-tag UPOS set and degrades an unmapped tag to the raw value. RED: `uposLabels.ts` does not exist.
-- T48 [IMPL] Create `apps/web/src/components/uposLabels.ts`: move `UPOS_LABELS` and `posLabel` verbatim from `AnnotationTable.tsx:37-62` — no behavior change, only the definition site moves (design's Deviation section).
-- T49 [IMPL] Modify `apps/web/src/components/AnnotationTable.tsx`: delete the moved `UPOS_LABELS`/`posLabel` definitions, import `posLabel` from `./uposLabels`. `AnnotationTable.test.tsx` MUST pass unchanged, byte-for-byte behavior (AC-005-10 scenario 4).
-- T50 [IMPL] Create `apps/web/src/types/vocabulary.ts`: `VocabularyGroup { lemma: string | null; pos: string | null; occurrence_count: number }`, `VocabularyResult { id: number; group_count: number; total_occurrence_count: number; groups: VocabularyGroup[] }` (mirrors `types/annotation.ts`).
-- T51 [IMPL] Create `apps/web/src/api/vocabulary.ts`: `getVocabulary(importId)` (mirrors `getAnnotation` in `api/annotation.ts`, single `GET`, no POST).
-- T52 [TEST] Extend `apps/web/tests/contracts/no-lemma-naming.test.ts::LEMMA_OWNING_FILES` (`:60-68`) with `"src/types/vocabulary.ts": new Set(["lemma"])` **only**. Do NOT register `VocabularyBrowser.tsx` here — no task creates it until T56 in Phase 9, and these manifests are enumerated and checked, so an entry pointing at a missing file fails the guard. Its registration is T57.
-- T53 [TEST] Extend `apps/web/tests/contracts/no-linguistic-rules.test.ts::FRONTEND_FEATURE_MODULES` (`:28-38`) with **the three files this phase creates** — `src/types/vocabulary.ts`, `src/api/vocabulary.ts`, `src/components/uposLabels.ts`; extend `FEATURE_NAME_PATTERN` (`:40`) to also match `[Vv]ocab`. The component is added to this manifest by T57, not here.
-- T54 [TEST] Run T47 and the existing `AnnotationTable.test.tsx` green; run `pnpm run typecheck` and `pnpm run lint`.
+- [x] T47 [TEST] Write `apps/web/tests/components/uposLabels.test.ts`: the extracted `posLabel`/`UPOS_LABELS` map is total over the 17-tag UPOS set and degrades an unmapped tag to the raw value. RED: `uposLabels.ts` does not exist.
+- [x] T48 [IMPL] Create `apps/web/src/components/uposLabels.ts`: move `UPOS_LABELS` and `posLabel` verbatim from `AnnotationTable.tsx:37-62` — no behavior change, only the definition site moves (design's Deviation section).
+- [x] T49 [IMPL] Modify `apps/web/src/components/AnnotationTable.tsx`: delete the moved `UPOS_LABELS`/`posLabel` definitions, import `posLabel` from `./uposLabels`. `AnnotationTable.test.tsx` MUST pass unchanged, byte-for-byte behavior (AC-005-10 scenario 4).
+- [x] T50 [IMPL] Create `apps/web/src/types/vocabulary.ts`: `VocabularyGroup { lemma: string | null; pos: string | null; occurrence_count: number }`, `VocabularyResult { id: number; group_count: number; total_occurrence_count: number; groups: VocabularyGroup[] }` (mirrors `types/annotation.ts`).
+- [x] T51 [IMPL] Create `apps/web/src/api/vocabulary.ts`: `getVocabulary(importId)` (mirrors `getAnnotation` in `api/annotation.ts`, single `GET`, no POST).
+- [x] T52 [TEST] Extend `apps/web/tests/contracts/no-lemma-naming.test.ts::LEMMA_OWNING_FILES` (`:60-68`) with `"src/types/vocabulary.ts": new Set(["lemma"])` **only**. Do NOT register `VocabularyBrowser.tsx` here — no task creates it until T56 in Phase 9, and these manifests are enumerated and checked, so an entry pointing at a missing file fails the guard. Its registration is T57.
+- [x] T53 [TEST] Extend `apps/web/tests/contracts/no-linguistic-rules.test.ts::FRONTEND_FEATURE_MODULES` (`:28-38`) with **the three files this phase creates** — `src/types/vocabulary.ts`, `src/api/vocabulary.ts`, `src/components/uposLabels.ts`; extend `FEATURE_NAME_PATTERN` (`:40`) to also match `[Vv]ocab`. The component is added to this manifest by T57, not here.
+- [x] T54 [TEST] Run T47 and the existing `AnnotationTable.test.tsx` green; run `pnpm run typecheck` and `pnpm run lint`.
 
 ## Phase 9 — VocabularyBrowser + wiring + E2E (WU9, ~235 lines)
 

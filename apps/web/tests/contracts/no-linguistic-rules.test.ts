@@ -31,13 +31,16 @@ const FRONTEND_FEATURE_MODULES = [
   "src/components/FrequencyTable.tsx",
   "src/components/DeleteImportButton.tsx",
   "src/components/AnnotationTable.tsx",
+  "src/components/uposLabels.ts",
   "src/api/imports.ts",
   "src/api/annotation.ts",
+  "src/api/vocabulary.ts",
   "src/types/imports.ts",
   "src/types/annotation.ts",
+  "src/types/vocabulary.ts",
 ] as const;
 
-const FEATURE_NAME_PATTERN = /[Ii]mport|[Ff]requenc|[Aa]nnotat/;
+const FEATURE_NAME_PATTERN = /[Ii]mport|[Ff]requenc|[Aa]nnotat|[Vv]ocab/;
 const FORBIDDEN_METHODS = new Set(["localeCompare", "normalize", "reverse", "sort", "toLowerCase", "toSorted"]);
 const FORBIDDEN_NORMALIZATION_FORMS = new Set(["NFC", "NFD", "NFKC", "NFKD"]);
 
