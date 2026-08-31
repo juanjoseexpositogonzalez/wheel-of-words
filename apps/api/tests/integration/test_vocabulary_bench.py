@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import statistics
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -24,10 +25,10 @@ from wheel_vocabulary.infrastructure.persistence.models import ManualCorrection,
 from wheel_vocabulary.infrastructure.persistence.vocabulary_repository import (
     SqlAlchemyVocabularyReadRepository,
 )
+from wheel_vocabulary.infrastructure.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from pathlib import Path
 
     from sqlalchemy import Engine
 
@@ -72,6 +73,16 @@ def _client_for_benchmark(
     app = create_app()
     app.dependency_overrides[get_read_vocabulary] = lambda: ReadVocabulary(repository=repository)
     return TestClient(app), corpus.book_id
+
+
+def test_response_body_budget_is_derived_from_the_external_import_size_limit() -> None:
+    """AC-005-11: the named body budget equals its externally anchored input limit."""
+    design_path = Path(__file__).parents[4] / "openspec/changes/vocabulary-browser/design.md"
+    design = design_path.read_text(encoding="utf-8")
+
+    assert Settings().max_import_size_bytes == _RESPONSE_BODY_BUDGET_BYTES
+    assert "4,194,304 = 4,194,304" in design
+    assert "must not exceed the input that produced it" in design
 
 
 def test_occurrence_level_benchmark_corpus_has_the_specified_composition(

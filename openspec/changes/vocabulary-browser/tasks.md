@@ -350,10 +350,19 @@ The query contract uses `pos=<UPOS tag>` or `pos=null` for the NULL-POS bucket.
 - [x] T65 [TEST] Add vocabulary client and UI selector coverage, including a selected POS request from `ImportPage`.
 - [x] T66 [TEST] Run focused backend/frontend tests, quality checks, and the existing port-8010 Playwright runtime harness.
 
+## Corrective slice — runtime coverage blockers
+
+Delivery: single PR corrective test slice following verification revision
+`sha256:39429242a6706518f1198de0adebb6cf27377855d0b7631ee088f734ea4c183f`.
+
+- [x] T67 [TEST] Add an API runtime sequence that creates an import, deletes it through `DELETE /api/v1/imports/{id}`, then reads vocabulary and asserts `404 IMPORT_NOT_FOUND` (REQ-005-005 / AC-005-05).
+- [x] T68 [TEST] Add an API runtime sequence that reads vocabulary, commits a direct seeded correction, then reads again and asserts the effective groups changed without cache invalidation (REQ-005-009 / AC-005-09).
+- [x] T69 [TEST] Add an executable documentation/runtime anchor check that proves the named response-body budget equals `Settings.max_import_size_bytes` and that the design records the checkable derivation (REQ-005-011 / AC-005-11 scenario 1).
+
 Every requirement `REQ-005-001`…`REQ-005-011` maps to at least one task above:
-001→T8,T22,T35 · 002→T6,T7,T22 · 003→T22,T55 · 004→T35,T41 · 005→T22,T35 ·
-006→T63-T66 · 007→T18-T20 · 008→T12-T17 · 009→T1-T5,T22 · 010→T49,T55-T57 ·
-011→T42-T46.
+001→T8,T22,T35 · 002→T6,T7,T22 · 003→T22,T55 · 004→T35,T41 · 005→T22,T35,T67 ·
+006→T63-T66 · 007→T18-T20 · 008→T12-T17 · 009→T1-T5,T22,T68 ·
+010→T49,T55-T57 · 011→T42-T46,T69.
 
 **Correction (Judgment Day round 5, tasks.md finding), withdrawn by round 6.** Round 5 split
 `008→T12-T17` into `008→T12-T17,T21a-T21g`, on the finding that Phase 3b (runtime observation) and

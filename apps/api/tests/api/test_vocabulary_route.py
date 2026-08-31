@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import hashlib
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import update
+from sqlalchemy import select, update
 
 from wheel_vocabulary.api.dependencies import get_book_repository, get_read_vocabulary
 from wheel_vocabulary.api.main import create_app
@@ -19,7 +20,7 @@ from wheel_vocabulary.infrastructure.persistence.engine import (
     create_engine_from_url,
     create_session_factory,
 )
-from wheel_vocabulary.infrastructure.persistence.models import Occurrence
+from wheel_vocabulary.infrastructure.persistence.models import ManualCorrection, Occurrence
 from wheel_vocabulary.infrastructure.persistence.vocabulary_repository import (
     SqlAlchemyVocabularyReadRepository,
 )
@@ -211,6 +212,64 @@ def test_unknown_vocabulary_import_returns_a_content_free_not_found_error(
     assert "lemma" not in serialized
     assert "traceback" not in serialized
     assert "/users/" not in serialized
+
+
+@pytest.mark.unit
+def test_deleted_vocabulary_import_returns_import_not_found(
+    vocabulary_client: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    """AC-005-05: a deleted import is distinguishable from an empty existing import."""
+    client, session_factory = vocabulary_client
+    book_id = _seed_groups(client, session_factory)
+
+    deleted = client.delete(f"/api/v1/imports/{book_id}")
+    response = client.get(_ENDPOINT.format(book_id))
+
+    assert deleted.status_code == 204
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "IMPORT_NOT_FOUND"
+
+
+@pytest.mark.unit
+def test_vocabulary_read_refreshes_after_a_correction_committed_between_requests(
+    vocabulary_client: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    """AC-005-09: groups are recomputed after a committed correction, without cache invalidation."""
+    client, session_factory = vocabulary_client
+    book_id = _seed_groups(client, session_factory)
+
+    first = client.get(_ENDPOINT.format(book_id))
+    with session_factory() as session:
+        occurrence_id = session.scalar(
+            select(Occurrence.id).where(
+                Occurrence.book_id == book_id,
+                Occurrence.position == 0,
+            )
+        )
+        assert occurrence_id is not None
+        session.add(
+            ManualCorrection(
+                occurrence_id=occurrence_id,
+                field="pos",
+                corrected_value="NOUN",
+                corrected_at=datetime(2026, 8, 31, tzinfo=UTC),
+            )
+        )
+        session.commit()
+    second = client.get(_ENDPOINT.format(book_id))
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["groups"] != second.json()["groups"]
+    assert {
+        (group["lemma"], group["pos"]): group["occurrence_count"]
+        for group in second.json()["groups"]
+    } == {
+        (None, "VERB"): 1,
+        ("leaf", None): 1,
+        ("moon", "NOUN"): 1,
+        ("run", "NOUN"): 2,
+        ("run", "VERB"): 1,
+    }
 
 
 @pytest.mark.unit

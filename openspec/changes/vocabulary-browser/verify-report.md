@@ -188,3 +188,21 @@ The corrective tests call the API, client, rendered selector, or page workflow a
 **FAIL**
 
 `REQ-005-006` is implemented and all four POS-filter scenarios pass, but the strict latency gate still fails and three required scenarios lack passing covering tests. The change is not archive-ready.
+
+### Apply remediation addendum — corrective coverage slice
+
+This addendum records apply evidence after the failed verification revision above. It does not replace
+the independent verdict or its strict benchmark failure.
+
+- `REQ-005-005` is covered by `test_deleted_vocabulary_import_returns_import_not_found`: create,
+  delete through the shipped API, then vocabulary read returns `404 IMPORT_NOT_FOUND`.
+- `REQ-005-009` is covered by
+  `test_vocabulary_read_refreshes_after_a_correction_committed_between_requests`: a committed direct
+  correction between two GETs changes the second group sequence.
+- `REQ-005-011` response-budget derivation is covered by
+  `test_response_body_budget_is_derived_from_the_external_import_size_limit`: the executable check
+  equates the response budget to `Settings.max_import_size_bytes` and pins the design's arithmetic.
+
+Focused remediation validation: `cd apps/api && uv run pytest tests/api/test_vocabulary_route.py
+tests/integration/test_vocabulary_bench.py -q` → 14 passed. The strict performance/pagination
+findings remain outside this corrective coverage slice.
