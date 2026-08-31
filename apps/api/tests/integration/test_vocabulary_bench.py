@@ -145,6 +145,7 @@ def test_vocabulary_response_stays_within_the_named_budget_at_the_occurrence_cei
         "T-VOCAB-BENCH measurements — "
         f"occurrences={_OCCURRENCE_COUNT} groups={body['group_count']} "
         f"response_body={response_bytes}B p95={p95_ms:.0f}ms "
+        f"samples_ms={[round(sample, 1) for sample in samples_ms]} "
         f"strict_mode={'on' if _STRICT else 'off'}"
     )
     print(report)  # noqa: T201 - benchmark observations belong in CI output

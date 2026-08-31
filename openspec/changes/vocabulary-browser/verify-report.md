@@ -206,3 +206,19 @@ the independent verdict or its strict benchmark failure.
 Focused remediation validation: `cd apps/api && uv run pytest tests/api/test_vocabulary_route.py
 tests/integration/test_vocabulary_bench.py -q` → 14 passed. The strict performance/pagination
 findings remain outside this corrective coverage slice.
+
+### Apply remediation addendum — response serialization
+
+This addendum records apply evidence after the failed verification revision. It does not replace the
+independent verdict above.
+
+- The route now returns the unchanged response envelope through `JSONResponse`, preserving the
+  declared `VocabularyResponse` OpenAPI model and `X-Schema-Version: 1` header while avoiding
+  per-group Pydantic response-model construction.
+- RED: before the production change, `WHEEL_BENCH_STRICT=1 uv run pytest
+  tests/integration/test_vocabulary_bench.py -m bench -q -s` failed at 3,096 ms p95 against the
+  1,000 ms bound.
+- GREEN: `WHEEL_BENCH_STRICT=1 uv run pytest tests/api/test_vocabulary_route.py
+  tests/integration/test_vocabulary_bench.py -q -s` passed 14 tests in 24.40s; the strict benchmark
+  reported 35,732 groups, a 1,872,122-byte response, and 822 ms p95.
+- WU2b snapshot isolation remains explicitly out of this slice.

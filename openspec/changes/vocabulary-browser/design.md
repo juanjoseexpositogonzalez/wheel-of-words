@@ -142,6 +142,14 @@ Both bounds stated in §Response budget are cleared:
 Neither bound is exceeded, so `REQ-005-011`'s pagination trigger does not fire and the endpoint
 returns every group, matching `frequency_pairs`.
 
+**Corrective response-serialization measurement.** The strict benchmark later exceeded the latency
+bound on the verification host. The route now constructs the already-specified JSON envelope directly
+through `JSONResponse`, while retaining `VocabularyResponse` as its OpenAPI response model. This
+removes 35,732 per-group Pydantic response-model constructions without changing the wire fields,
+ordering, status, or schema-version header. The strict corrective run measured **822 ms p95** with
+samples `878.4, 586.0, 572.4, 543.2, 560.3, 482.8, 557.3, 737.2, 572.8` ms and a 1,872,122-byte body.
+Pagination remains unnecessary on that run; independent verification must re-run the strict benchmark.
+
 **Measured observations, not bounds.** 688,000 occurrences collapse to **34,827 groups** (19.8:1);
 28,705 distinct lemmas, 17 NULL-lemma groups, 43 NULL-POS groups. Group cardinality has no stated
 bound, so the benchmark reports these numbers and asserts nothing against them (`REQ-005-011`).
