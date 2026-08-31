@@ -807,3 +807,63 @@ None — this slice adds coverage only and leaves the benchmark/performance and 
 - Current work unit: runtime coverage for `REQ-005-005`, `REQ-005-009`, and the derivation scenario of `REQ-005-011`.
 - Boundary: two backend test files plus traceability and OpenSpec evidence; no production, performance, pagination, or WAL changes.
 - Estimated review budget impact: 75 test-code lines before documentation evidence, below 400 changed lines.
+
+## Batch 13 — Corrective performance / REQ-005-011 (T70–T71)
+
+**Mode**: Strict TDD
+**Delivery**: single PR corrective performance slice
+**Branch**: `perf/vocabulary-browser-benchmark`
+
+### Completed Tasks
+
+- [x] T70 [TEST] Used the existing strict 688,000-occurrence HTTP benchmark as the RED performance test and added sample-level timing output to its report.
+- [x] T71 [IMPL] Replaced per-group Pydantic response-model construction with direct `JSONResponse` serialization while retaining the route's OpenAPI response model and header contract.
+
+### Files Changed
+
+| File | Action | What Was Done |
+|------|--------|---------------|
+| `apps/api/src/wheel_vocabulary/api/routes/vocabulary.py` | Modified | Builds the existing response envelope as JSON-compatible dictionaries and returns `JSONResponse` with `X-Schema-Version: 1`; `VocabularyResponse` remains the declared OpenAPI response model. |
+| `apps/api/tests/integration/test_vocabulary_bench.py` | Modified | Includes the nine measured request times in the benchmark report. |
+| `openspec/changes/vocabulary-browser/{tasks,design,apply-progress,verify-report}.md` | Modified | Records the corrective tasks, measured result, strict-TDD evidence, and non-final remediation reference. |
+| `docs/traceability-matrix.md` | Modified | Associates REQ-005-011 with T70–T71 and route-level contract coverage. |
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | RED | GREEN | REFACTOR |
+|---|---|---|---|---|---|
+| T70 | `tests/integration/test_vocabulary_bench.py` | HTTP integration benchmark | ✅ `WHEEL_BENCH_STRICT=1 uv run pytest tests/integration/test_vocabulary_bench.py -m bench -q -s` failed before production changes: 35,732 groups, 1,872,122 bytes, 3,096 ms p95 vs. the 1,000 ms bound. | ✅ The focused strict rerun passed: 35,732 groups, 1,872,122 bytes, 811 ms p95; nine samples are emitted in the report. | ✅ Kept the existing benchmark invariants and response model; only removed redundant per-group response-model construction. |
+| T71 | `tests/api/test_vocabulary_route.py`, `tests/integration/test_vocabulary_bench.py` | API + HTTP integration | ✅ The benchmark RED above exercised the shipped route and failed its required latency assertion. | ✅ `WHEEL_BENCH_STRICT=1 uv run pytest tests/api/test_vocabulary_route.py tests/integration/test_vocabulary_bench.py -q -s` → 14 passed in 24.40s, benchmark p95 822 ms. | ➖ No further refactor required. |
+
+### Work Unit Evidence
+
+| Evidence | Result |
+|----------|--------|
+| Focused test command and exact result | `WHEEL_BENCH_STRICT=1 uv run pytest tests/api/test_vocabulary_route.py tests/integration/test_vocabulary_bench.py -q -s` → 14 passed in 24.40s; 35,732 groups, 1,872,122-byte body, 822 ms p95. Final isolated strict confirmation: `WHEEL_BENCH_STRICT=1 uv run pytest tests/integration/test_vocabulary_bench.py -m bench -q -s` → 1 passed, 3 deselected in 25.97s; 811 ms p95. |
+| Runtime harness command/scenario and exact result | The strict benchmark builds the SQLite corpus with 688,000 persisted occurrences, sends nine requests through FastAPI `TestClient`, and asserts the 4 MiB body and 1,000 ms p95 bounds. Final isolated run exited 0 at 811 ms p95. |
+| Rollback boundary | Revert the `JSONResponse` construction in `api/routes/vocabulary.py`, the benchmark-report sample list, T70–T71, and this batch's documentation. The prior Pydantic response construction resumes without affecting unrelated routes. |
+
+### Verification
+
+- Focused API + strict benchmark: 14 passed in 24.40s; 822 ms p95.
+- Final strict benchmark: 1 passed, 3 deselected in 25.97s; 811 ms p95.
+- Backend full suite with coverage (default benchmark mode): `cd apps/api && uv run pytest --cov=wheel_vocabulary --cov-branch --cov-report=term-missing --cov-fail-under=80` → 705 passed in 176.62s, 100.00% coverage.
+- Quality: `cd apps/api && uv run ruff check . && uv run ruff format --check . && uv run mypy src/wheel_vocabulary` → passed; 131 files formatted; 53 source files typechecked.
+- Traceability: `cd apps/api && uv run pytest tests/unit/test_traceability.py -q` → 12 passed in 12.05s.
+
+### Deviations from Design
+
+None — the response contract, ordering, and unpaginated behavior remain unchanged; pagination is not required because the isolated strict benchmark clears the named bound.
+
+### Issues Found
+
+- A combined full-suite invocation with `WHEEL_BENCH_STRICT=1` failed under load: the vocabulary benchmark measured 2,518 ms p95 and the unrelated import benchmark also exceeded its strict import budget. The verification command runs the full suite in default mode and the vocabulary strict benchmark separately; both required commands passed in that topology. The strict latency measurement is host-load-sensitive and needs independent verification.
+- **Runtime-ledger blocker**: `gentle-ai sdd-attempt reset` remains blocked by historical tracked/untracked verify-report metadata. No attempt acquire, settle, reset, or synthetic ledger operation was run.
+- WU2b SQLite WAL snapshot isolation remains outside this slice.
+
+### Workload / PR Boundary
+
+- Mode: single PR corrective performance slice.
+- Current work unit: REQ-005-011 response serialization.
+- Boundary: one API route serialization change, benchmark reporting, traceability, and OpenSpec evidence. No pagination, frontend behavior, or WU2b WAL work is included.
+- Estimated review budget impact: 37 code/test lines plus documentation evidence, below the 400-line budget.

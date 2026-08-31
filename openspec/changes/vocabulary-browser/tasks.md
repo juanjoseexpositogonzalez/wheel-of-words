@@ -359,6 +359,15 @@ Delivery: single PR corrective test slice following verification revision
 - [x] T68 [TEST] Add an API runtime sequence that reads vocabulary, commits a direct seeded correction, then reads again and asserts the effective groups changed without cache invalidation (REQ-005-009 / AC-005-09).
 - [x] T69 [TEST] Add an executable documentation/runtime anchor check that proves the named response-body budget equals `Settings.max_import_size_bytes` and that the design records the checkable derivation (REQ-005-011 / AC-005-11 scenario 1).
 
+## Corrective slice — REQ-005-011 response serialization
+
+Delivery: single PR corrective performance slice. This slice does not implement WU2b snapshot
+isolation or pagination because the strict benchmark clears the named latency bound after the
+response-serialization change.
+
+- [x] T70 [TEST] Run the existing strict 688,000-occurrence HTTP benchmark as the RED performance test; retain per-sample timing output so a failed p95 identifies the observed distribution (REQ-005-011 / AC-005-11 scenarios 2 and 4).
+- [x] T71 [IMPL] Return the unchanged vocabulary response contract through `JSONResponse`, avoiding per-group Pydantic response-model construction while retaining the OpenAPI response model and `X-Schema-Version` header (REQ-005-011).
+
 Every requirement `REQ-005-001`…`REQ-005-011` maps to at least one task above:
 001→T8,T22,T35 · 002→T6,T7,T22 · 003→T22,T55 · 004→T35,T41 · 005→T22,T35,T67 ·
 006→T63-T66 · 007→T18-T20 · 008→T12-T17 · 009→T1-T5,T22,T68 ·
