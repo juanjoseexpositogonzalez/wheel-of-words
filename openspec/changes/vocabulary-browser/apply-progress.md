@@ -753,3 +753,57 @@ The first frontend implementation passed `undefined` as a second argument on the
 - Current work unit: REQ-005-006 POS filtering.
 - Boundary: backend query validation/filtering, frontend selector/client wiring, focused tests, traceability, and apply evidence only.
 - Estimated review budget impact: under 400 changed lines excluding prior artifacts.
+
+## Batch 12 — Corrective runtime coverage (T67–T69)
+
+**Mode**: Strict TDD
+**Delivery**: single PR corrective test slice
+**Branch**: `test/vocabulary-browser-runtime-coverage`
+
+### Completed Tasks
+
+- [x] T67 [TEST] Added the API delete-then-vocabulary sequence for `REQ-005-005`.
+- [x] T68 [TEST] Added the committed-correction-between-reads API sequence for `REQ-005-009`.
+- [x] T69 [TEST] Added the executable response-budget derivation check for `REQ-005-011`.
+
+### Files Changed
+
+| File | Action | What Was Done |
+|------|--------|---------------|
+| `apps/api/tests/api/test_vocabulary_route.py` | Modified | Added deleted-import 404 and correction-between-reads refresh coverage through the shipped API. |
+| `apps/api/tests/integration/test_vocabulary_bench.py` | Modified | Added an executable check linking the body budget to `Settings.max_import_size_bytes` and the documented arithmetic. |
+| `docs/traceability-matrix.md` | Modified | Added the three covering test nodes and corrective task IDs. |
+| `openspec/changes/vocabulary-browser/{tasks,verify-report}.md` | Modified | Marked corrective tests complete and recorded remediation without replacing the failed independent verdict. |
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| T67 | `tests/api/test_vocabulary_route.py` | API integration | ✅ 8/8 existing tests passed | ➖ Behavior already green but unrecorded; the new delete-then-read assertion passed against the shipped route | ✅ 10/10 API tests passed | ✅ Create → delete → vocabulary-read exercises a distinct persisted state from unknown and empty imports | ➖ None needed |
+| T68 | `tests/api/test_vocabulary_route.py` | API integration | ✅ 8/8 existing tests passed | ➖ Behavior already green but unrecorded; the new committed correction between reads changed the next API response | ✅ 10/10 API tests passed | ✅ First response and the complete effective-group sequence after the committed correction are both asserted | ➖ None needed |
+| T69 | `tests/integration/test_vocabulary_bench.py` | Integration + documentation | ✅ 3/3 existing tests passed | ⚠️ Initial test run failed with `NameError: Path is not defined`; corrected test setup before evaluating the documentation anchor | ✅ 4/4 benchmark-file tests passed | ✅ Checks both the executable settings constant and the stated arithmetic/derivation text | ➖ None needed |
+
+### Work Unit Evidence
+
+| Evidence | Result |
+|----------|--------|
+| Focused test command and exact result | `cd apps/api && uv run pytest tests/api/test_vocabulary_route.py tests/integration/test_vocabulary_bench.py -q` → 14 passed in 66.24s. |
+| Runtime harness command/scenario and exact result | The same focused command executes FastAPI `TestClient` against isolated SQLite databases: deleted import → `404 IMPORT_NOT_FOUND`; committed correction between GETs → changed effective group sequence; 14 passed in 66.24s. |
+| Rollback boundary | Revert the two added API tests, the response-budget derivation test, three traceability citations, T67–T69 checkboxes, and this batch record. No production behavior changed. |
+
+### Deviations from Design
+
+None — this slice adds coverage only and leaves the benchmark/performance and WU2b work untouched.
+
+### Issues Found
+
+- The first T69 run failed because the test omitted the runtime `Path` import; no product behavior was evaluated in that run. After adding the import, the test passed.
+- **Runtime-ledger blocker**: do not run or synthesize `gentle-ai sdd-attempt` acquire/settle/reset. The historical objective still classifies `openspec/changes/vocabulary-browser/verify-report.md` as intended-untracked although PR #66 tracks it.
+- The strict benchmark/pagination failure from verification revision `sha256:39429242a6706518f1198de0adebb6cf27377855d0b7631ee088f734ea4c183f` remains outside this slice.
+
+### Workload / PR Boundary
+
+- Mode: single PR corrective test slice.
+- Current work unit: runtime coverage for `REQ-005-005`, `REQ-005-009`, and the derivation scenario of `REQ-005-011`.
+- Boundary: two backend test files plus traceability and OpenSpec evidence; no production, performance, pagination, or WAL changes.
+- Estimated review budget impact: 75 test-code lines before documentation evidence, below 400 changed lines.
