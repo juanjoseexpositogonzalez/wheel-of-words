@@ -78,7 +78,7 @@ requirement, not a review note. Both legs MUST also observe one database snapsho
 D1a carries, because this design stated it without naming a journal mode under which it is
 satisfiable.
 
-### D1a — Snapshot isolation across the two legs: unsatisfied, outside WU2
+### D1a — Snapshot isolation across the two legs: WAL plus an explicit read transaction
 
 Sharing one `Session` does not give the two legs one snapshot. pysqlite's legacy transactional mode
 emits `BEGIN` before `INSERT`, `UPDATE` and `DELETE` and never before a plain `SELECT`, so each leg
@@ -97,19 +97,17 @@ Both rounds failed the same way because under SQLite's rollback journal, holding
 committing concurrently are mutually exclusive. Under `PRAGMA journal_mode=WAL` the round-2
 implementation returned the correct snapshot and the interleaved writer committed in 0.001 s.
 
-`create_engine_from_url` (`infrastructure/persistence/engine.py:14-16`) passes no `journal_mode` and
-no `busy_timeout`, so every session runs on the rollback journal with pysqlite's 5 s default timeout.
-Which journal mode this system runs under is an open decision — see §Open Questions. Snapshot
-isolation is therefore outside WU2's scope and becomes its own work unit carrying that decision,
-including the regression test that proves the snapshot rather than the locking. The round-2
-implementation and its test are preserved on `feat/vocabulary-read-snapshot-isolation` at `ed7e9f3`,
-stacked on `ac5b4b9`; that commit message records that it is not ready to merge and enumerates four
-defects two independent judges each confirmed.
+WU2b resolves the journal-mode decision by making file-backed SQLite engines use
+`PRAGMA journal_mode=WAL` in `create_engine_from_url`, and by opening an explicit read transaction at
+the start of `SqlAlchemyVocabularyReadRepository.groups()`. The regression test interleaves a writer
+after leg A and before leg B. Without the explicit transaction, the writer commits and the returned
+groups include an impossible stale raw group; the RED is the returned group comparison, not
+`OperationalError` or a lock timeout. With WAL plus the explicit read transaction, the repository
+returns the pre-write effective snapshot while the writer commits and leaves the updated occurrence in
+the database.
 
-What WU2 shipped at `ac5b4b9` is the sequential behaviour: one `Session`, two legs, correct groups
-for a read with no interleaved committed write. `vocabulary_repository.py`'s module docstring calls
-that one snapshot. It is not one, and the file is not modified here — the claim is recorded as a
-known defect in `apply-progress.md` §Batch 2 rather than left unstated.
+This closes the docstring defect recorded in `apply-progress.md` §Batch 2: the shipped file now states
+that one snapshot comes from the explicit read transaction, not from merely sharing one `Session`.
 
 ### D2 — Index required: `ix_occurrence_book_lemma_pos (book_id, lemma, pos)`
 
@@ -299,13 +297,9 @@ A+B. Delivery strategy is `ask-on-risk`, so this needs a human decision before a
 
 - [ ] Slicing: accept the 3-PR chain above, or a 2-PR backend/frontend split at ~760/~290? Requires a
       human decision (`ask-on-risk`, budget exceeded either way).
-- [ ] Journal mode (D1a). D1's one-snapshot obligation is satisfiable under
-      `PRAGMA journal_mode=WAL` — measured: correct snapshot, interleaved writer committing in
-      0.001 s — and not under the rollback journal `create_engine_from_url` leaves in place. WAL is
-      the only mode measured to satisfy it; nothing else has been measured, and WAL's own cost on
-      the annotate write path (156–281 s at the ceiling, D2) has not been measured either. Choosing
-      the mode changes every session in the process, not only this read, so it is a decision for the
-      snapshot-isolation work unit and not for WU2.
+- [x] Journal mode (D1a). WU2b chose WAL for file-backed local/test SQLite engines and paired it with
+      an explicit read transaction in `groups()`. The focused regression proves that the two query
+      legs observe one snapshot and that the interleaved writer commits.
 
 ## Deviation From Proposal
 
