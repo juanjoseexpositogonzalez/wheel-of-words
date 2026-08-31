@@ -607,32 +607,23 @@ def test_writes_appended_to_the_vocabulary_repository_are_caught() -> None:
     the real `vocabulary_repository.py` source.
 
     MUTATION CHECK: ran `_detect_writes` against each mutated source.
-    `vocabulary_repository.py` is 181 lines and ends with a trailing
-    newline, so the appended `"\\n" + statement + "\\n"` lands the
-    statement on line 183 (one blank line from the append, then the
-    statement) — re-derived by execution against THIS round's file, not
-    copied from a prior round's recorded output, which had drifted to
-    :184 without the file ever changing length.
-
-    insert::
-
-    ['infrastructure/persistence/vocabulary_repository.py:183 insert(ManualCorrection)']
-
-    delete::
-
-    ['infrastructure/persistence/vocabulary_repository.py:183 delete(ManualCorrection)']
+    The appended `"\\n" + statement + "\\n"` lands after the current file's
+    real line count. The assertion computes that line instead of pinning a
+    stale number, because documentation-only edits in the repository module
+    must not weaken the mutation check.
     """
     path = _PACKAGE_ROOT / "infrastructure" / "persistence" / "vocabulary_repository.py"
     original = path.read_text(encoding="utf-8")
     label = "infrastructure/persistence/vocabulary_repository.py"
     with_insert = original + "\ninsert(ManualCorrection, {'field': 'lemma'})\n"
     with_delete = original + "\ndelete(ManualCorrection)\n"
+    appended_statement_line = len(original.splitlines()) + 2
 
     insert_violations = _detect_writes(with_insert, label)
     delete_violations = _detect_writes(with_delete, label)
 
-    assert insert_violations == [f"{label}:183 insert(ManualCorrection)"]
-    assert delete_violations == [f"{label}:183 delete(ManualCorrection)"]
+    assert insert_violations == [f"{label}:{appended_statement_line} insert(ManualCorrection)"]
+    assert delete_violations == [f"{label}:{appended_statement_line} delete(ManualCorrection)"]
 
 
 @pytest.mark.unit

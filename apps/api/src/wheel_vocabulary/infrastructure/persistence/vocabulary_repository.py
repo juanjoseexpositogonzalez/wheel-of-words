@@ -1,8 +1,8 @@
 """Vocabulary aggregation read path — design §D1, §D2, §D5; spec §2.1-§2.5.
 
 Groups occurrences by their precedence-resolved effective `(lemma, POS)`
-pair. Two legs run inside ONE `Session` — one snapshot, a correctness
-obligation design D1 states explicitly, not a style preference:
+pair. Two legs run inside one explicit SQLite read transaction, so they
+observe one snapshot while WAL lets unrelated writers commit concurrently:
 
 * **leg A** (`_raw_group_counts`): `GROUP BY` over the RAW `Occurrence`
   columns — an index-ordered scan served by `ix_occurrence_book_lemma_pos`,
@@ -19,9 +19,9 @@ over `manual_correction` would be a second, divergent definition of that
 rule and is explicitly forbidden (spec §2.2 E3). Work is
 O(groups + corrections), never O(occurrences).
 
-The query joins `occurrence` and `manual_correction` only — never
-`annotation_provenance` — so confidence cannot reach this module at all
-(design D4, spec §2.4 K1).
+The query joins `occurrence` and `manual_correction` only. It never joins
+the provenance table, so confidence cannot reach this module at all (design
+D4, spec §2.4 K1).
 
 REQ-005-001, REQ-005-002, REQ-005-003, REQ-005-005, REQ-005-009.
 """
@@ -78,9 +78,13 @@ class SqlAlchemyVocabularyReadRepository:
         with its own query, independent of whether the aggregation returns
         a row. An import with zero occurrences returns `[]`, never `None`
         (§2.3, AC-005-05). The returned sequence carries design D5's total
-        order, applied after the leg-A/leg-B merge below.
+        order, applied after the leg-A/leg-B merge below. File-backed SQLite
+        engines use WAL by default; the explicit read transaction below keeps
+        both query legs on one snapshot without blocking a concurrent writer's
+        commit.
         """
         with self._session_factory() as session:
+            session.connection().exec_driver_sql("BEGIN")
             if session.get(Book, book_id) is None:
                 return None
 

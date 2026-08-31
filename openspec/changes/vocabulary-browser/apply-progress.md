@@ -867,3 +867,67 @@ None — the response contract, ordering, and unpaginated behavior remain unchan
 - Current work unit: REQ-005-011 response serialization.
 - Boundary: one API route serialization change, benchmark reporting, traceability, and OpenSpec evidence. No pagination, frontend behavior, or WU2b WAL work is included.
 - Estimated review budget impact: 37 code/test lines plus documentation evidence, below the 400-line budget.
+
+## Batch 14 — WU2b snapshot isolation (T72–T76)
+
+**Mode**: Strict TDD
+**Delivery**: direct work unit on `feat/vocabulary-browser-wal-snapshot`
+**Status**: complete — native `gentle-ai sdd-attempt reset/acquire/settle` was not run because provider defect https://github.com/Gentleman-Programming/gentle-ai/issues/3964 remains active.
+
+### Completed Tasks
+
+- [x] T72 [TEST] Added the interleaved repository snapshot regression with committed writer evidence.
+- [x] T73 [TEST] Added file-backed SQLite WAL-mode engine coverage.
+- [x] T74 [IMPL] Enabled WAL for file-backed SQLite engines created by `create_engine_from_url`.
+- [x] T75 [IMPL] Opened an explicit read transaction at the start of `groups()`.
+- [x] T76 [DOC] Updated stale repository docstrings and WU2b OpenSpec records.
+
+### Files Changed
+
+| File | Action | What Was Done |
+|------|--------|---------------|
+| `apps/api/tests/integration/test_vocabulary_repository_snapshot.py` | Created | Proves leg A and leg B observe one snapshot while an interleaved writer commits and leaves evidence in the database. |
+| `apps/api/tests/integration/test_engine.py` | Modified | Adds a WAL-mode assertion for file-backed SQLite engines. |
+| `apps/api/src/wheel_vocabulary/infrastructure/persistence/engine.py` | Modified | Enables `PRAGMA journal_mode=WAL` on file-backed SQLite connections. |
+| `apps/api/src/wheel_vocabulary/infrastructure/persistence/vocabulary_repository.py` | Modified | Starts an explicit read transaction before the existence check and corrects snapshot docstrings. |
+| `openspec/changes/vocabulary-browser/{tasks,design,apply-progress}.md` | Modified | Records T72–T76 and closes the D1a journal-mode open question. |
+| `docs/traceability-matrix.md` | Modified | Adds a design-obligation note for WU2b, separate from the REQ-005 rows. |
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| T72 | `tests/integration/test_vocabulary_repository_snapshot.py` | Integration | ✅ Existing `test_vocabulary_repository.py` + `test_engine.py` baseline: 7 passed | ✅ The new test failed on returned groups: stale raw `beta` appeared and the writer committed; no lock error occurred | ✅ 1 snapshot test passed after WAL + explicit read transaction | ✅ Asserts both returned groups and committed writer evidence | ➖ None needed |
+| T73 | `tests/integration/test_engine.py` | Integration | ✅ Same baseline | ✅ `PRAGMA journal_mode` returned `delete`, not `wal` | ✅ 3 engine tests passed after the engine change | ➖ Single file-backed SQLite journal-mode behavior | ➖ None needed |
+| T74 | `tests/integration/test_engine.py` | Integration | ✅ Covered by T73 | ✅ T73 RED covered missing WAL configuration | ✅ Passed | ➖ Single configuration branch | ➖ None needed |
+| T75 | `tests/integration/test_vocabulary_repository_snapshot.py` | Integration | ✅ Covered by T72 | ✅ T72 RED covered torn read across the two legs | ✅ Passed | ✅ Writer commit evidence proves the fix is not mutual exclusion | ➖ None needed |
+| T76 | Documentation + repository docstrings | Documentation | ✅ Focused tests green before doc updates | N/A | ✅ Focused tests and quality checks passed after docs/docstrings | ➖ Documentation aligns with implemented behavior | ➖ None needed |
+
+### Work Unit Evidence
+
+| Evidence | Result |
+|----------|--------|
+| Focused test command and exact result | `cd apps/api && uv run pytest tests/integration/test_vocabulary_repository_snapshot.py tests/integration/test_engine.py -q` → 4 passed. |
+| Runtime harness command/scenario and exact result | The focused command opens two sessions against one file-backed SQLite database: `groups()` starts a read snapshot, the interleaved writer updates the corrected occurrence and commits, and a final session observes the committed `delta` value; 4 passed. |
+| Rollback boundary | Delete `test_vocabulary_repository_snapshot.py`; revert the WAL listener in `engine.py`, the explicit `BEGIN` and docstrings in `vocabulary_repository.py`, the WAL engine test, and the T72–T76 documentation records. |
+
+### Verification
+
+- RED focused run before implementation: `cd apps/api && uv run pytest tests/integration/test_vocabulary_repository_snapshot.py tests/integration/test_engine.py -q` → 2 failed, 2 passed. Failures were the returned group mismatch (`beta` extra/stale group) and `PRAGMA journal_mode` returning `delete`.
+- GREEN focused run after implementation: `cd apps/api && uv run pytest tests/integration/test_vocabulary_repository_snapshot.py tests/integration/test_engine.py -q` → 4 passed.
+- Related repository/engine/traceability run: `cd apps/api && uv run pytest tests/integration/test_vocabulary_repository_snapshot.py tests/integration/test_engine.py tests/integration/test_vocabulary_repository.py tests/unit/test_vocabulary_repository_properties.py tests/integration/test_vocabulary_read_scenario.py tests/unit/test_traceability.py -q` → 29 passed.
+- Quality: `cd apps/api && uv run ruff check . && uv run ruff format --check . && uv run mypy src/wheel_vocabulary` → passed; 132 files already formatted; 53 source files typechecked.
+
+### Deviations from Design
+
+None — WU2b implements design D1a's WAL direction and does not add pagination or unrelated verification/archive work.
+
+### Issues Found
+
+- The native Gentle AI attempt lifecycle remains blocked by provider defect https://github.com/Gentleman-Programming/gentle-ai/issues/3964. No `gentle-ai sdd-attempt reset`, `acquire`, or `settle` command was run.
+
+### Workload / PR Boundary
+
+- Mode: direct WU2b slice.
+- Current work unit: snapshot isolation across `SqlAlchemyVocabularyReadRepository.groups()`'s two query legs.
+- Boundary: SQLite WAL configuration, explicit read transaction, focused concurrency regression, stale docstring updates, and WU2b evidence only. No pagination, route behavior, frontend behavior, archive, or unrelated verification work is included.

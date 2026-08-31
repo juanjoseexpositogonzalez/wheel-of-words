@@ -38,6 +38,18 @@ def test_create_engine_from_url_connects_to_sqlite_database(
 
 
 @pytest.mark.integration
+def test_create_engine_from_url_uses_wal_for_local_sqlite_files(
+    tmp_path: Path,
+    managed_engine: Callable[[Engine], Engine],
+) -> None:
+    """WU2b: file-backed SQLite engines use WAL so readers do not starve writers."""
+    engine = managed_engine(create_engine_from_url(f"sqlite:///{tmp_path / 'wal.db'}"))
+
+    with engine.connect() as connection:
+        assert connection.execute(text("PRAGMA journal_mode")).scalar_one() == "wal"
+
+
+@pytest.mark.integration
 def test_create_session_factory_returns_working_sessions(
     tmp_path: Path,
     managed_engine: Callable[[Engine], Engine],

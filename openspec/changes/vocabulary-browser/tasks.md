@@ -187,22 +187,23 @@ legs" is shipped and is not one snapshot.
 
 ## Phase 2b — Snapshot isolation (WU2b, unestimated)
 
-Depends on: Phase 2. **Blocked on an open decision, so this phase carries no task IDs yet.** The
-journal mode is unchosen (`design.md` §Open Questions), and it decides whether the fix is one engine
-setting, a read-scoped transaction, or both — which in turn decides the tasks, their order and their
-size. Numbering tasks now would record a plan that has not been made.
+Depends on: Phase 2. User selected WAL for this work unit after the preserved evidence showed that
+rollback-journal SQLite cannot both hold a read snapshot and let an unrelated writer commit.
 
-What is already fixed, and what any future task list must satisfy:
-
-- The fix must not starve unrelated writers. Round 2's read-scoped `BEGIN` made `delete()` of an
-  unrelated book raise `OperationalError: database is locked` at 5.279 s where the control returned
-  `True` at 1.113 s (`design.md` §D1a).
-- The regression test must assert the returned groups, and its interleaved write must commit. The
-  preserved test at `ed7e9f3` does neither.
-- `vocabulary_repository.py`'s module docstring and `groups()`'s docstring both describe a snapshot
-  and a blocked writer. Both must match whatever this phase ships.
-
-Preserved work: `feat/vocabulary-read-snapshot-isolation` @ `ed7e9f3`, stacked on `ac5b4b9`.
+- [x] T72 [TEST] Add `apps/api/tests/integration/test_vocabulary_repository_snapshot.py`: interleave a
+  committed writer after leg A and before leg B, assert the returned groups equal the pre-write
+  effective snapshot, and assert the writer's committed occurrence update remains in the database.
+  RED: without the snapshot fix, the writer commits and the assertion fails on the returned group list
+  by including the impossible stale raw group.
+- [x] T73 [TEST] Extend `apps/api/tests/integration/test_engine.py`: file-backed SQLite engines created
+  through `create_engine_from_url` report `PRAGMA journal_mode` as `wal`.
+- [x] T74 [IMPL] Update `create_engine_from_url` to enable WAL for file-backed SQLite URLs only.
+- [x] T75 [IMPL] Open an explicit read transaction at the start of
+  `SqlAlchemyVocabularyReadRepository.groups()` so the existence check, leg A, leg B, merge inputs,
+  and correction batches share one SQLite read snapshot.
+- [x] T76 [DOC] Update `vocabulary_repository.py` docstrings and this OpenSpec evidence so D1a no
+  longer claims that merely sharing one `Session` provides a snapshot, and so the Gentle AI
+  `sdd-attempt` provider blocker remains preserved in apply-progress.
 
 ## Phase 3 — Structural absence guards (WU3, ~390 lines)
 
