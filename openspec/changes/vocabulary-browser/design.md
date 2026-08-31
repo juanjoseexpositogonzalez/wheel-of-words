@@ -187,7 +187,16 @@ group key itself.
                         leg B: corrected occurrences only (bounded by correction count)
                         merge: domain.annotation.resolve_effective  ◄── ONE definition of §2.5
                                           │
-                                   list[VocabularyGroup] | None   (None ⇒ 404)
+                                    list[VocabularyGroup] | None   (None ⇒ 404)
+
+### Corrective slice — POS selector
+
+The optional `pos` query parameter accepts one of `UPOS_TAGS` or the literal
+`null`. `null` selects groups whose `pos` field is JSON `null`; omitting the
+parameter leaves the result unfiltered. FastAPI validates the parameter before
+the route runs, so an invalid selector uses the shared `INVALID_REQUEST`
+envelope. The route filters the completed group sequence by its `pos` key,
+leaving each included group's `occurrence_count` unchanged.
 
 ## File Changes
 

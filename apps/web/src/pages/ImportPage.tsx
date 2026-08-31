@@ -30,17 +30,20 @@ export function ImportPage(): JSX.Element {
   const [result, setResult] = useState<ImportResult | null>(null);
   const [annotateState, setAnnotateState] = useState<AnnotateState>({ kind: "idle" });
   const [vocabularyState, setVocabularyState] = useState<VocabularyState>({ kind: "idle" });
+  const [selectedPos, setSelectedPos] = useState<string | null>(null);
 
   function handleImported(imported: ImportResult): void {
     setResult(imported);
     setAnnotateState({ kind: "idle" });
     setVocabularyState({ kind: "idle" });
+    setSelectedPos(null);
   }
 
   function handleDeleted(): void {
     setResult(null);
     setAnnotateState({ kind: "idle" });
     setVocabularyState({ kind: "idle" });
+    setSelectedPos(null);
   }
 
   function handleAnnotate(): void {
@@ -62,11 +65,21 @@ export function ImportPage(): JSX.Element {
   }
 
   function handleVocabulary(): void {
+    loadVocabulary(null);
+  }
+
+  function handlePosChange(pos: string | null): void {
+    setSelectedPos(pos);
+    loadVocabulary(pos);
+  }
+
+  function loadVocabulary(pos: string | null): void {
     if (result === null) {
       return;
     }
     setVocabularyState({ kind: "loading" });
-    void getVocabulary(result.id).then(
+    const request = pos === null ? getVocabulary(result.id) : getVocabulary(result.id, pos);
+    void request.then(
       (vocabularyResult) => {
         setVocabularyState({ kind: "done", result: vocabularyResult });
       },
@@ -109,7 +122,13 @@ export function ImportPage(): JSX.Element {
             {vocabularyState.kind === "error" && <p role="alert">{vocabularyState.message}</p>}
           </div>
           {annotateState.kind === "done" && <AnnotationTable result={annotateState.result} />}
-          {vocabularyState.kind === "done" && <VocabularyBrowser result={vocabularyState.result} />}
+          {vocabularyState.kind === "done" && (
+            <VocabularyBrowser
+              result={vocabularyState.result}
+              selectedPos={selectedPos}
+              onPosChange={handlePosChange}
+            />
+          )}
         </>
       )}
     </section>

@@ -339,9 +339,20 @@ Depends on: every requirement's implementing phase having landed (this task can 
 
 ## Notes on requirement coverage
 
+## Corrective slice — REQ-005-006 POS filter
+
+Delivery: single PR corrective slice, requested after verification revision
+`sha256:55d99496a517cd9d0d4096ad9a5a39a54750ed2514d593f107555173732c5dff`.
+The query contract uses `pos=<UPOS tag>` or `pos=null` for the NULL-POS bucket.
+
+- [x] T63 [TEST] Add API tests for the four AC-005-06 scenarios: group-key filtering preserves counts, `pos=null`, invalid selector → `INVALID_REQUEST`, and no-match empty success.
+- [x] T64 [IMPL] Add validated `pos` query filtering to the vocabulary route without changing the unfiltered endpoint response.
+- [x] T65 [TEST] Add vocabulary client and UI selector coverage, including a selected POS request from `ImportPage`.
+- [x] T66 [TEST] Run focused backend/frontend tests, quality checks, and the existing port-8010 Playwright runtime harness.
+
 Every requirement `REQ-005-001`…`REQ-005-011` maps to at least one task above:
-001→T8,T22,T35 · 002→T6,T7,T22 · 003→T22,T55 · 004→T35,T41 · 005→T22,T35 · 006→**slice 2, not in
-this document** · 007→T18-T20 · 008→T12-T17 · 009→T1-T5,T22 · 010→T49,T55-T57 ·
+001→T8,T22,T35 · 002→T6,T7,T22 · 003→T22,T55 · 004→T35,T41 · 005→T22,T35 ·
+006→T63-T66 · 007→T18-T20 · 008→T12-T17 · 009→T1-T5,T22 · 010→T49,T55-T57 ·
 011→T42-T46.
 
 **Correction (Judgment Day round 5, tasks.md finding), withdrawn by round 6.** Round 5 split
