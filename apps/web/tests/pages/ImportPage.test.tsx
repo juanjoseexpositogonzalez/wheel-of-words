@@ -155,6 +155,21 @@ describe("ImportPage", () => {
     expect(getVocabularyMock).toHaveBeenCalledWith(42);
   });
 
+  it("reloads vocabulary from the API when the POS selector changes", async () => {
+    const user = userEvent.setup();
+    await importSuccessfully(user);
+    getVocabularyMock.mockResolvedValue(vocabularyResult);
+    await user.click(screen.getByRole("button", { name: "Ver vocabulario" }));
+    await screen.findByRole("combobox", { name: "Filtrar por categoría gramatical" });
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Filtrar por categoría gramatical" }),
+      "NOUN",
+    );
+
+    expect(getVocabularyMock).toHaveBeenLastCalledWith(42, "NOUN");
+  });
+
   it("shows the backend error message perceptibly when annotation fails, and the table is never rendered", async () => {
     const user = userEvent.setup();
     await importSuccessfully(user);

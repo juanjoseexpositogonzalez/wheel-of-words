@@ -118,6 +118,84 @@ def test_identical_vocabulary_requests_preserve_the_entire_body_order(
 
 
 @pytest.mark.unit
+def test_vocabulary_pos_selector_narrows_groups_without_changing_their_counts(
+    vocabulary_client: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = vocabulary_client
+    book_id = _seed_groups(client, session_factory)
+
+    unfiltered = client.get(_ENDPOINT.format(book_id))
+    filtered = client.get(_ENDPOINT.format(book_id), params={"pos": "NOUN"})
+
+    assert unfiltered.status_code == 200
+    assert filtered.status_code == 200
+    assert filtered.json() == {
+        "id": book_id,
+        "group_count": 2,
+        "total_occurrence_count": 2,
+        "groups": [
+            {"lemma": "moon", "pos": "NOUN", "occurrence_count": 1},
+            {"lemma": "run", "pos": "NOUN", "occurrence_count": 1},
+        ],
+    }
+    unfiltered_counts = {
+        (group["lemma"], group["pos"]): group["occurrence_count"]
+        for group in unfiltered.json()["groups"]
+    }
+    assert {
+        (group["lemma"], group["pos"]): group["occurrence_count"]
+        for group in filtered.json()["groups"]
+    } == {key: unfiltered_counts[key] for key in unfiltered_counts if key[1] == "NOUN"}
+
+
+@pytest.mark.unit
+def test_vocabulary_pos_selector_can_select_the_null_pos_bucket(
+    vocabulary_client: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = vocabulary_client
+    book_id = _seed_groups(client, session_factory)
+
+    response = client.get(_ENDPOINT.format(book_id), params={"pos": "null"})
+
+    assert response.status_code == 200
+    assert response.json()["groups"] == [
+        {"lemma": "leaf", "pos": None, "occurrence_count": 1},
+    ]
+
+
+@pytest.mark.unit
+def test_vocabulary_rejects_an_invalid_pos_selector(
+    vocabulary_client: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = vocabulary_client
+    book_id = _seed_groups(client, session_factory)
+
+    response = client.get(_ENDPOINT.format(book_id), params={"pos": "not-a-pos"})
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "INVALID_REQUEST"
+    assert "groups" not in response.json()
+
+
+@pytest.mark.unit
+def test_vocabulary_pos_selector_without_matching_groups_is_an_empty_success(
+    vocabulary_client: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, session_factory = vocabulary_client
+    book_id = _seed_groups(client, session_factory)
+
+    response = client.get(_ENDPOINT.format(book_id), params={"pos": "ADJ"})
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "id": book_id,
+        "group_count": 0,
+        "total_occurrence_count": 0,
+        "groups": [],
+    }
+
+
+@pytest.mark.unit
 def test_unknown_vocabulary_import_returns_a_content_free_not_found_error(
     vocabulary_client: tuple[TestClient, sessionmaker[Session]],
 ) -> None:

@@ -1,5 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { VocabularyBrowser } from "../../src/components/VocabularyBrowser";
 import type { VocabularyResult } from "../../src/types/vocabulary";
 
@@ -15,9 +15,20 @@ const vocabularyResult: VocabularyResult = {
   ],
 };
 
+const noOp = (): void => undefined;
+
 describe("VocabularyBrowser", () => {
+  it("offers an accessible POS selector including the untagged bucket", () => {
+    const onPosChange = vi.fn();
+
+    render(<VocabularyBrowser result={vocabularyResult} selectedPos={null} onPosChange={onPosChange} />);
+
+    expect(screen.getByRole("combobox", { name: "Filtrar por categoría gramatical" })).toHaveValue("");
+    expect(screen.getByRole("option", { name: "Sin anotar" })).toHaveValue("null");
+  });
+
   it("renders the received lemma, POS label, and occurrence count", () => {
-    render(<VocabularyBrowser result={vocabularyResult} />);
+    render(<VocabularyBrowser result={vocabularyResult} selectedPos={null} onPosChange={noOp} />);
 
     const firstRowCells = within(screen.getAllByRole("row")[1])
       .getAllByRole("cell")
@@ -27,7 +38,7 @@ describe("VocabularyBrowser", () => {
   });
 
   it("renders null lemma and POS values with distinct textual bucket labels", () => {
-    render(<VocabularyBrowser result={vocabularyResult} />);
+    render(<VocabularyBrowser result={vocabularyResult} selectedPos={null} onPosChange={noOp} />);
 
     const nullBucketCells = within(screen.getAllByRole("row")[2])
       .getAllByRole("cell")
@@ -43,7 +54,7 @@ describe("VocabularyBrowser", () => {
   });
 
   it("renders an unmapped POS tag instead of leaving its cell blank", () => {
-    render(<VocabularyBrowser result={vocabularyResult} />);
+    render(<VocabularyBrowser result={vocabularyResult} selectedPos={null} onPosChange={noOp} />);
 
     const unmappedCells = within(screen.getAllByRole("row")[4])
       .getAllByRole("cell")
@@ -53,10 +64,10 @@ describe("VocabularyBrowser", () => {
   });
 
   it("offers no interactive control that could submit a correction", () => {
-    render(<VocabularyBrowser result={vocabularyResult} />);
+    render(<VocabularyBrowser result={vocabularyResult} selectedPos={null} onPosChange={vi.fn()} />);
 
     expect(screen.queryAllByRole("button")).toHaveLength(0);
     expect(screen.queryAllByRole("textbox")).toHaveLength(0);
-    expect(screen.queryAllByRole("combobox")).toHaveLength(0);
+    expect(screen.getAllByRole("combobox")).toHaveLength(1);
   });
 });

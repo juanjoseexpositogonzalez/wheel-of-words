@@ -27,6 +27,18 @@ describe("getVocabulary", () => {
     expect(init?.method ?? "GET").toBe("GET");
   });
 
+  it("adds the selected POS query parameter without changing the request method", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify(result), { status: 200 }));
+
+    await expect(getVocabulary(7, "NOUN")).resolves.toEqual(result);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8000/api/v1/imports/7/vocabulary?pos=NOUN",
+    );
+  });
+
   it("rejects with the backend error message when the import is unknown", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(

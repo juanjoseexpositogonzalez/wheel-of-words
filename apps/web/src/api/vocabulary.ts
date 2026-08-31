@@ -14,8 +14,9 @@ async function parseOrThrow(response: Response): Promise<VocabularyResult> {
   return response.json() as Promise<VocabularyResult>;
 }
 
-export async function getVocabulary(importId: number): Promise<VocabularyResult> {
-  const response = await fetch(`${apiBaseUrl}/api/v1/imports/${importId}/vocabulary`);
+export async function getVocabulary(importId: number, pos?: string): Promise<VocabularyResult> {
+  const query = pos === undefined ? "" : `?pos=${encodeURIComponent(pos)}`;
+  const response = await fetch(`${apiBaseUrl}/api/v1/imports/${importId}/vocabulary${query}`);
 
   return parseOrThrow(response);
 }

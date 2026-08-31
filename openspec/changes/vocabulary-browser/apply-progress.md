@@ -696,3 +696,60 @@ None — the matrix reflects the completed work units and leaves the deferred PO
 - Current work unit: WU10 — traceability matrix.
 - Boundary: matrix citations, WU10 completion checkboxes, and this evidence record only.
 - Estimated review budget impact: documentation-only, below the 400-line budget.
+
+## Batch 11 — Corrective slice / REQ-005-006 (T63–T66)
+
+**Mode**: Strict TDD
+**Delivery**: single PR corrective slice
+**Branch**: `feat/vocabulary-browser-pos-filter`
+
+### Completed Tasks
+
+- [x] T63 [TEST] Added the four AC-005-06 API scenarios.
+- [x] T64 [IMPL] Added validated `pos` filtering on completed vocabulary groups.
+- [x] T65 [TEST] Added client selector serialization and page-level selector request coverage.
+- [x] T66 [TEST] Ran focused checks, quality checks, and Playwright on port 8010.
+
+### Files Changed
+
+| File | Action | What Was Done |
+|------|--------|---------------|
+| `apps/api/src/wheel_vocabulary/api/routes/vocabulary.py` | Modified | Validates `pos` against `UPOS_TAGS` plus `null`, then filters returned group keys without recalculating counts. |
+| `apps/api/tests/api/test_vocabulary_route.py` | Modified | Covers all four required POS-filter responses. |
+| `apps/web/src/api/vocabulary.ts` | Modified | Serializes an optional POS selector as a query parameter. |
+| `apps/web/src/components/VocabularyBrowser.tsx` | Modified | Renders an accessible selector including the untagged bucket. |
+| `apps/web/src/pages/ImportPage.tsx` | Modified | Reloads the API-owned group list when the selector changes. |
+| `apps/web/tests/api/vocabulary.test.ts` | Modified | Pins query serialization. |
+| `apps/web/tests/components/VocabularyBrowser.test.tsx` | Modified | Pins selector accessibility and the `null` option. |
+| `apps/web/tests/pages/ImportPage.test.tsx` | Modified | Pins selector-driven API reload. |
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| T63–T64 | `tests/api/test_vocabulary_route.py` | API | ✅ 7/7 related API and port tests | ✅ 4 failures: selector returned the unfiltered response and invalid input returned 200 | ✅ 8/8 API tests | ✅ NOUN, `null`, invalid input, and no-match cases | ➖ None needed |
+| T65 | `tests/api/vocabulary.test.ts`, `tests/components/VocabularyBrowser.test.tsx`, `tests/pages/ImportPage.test.tsx` | Client + component | ✅ 14/14 related frontend tests | ✅ Client omitted `?pos=NOUN`; selector was absent | ✅ 43/43 focused frontend tests | ✅ Client request, null option, and page selector reload | ✅ Preserved the no-selector client call after its existing page test caught an extra `undefined` argument |
+| T66 | Focused checks and E2E | API + E2E | ✅ Focused suites green | N/A | ✅ All listed commands passed | ✅ Existing import → annotate → vocabulary browser path exercised on a real port-8010 server | ➖ None needed |
+
+### Work Unit Evidence
+
+| Evidence | Result |
+|----------|--------|
+| Focused test command and exact result | `cd apps/api && uv run pytest tests/api/test_vocabulary_route.py tests/unit/test_no_lemma_naming.py tests/unit/test_no_confidence_action_or_propn_filter.py -q` → 50 passed. `cd apps/web && pnpm exec vitest run tests/components/VocabularyBrowser.test.tsx tests/pages/ImportPage.test.tsx tests/api/vocabulary.test.ts tests/contracts/no-lemma-naming.test.ts tests/contracts/no-linguistic-rules.test.ts` → 5 files, 43 tests passed. |
+| Runtime harness command/scenario and exact result | `cd apps/web && pnpm exec playwright test e2e/vocabulary.spec.ts` → 1 passed. Playwright started Uvicorn at `127.0.0.1:8010`; port 8000 was not touched. |
+| Rollback boundary | Revert the POS query handling, selector component/page/client wiring, their tests, and T63–T66/docs evidence; grouped vocabulary without a selector remains unchanged. |
+
+### Deviations from Design
+
+The corrective slice specifies `pos=null` as the NULL-POS wire selector. The original specification required an explicit NULL selector but did not name its literal representation. Filtering happens after the repository's precedence-resolved aggregate, so it predicates the group key and retains each group's count.
+
+### Issues Found
+
+The first frontend implementation passed `undefined` as a second argument on the unfiltered request. The existing page test detected the regression; the no-selector path now calls `getVocabulary(id)` exactly as before.
+
+### Workload / PR Boundary
+
+- Mode: single PR corrective slice.
+- Current work unit: REQ-005-006 POS filtering.
+- Boundary: backend query validation/filtering, frontend selector/client wiring, focused tests, traceability, and apply evidence only.
+- Estimated review budget impact: under 400 changed lines excluding prior artifacts.
